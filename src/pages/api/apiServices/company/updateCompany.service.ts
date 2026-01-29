@@ -1,5 +1,3 @@
-import isEmpty from 'lodash/isEmpty';
-
 import { removeNonNumeric } from '@helpers/format';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
@@ -83,12 +81,15 @@ const updateCompany = async (
     },
 
     metadata: {
-      ...(isEmpty(specificPCCFee)
-        ? { hasSpecificPCCFee: false, specificPCCFee: undefined }
-        : {
+      ...(specificPCCFee &&
+      specificPCCFee !== '' &&
+      specificPCCFee !== null &&
+      specificPCCFee !== undefined
+        ? {
             specificPCCFee: Number(removeNonNumeric(specificPCCFee)),
             hasSpecificPCCFee: true,
-          }),
+          }
+        : {}),
     },
   };
 
