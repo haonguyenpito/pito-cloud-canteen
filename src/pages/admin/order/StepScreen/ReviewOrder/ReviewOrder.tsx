@@ -15,6 +15,7 @@ import isEqual from 'lodash/isEqual';
 import { LinkIcon } from 'lucide-react';
 import { DateTime } from 'luxon';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 import Button from '@components/Button/Button';
@@ -623,6 +624,21 @@ export const ReviewContent: React.FC<any> = (props) => {
                   }}
                   className="w-4 h-4 text-blue-700"
                 />
+              </Tooltip>
+              <Tooltip
+                overlayClassName={css.toolTipOverlay}
+                trigger="hover"
+                placement="top"
+                tooltipContent="Nhấn vào để tải file xuống">
+                <Link
+                  href="/static/BIEN-BAN-XAC-NHAN.xlsx"
+                  download
+                  target="_blank"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}>
+                  Biên bản xác nhận
+                </Link>
               </Tooltip>
             </div>
           }>
