@@ -107,7 +107,7 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
   const handleConfirmDeleteAll = () => {
     dispatch(shoppingCartThunks.removeAllFromPlanCart({ planId }));
     setIsOpenConfirmDeleteAll(false);
-    dispatch(ParticipantPlanThunks.updateOrder({ orderId, planId }));
+    dispatch(ParticipantPlanThunks.placeOrder({ orderId, planId }));
   };
 
   const handleCloseConfirmDeleteAll = () => {

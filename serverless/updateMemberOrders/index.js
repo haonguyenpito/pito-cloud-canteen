@@ -45,9 +45,10 @@ exports.handler = async () => {
 
       return acc;
     }, {});
+    console.log('groupOrders', groupOrders);
     console.log('Update member orders started');
     const updateOrderDetails = await Promise.allSettled(
-      // restructute memberOrders to plan listing order detail
+      // restructure memberOrders to plan listing order detail
       Object.entries(groupOrders).map(async ([planId, memberOrders]) => {
         const planListingResponse = await integrationSdk.listings.show({
           id: planId,
@@ -105,7 +106,7 @@ exports.handler = async () => {
             memberOrdersWithPendingStatus.map(async (orderMember) => {
               await updateCollectionDoc(
                 orderMember.id,
-                { status: 'canceled' },
+                { status: 'canceled', updatedAt: new Date().toISOString() },
                 FIREBASE_MEMBER_ORDERS_COLLECTION_NAME,
               );
             }),
@@ -128,11 +129,21 @@ exports.handler = async () => {
                 (newMemberOrders, memberOrder) => {
                   const memberOrderData = memberOrder[orderDay];
                   if (!memberOrderData || typeof memberOrderData !== 'object') {
+                    console.error(
+                      `${orderDay}@@memberOrderData`,
+                      memberOrderData,
+                      'Member order data is not an object',
+                    );
+
                     return newMemberOrders;
                   }
                   const participantId = Object.keys(memberOrderData);
-                  const memberMeal = Object.values(memberOrderData)[0];
-                  newMemberOrders[participantId] = memberMeal;
+                  newMemberOrders[participantId] =
+                    memberOrderData[participantId];
+                  console.log(
+                    `${orderDay}@@newMemberOrders@@${participantId}`,
+                    newMemberOrders,
+                  );
 
                   return newMemberOrders;
                 },
@@ -143,6 +154,12 @@ exports.handler = async () => {
 
           return acc;
         }, {});
+        if (orderDays.length > 0) {
+          console.log(
+            `newOrderDetail@${planId}@${orderId}@${orderDays[0]}`,
+            newOrderDetail[orderDays[0]],
+          );
+        }
         // update plan listing order detail
         await integrationSdk.listings.update({
           id: planId,
@@ -160,6 +177,7 @@ exports.handler = async () => {
               documentId,
               {
                 status: 'completed',
+                updatedAt: new Date().toISOString(),
               },
               FIREBASE_MEMBER_ORDERS_COLLECTION_NAME,
             );
