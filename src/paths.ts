@@ -76,6 +76,7 @@ export const enGeneralPaths = {
     order: {
       '[orderId]': {
         index: (orderId: string) => `/admin/order/${orderId}`,
+        checklist: (orderId: string) => `/admin/order/${orderId}/checklist`,
       },
     },
   },
@@ -175,6 +176,7 @@ export const adminPaths = {
   UpdateDraftOrder: '/admin/order/create/[orderId]',
   EditOrder: '/admin/order/edit/[orderId]',
   OrderDetail: '/admin/order/[orderId]',
+  Checklist: '/admin/order/[orderId]/checklist/[subOrderDate]',
   ManageReviews: '/admin/reviews',
 };
 

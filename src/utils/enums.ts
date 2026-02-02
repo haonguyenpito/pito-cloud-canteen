@@ -138,6 +138,7 @@ export enum EListingType {
   rating = 'rating',
   quotation = 'quotation',
   log = 'log',
+  checklist = 'checklist',
 }
 
 export enum EOrderType {

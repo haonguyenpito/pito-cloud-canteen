@@ -153,6 +153,8 @@
   "AdminManagePartnersRoute.title": "Admin | Quản lý đối tác",
   "AdminOrderDetailRoute.description": "Chi tiết đơn hàng",
   "AdminOrderDetailRoute.title": "Admin | Chi tiết đơn hàng",
+  "AdminCheckListRoute.description": "Checklist đơn hàng",
+  "AdminCheckListRoute.title": "Admin | Checklist đơn hàng",
   "AdminPartnerPaymentRoute.description": "Thanh toán đối tác",
   "AdminPartnerPaymentRoute.title": "Admin | Thanh toán đối tác",
   "AdminOrderReviewRoute.description": "Đánh giá đơn hàng",

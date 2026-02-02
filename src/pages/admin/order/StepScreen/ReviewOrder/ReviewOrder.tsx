@@ -625,21 +625,16 @@ export const ReviewContent: React.FC<any> = (props) => {
                   className="w-4 h-4 text-blue-700"
                 />
               </Tooltip>
-              <Tooltip
-                overlayClassName={css.toolTipOverlay}
-                trigger="hover"
-                placement="top"
-                tooltipContent="Nhấn vào để tải file xuống">
-                <Link
-                  href="/static/BIEN-BAN-XAC-NHAN.xlsx"
-                  download
-                  target="_blank"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}>
-                  Biên bản xác nhận
-                </Link>
-              </Tooltip>
+              <Link
+                href={adminPaths.Checklist.replace(
+                  '[orderId]',
+                  orderId,
+                ).replace('[subOrderDate]', timeStamp)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}>
+                Biên bản xác nhận
+              </Link>
             </div>
           }>
           <RenderWhen condition={shouldShowFoodList}>

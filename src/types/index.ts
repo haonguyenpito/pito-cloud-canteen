@@ -6,6 +6,7 @@ import type {
   EMenuType,
   EUserRole,
 } from '@src/utils/enums';
+import type { ChecklistImage } from '@src/utils/types';
 
 import type { Assert, DeepPartial, Image, ListingBuilder } from './utils';
 
@@ -514,3 +515,35 @@ export type TQueryParams = {
   page: number;
   perPage: number;
 };
+
+export type ChecklistMetadata = {
+  listingType: 'checklist';
+  orderId: string;
+  subOrderDate: string;
+  implementationDate: string;
+  recordedTime: string;
+  responsibleStaffName: string;
+  clientName: string;
+  orderCode: string;
+  partnerName: string;
+  foodTakenOutTime: string;
+  foodSafetyTime: string;
+  qaQcSignature: string;
+  qaQcName: string;
+  partnerSignature?: string;
+  partnerNameSignature?: string;
+  clientSignature?: string;
+  clientNameSignature?: string;
+  images?: ChecklistImage[];
+};
+
+export type ChecklistListing = ListingBuilder<
+  {},
+  {},
+  ChecklistMetadata,
+  {},
+  {
+    images?: Image[];
+    author?: UserListing;
+  }
+>;
