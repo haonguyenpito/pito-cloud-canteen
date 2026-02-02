@@ -19,7 +19,7 @@ const AdminLayout: React.FC<PropsWithChildren> = (props) => {
   } = useBoolean(false);
   const { pathname } = useRouter();
 
-  if (pathname.includes('scanner')) {
+  if (pathname.includes('scanner') || pathname.includes('checklist')) {
     return (
       <div className="w-full mx-auto bg-[#F7E1EB] min-h-screen">{children}</div>
     );
