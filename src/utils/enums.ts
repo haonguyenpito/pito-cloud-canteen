@@ -487,6 +487,8 @@ export enum ESlackNotificationType {
   ADMIN_APPROVE_PARTNER_MENU = 'adminApprovePartnerMenu',
   ADMIN_REJECT_PARTNER_MENU = 'adminRejectPartnerMenu',
   PARTICIPANT_PLACE_ORDER_FAILED = 'participantPlaceOrderFailed',
+  HANDOVER_FOOD_CHECKLIST_CREATED = 'handoverFoodChecklistCreated',
+  HANDOVER_FOOD_CHECKLIST = 'handoverFoodChecklist',
 }
 
 export enum QuizStep {

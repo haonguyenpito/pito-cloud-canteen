@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from '@components/ui/form';
 import { Input } from '@components/ui/input';
+import { Textarea } from '@components/ui/textarea';
 import type { ChecklistListing, OrderListing } from '@src/types';
 import type { TOrderDetail } from '@src/types/order';
 
@@ -92,6 +93,7 @@ const formSchema = z
     foodSafetyTime: z.date({
       required_error: 'Vui lòng chọn thời gian an toàn của thực phẩm',
     }),
+    note: z.string().optional(),
     images: z
       .array(z.any())
       .max(MAX_IMAGES, `Tối đa ${MAX_IMAGES} ảnh`)
@@ -159,15 +161,22 @@ const getDefaultValues = ({
   recordedTime: toDateOrNow(checkList?.attributes?.metadata?.recordedTime),
   responsibleStaffName:
     checkList?.attributes?.metadata?.responsibleStaffName || '',
-  clientName: order?.attributes?.metadata?.companyName || '',
-  orderCode: order?.attributes?.title || '',
-  partnerName: orderDetail?.[subOrderDate]?.restaurant?.restaurantName || '',
+  clientName: checkList
+    ? checkList?.attributes?.metadata?.clientName
+    : order?.attributes?.metadata?.companyName || '',
+  orderCode: checkList
+    ? checkList?.attributes?.metadata?.orderCode
+    : `${order?.attributes?.title}_${new Date(Number(subOrderDate)).getDay()}`,
+  partnerName: checkList
+    ? checkList?.attributes?.metadata?.partnerName
+    : orderDetail?.[subOrderDate]?.restaurant?.restaurantName || '',
   foodTakenOutTime: toDateOrUndefined(
     checkList?.attributes?.metadata?.foodTakenOutTime,
   ),
   foodSafetyTime: toDateOrUndefined(
     checkList?.attributes?.metadata?.foodSafetyTime,
   ),
+  note: checkList?.attributes?.metadata?.note || '',
   images: checkList?.attributes?.metadata?.images || [],
   qaQcSignature: checkList?.attributes?.metadata?.qaQcSignature || '',
   qaQcName: checkList?.attributes?.metadata?.qaQcName || '',
@@ -233,7 +242,7 @@ export const FoodHandoverChecklistForm = ({
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h2 className="text-2xl font-semibold text-center mb-8 text-gray-700">
-        Food Handover To Client For
+        Biên bản bàn giao thức ăn sau phục vụ
       </h2>
       <Form {...form}>
         <form onSubmit={handleSubmit} className="w-full">
@@ -414,6 +423,30 @@ export const FoodHandoverChecklistForm = ({
 
             <FormField
               control={form.control}
+              name="note"
+              render={({ field }) => (
+                <FormItem
+                  className={classNames(
+                    'flex flex-col gap-2',
+                    'col-span-1 md:col-span-2',
+                  )}>
+                  <FormLabel>9. Ghi chú</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      disabled={isCreated}
+                      placeholder="Nhập ghi chú"
+                      className="w-full border border-solid border-gray-300"
+                      rows={6}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="images"
               render={({ field }) => (
                 <FormItem
@@ -422,7 +455,7 @@ export const FoodHandoverChecklistForm = ({
                     'col-span-1 md:col-span-2',
                   )}>
                   <FormLabel>
-                    9. Hình ảnh thực phẩm bàn giao (tối đa {MAX_IMAGES} ảnh)
+                    10. Hình ảnh thực phẩm bàn giao (tối đa {MAX_IMAGES} ảnh)
                     <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
