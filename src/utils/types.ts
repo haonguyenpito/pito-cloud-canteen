@@ -782,3 +782,28 @@ export type TFoodDataValue = {
   numberOfMainDishes: number;
   notes?: string[];
 };
+
+export type ChecklistImage = {
+  imageUrl: string;
+  imageId: string;
+  uploadedAt?: number;
+};
+
+export type TCreateChecklistApiBody = {
+  implementationDate: Date | string;
+  recordedTime: Date | string;
+  responsibleStaffName: string;
+  clientName: string;
+  orderCode: string;
+  partnerName: string;
+  foodTakenOutTime: Date | string;
+  foodSafetyTime: Date | string;
+  note?: string;
+  images: ChecklistImage[];
+  qaQcSignature: string;
+  qaQcName: string;
+  partnerSignature?: string;
+  partnerNameSignature?: string;
+  clientSignature?: string;
+  clientNameSignature?: string;
+};

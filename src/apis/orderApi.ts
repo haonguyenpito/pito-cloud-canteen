@@ -1,3 +1,5 @@
+import type { AxiosResponse } from 'axios';
+
 import type {
   POSTUpdateStateBody,
   UpdateStateParams,
@@ -6,7 +8,9 @@ import type { PUTMemberOrderBody } from '@pages/api/orders/[orderId]/member-orde
 import type { POSTRemindMemberBody } from '@pages/api/orders/[orderId]/remind-member/index.api';
 import type { GETRestaurantsRecommendationJSONParams } from '@pages/api/orders/[orderId]/restaurants-recommendation/index.api';
 import type { PUTUpdateOrderDetailFromDraftBody } from '@pages/api/orders/[orderId]/update-order-detail-from-draft.api';
-import type { TObject } from '@utils/types';
+import type { ChecklistListing } from '@src/types';
+import type { ApiResponse } from '@src/utils/response';
+import type { TCreateChecklistApiBody, TObject } from '@utils/types';
 
 import type { TBodyParams } from './configs';
 import { deleteApi, getApi, postApi, putApi } from './configs';
@@ -240,4 +244,36 @@ export const sendOrderChangeFirebaseNotificationToPartnerApi = (
   postApi(
     `/orders/${orderId}/send-order-change-firebase-notification-to-partner`,
     params,
+  );
+
+/**
+ * Get order data for participant
+ * @param orderId - Order ID
+ * @returns Order data
+ */
+export const getOrderApi = (orderId: string) => getApi(`/orders/${orderId}`);
+
+/**
+ * Create checklist
+ * @param orderId - Order ID
+ * @param subOrderDate - Sub order date
+ * @param body - Checklist body
+ * @returns Checklist data
+ */
+export const createChecklistApi = (
+  orderId: string,
+  subOrderDate: string,
+  body: TCreateChecklistApiBody,
+): Promise<AxiosResponse<ApiResponse<ChecklistListing>>> =>
+  postApi(`/orders/${orderId}/checklist/${subOrderDate}`, body);
+
+/**
+ * Get checklist
+ * @param orderId - Order ID
+ * @param subOrderDate - Sub order date
+ * @returns Checklist data
+ */
+export const getChecklistApi = (orderId: string, subOrderDate: string) =>
+  getApi<ApiResponse<ChecklistListing>>(
+    `/orders/${orderId}/checklist/${subOrderDate}`,
   );

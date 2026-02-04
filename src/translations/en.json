@@ -153,6 +153,8 @@
   "AdminManagePartnersRoute.title": "Admin | Manage partners",
   "AdminOrderDetailRoute.description": "Order details",
   "AdminOrderDetailRoute.title": "Admin | Order details",
+  "AdminCheckListRoute.description": "Order checklist",
+  "AdminCheckListRoute.title": "Admin | Order checklist",
   "AdminPartnerPaymentRoute.description": "Partner payment",
   "AdminPartnerPaymentRoute.title": "Admin | Partner payment",
   "AdminOrderReviewRoute.description": "Order reviews",
