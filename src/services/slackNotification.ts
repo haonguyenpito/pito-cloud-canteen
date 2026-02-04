@@ -1218,7 +1218,7 @@ export const createSlackNotification = async (
         );
 
         await axios.post(
-          process.env.SLACK_WEBHOOK_URL,
+          process.env.SLACK_OPERATION_WEBHOOK_URL,
           {
             blocks: [
               {
