@@ -174,6 +174,12 @@ type SlackNotificationParams = {
     error: string;
     userEmail: string;
   };
+  handoverFoodChecklistData?: {
+    companyName: string;
+    recordedTime: Date | string | number;
+    checklistLink: string;
+    orderCode: string;
+  };
 };
 
 export const createSlackNotification = async (
@@ -1182,6 +1188,65 @@ export const createSlackNotification = async (
                 text: {
                   type: 'mrkdwn',
                   text: `*User Order:*\n${JSON.stringify(userOrder)}`,
+                },
+              },
+            ],
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+        break;
+      }
+
+      case ESlackNotificationType.HANDOVER_FOOD_CHECKLIST: {
+        if (!notificationParams.handoverFoodChecklistData) return;
+
+        const { companyName, recordedTime, checklistLink, orderCode } =
+          notificationParams.handoverFoodChecklistData;
+
+        // Format recordedTime to "HH:mm:ss d/M/yyyy"
+        const formattedTime = formatTimestamp(
+          typeof recordedTime === 'string'
+            ? new Date(recordedTime).getTime()
+            : typeof recordedTime === 'number'
+            ? recordedTime
+            : recordedTime.getTime(),
+          'HH:mm:ss d/M/yyyy',
+        );
+
+        await axios.post(
+          process.env.SLACK_WEBHOOK_URL,
+          {
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: ':heart: *Miễn trừ trách nhiệm thức ăn sau phục vụ*',
+                },
+              },
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `*${companyName}* đã xác nhận biên bản bàn giao thức ăn sau thời gian phục vụ lúc: *${formattedTime}*`,
+                },
+              },
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `  • *Mã đơn hàng:* ${orderCode}`,
+                },
+              },
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `  • *Biên bản đã ký:* <${checklistLink}|Xem biên bản>`,
                 },
               },
             ],

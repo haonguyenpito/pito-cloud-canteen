@@ -528,6 +528,7 @@ export type ChecklistMetadata = {
   partnerName: string;
   foodTakenOutTime: string;
   foodSafetyTime: string;
+  note?: string;
   qaQcSignature: string;
   qaQcName: string;
   partnerSignature?: string;

@@ -798,6 +798,7 @@ export type TCreateChecklistApiBody = {
   partnerName: string;
   foodTakenOutTime: Date | string;
   foodSafetyTime: Date | string;
+  note?: string;
   images: ChecklistImage[];
   qaQcSignature: string;
   qaQcName: string;

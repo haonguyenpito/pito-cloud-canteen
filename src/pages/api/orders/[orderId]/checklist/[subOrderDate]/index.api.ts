@@ -5,12 +5,18 @@ import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
 import adminChecker from '@services/permissionChecker/admin';
 import { getIntegrationSdk, getSdk } from '@services/sdk';
+import { createSlackNotification } from '@services/slackNotification';
+import { adminPaths } from '@src/paths';
 import {
   FailedResponse,
   HttpStatus,
   SuccessResponse,
 } from '@src/utils/response';
-import { EListingStates, EListingType } from '@utils/enums';
+import {
+  EListingStates,
+  EListingType,
+  ESlackNotificationType,
+} from '@utils/enums';
 import type { TCreateChecklistApiBody } from '@utils/types';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -58,6 +64,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           partnerName,
           foodTakenOutTime,
           foodSafetyTime,
+          note,
           images,
           qaQcSignature,
           qaQcName,
@@ -110,6 +117,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             clientName,
             orderCode,
             partnerName,
+            note,
             foodTakenOutTime,
             foodSafetyTime,
             images: imagesWithTimestamp,
@@ -122,6 +130,27 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           },
         });
         const [checklist] = denormalisedResponseEntities(checklistResponse);
+
+        // Send Slack notification
+        if (checklist) {
+          const BASE_URL = process.env.NEXT_PUBLIC_CANONICAL_URL;
+          const checklistLink = `${BASE_URL}${adminPaths.Checklist.replace(
+            '[orderId]',
+            orderId,
+          ).replace('[subOrderDate]', subOrderDate)}`;
+
+          createSlackNotification(
+            ESlackNotificationType.HANDOVER_FOOD_CHECKLIST,
+            {
+              handoverFoodChecklistData: {
+                companyName: clientName,
+                recordedTime,
+                checklistLink,
+                orderCode,
+              },
+            },
+          );
+        }
 
         return new SuccessResponse({
           data: checklist ?? null,

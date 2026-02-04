@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { shallowEqual } from 'react-redux';
 import { toast } from 'react-toastify';
 import { AlertCircleIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useCheckListForm from '@hooks/useCheckListForm';
 import { orderManagementThunks } from '@redux/slices/OrderManagement.slice';
+import { adminPaths } from '@src/paths';
 import type { ChecklistListing } from '@src/types';
 import type { ChecklistImage } from '@utils/types';
 
@@ -20,6 +22,7 @@ interface CheckListPageProps {
 const CheckListPage = ({ orderId, subOrderDate }: CheckListPageProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistListing | null>(null);
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const { createChecklist, getChecklist, isGetChecklistLoading } =
     useCheckListForm(orderId, subOrderDate);
@@ -101,7 +104,8 @@ const CheckListPage = ({ orderId, subOrderDate }: CheckListPageProps) => {
     } finally {
       setIsSubmitting(false);
     }
-    toast.success('Lưu checklist thành công');
+    toast.success('Xác nhận biên bản thành công');
+    router.push(adminPaths.OrderDetail.replace('[orderId]', orderId));
   };
 
   const isPageLoading = isLoading || isGetChecklistLoading;
