@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
+import { fetchListing, fetchUser } from '@services/integrationHelper';
 import adminChecker from '@services/permissionChecker/admin';
 import { getIntegrationSdk, getSdk } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
@@ -54,7 +55,6 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     case HttpMethod.POST:
       try {
         const integrationSdk = getIntegrationSdk();
-        const sdk = getSdk(req, res);
         const {
           implementationDate,
           recordedTime,
@@ -99,10 +99,18 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           imageId: img.imageId,
           uploadedAt: img.uploadedAt || Date.now(),
         }));
-        const [currentUser] = denormalisedResponseEntities(
-          await sdk.currentUser.show(),
-        );
-        const { subAccountId } = currentUser.attributes.profile.privateData;
+        const orderListing = await fetchListing(orderId);
+        const { companyId } = orderListing.attributes.metadata;
+        const companyAccount = await fetchUser(companyId);
+        const { subAccountId } = companyAccount.attributes.profile.privateData;
+
+        if (!subAccountId) {
+          return new FailedResponse({
+            status: HttpStatus.INTERNAL_SERVER_ERROR,
+            message: 'Company sub account not found',
+          }).send(res);
+        }
+
         const checklistResponse = await integrationSdk.listings.create({
           title: `Checklist for ${orderCode} - ${subOrderDate}`,
           authorId: subAccountId,

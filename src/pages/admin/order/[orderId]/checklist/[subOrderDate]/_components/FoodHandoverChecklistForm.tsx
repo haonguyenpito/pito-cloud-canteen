@@ -523,53 +523,6 @@ export const FoodHandoverChecklistForm = ({
                 />
               </div>
 
-              {/* Partner Column */}
-              <div className="flex flex-col gap-4">
-                <FormField
-                  control={form.control}
-                  name="partnerSignature"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col gap-2">
-                      <FormLabel className="text-sm font-medium">
-                        Đối tác (Nếu có)
-                      </FormLabel>
-                      <FormControl>
-                        <SignatureField
-                          disabled={isCreated}
-                          value={field.value || ''}
-                          onChange={(signature) =>
-                            field.onChange(signature ?? '')
-                          }
-                          label="Ký tên"
-                          required={false}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="partnerNameSignature"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col gap-2">
-                      <FormLabel className="text-xs text-gray-600">
-                        (Ký tên và ghi rõ họ tên)
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          disabled={isCreated}
-                          placeholder="Ghi rõ họ tên"
-                          className="w-full"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               {/* Client Column */}
               <div className="flex flex-col gap-4">
                 <FormField
@@ -598,6 +551,53 @@ export const FoodHandoverChecklistForm = ({
                 <FormField
                   control={form.control}
                   name="clientNameSignature"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-2">
+                      <FormLabel className="text-xs text-gray-600">
+                        (Ký tên và ghi rõ họ tên)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          disabled={isCreated}
+                          placeholder="Ghi rõ họ tên"
+                          className="w-full"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Partner Column */}
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="partnerSignature"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-2">
+                      <FormLabel className="text-sm font-medium">
+                        Đối tác (Nếu có)
+                      </FormLabel>
+                      <FormControl>
+                        <SignatureField
+                          disabled={isCreated}
+                          value={field.value || ''}
+                          onChange={(signature) =>
+                            field.onChange(signature ?? '')
+                          }
+                          label="Ký tên"
+                          required={false}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="partnerNameSignature"
                   render={({ field }) => (
                     <FormItem className="flex flex-col gap-2">
                       <FormLabel className="text-xs text-gray-600">

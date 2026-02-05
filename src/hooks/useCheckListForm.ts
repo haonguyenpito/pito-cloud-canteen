@@ -24,7 +24,7 @@ const useCheckListForm = (orderId: string, subOrderDate: string) => {
         setIsCreateChecklistLoading(true);
         const response = await createChecklistApi(orderId, subOrderDate, body);
 
-        return response.data.data;
+        return response.data;
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('Error creating checklist:', error);

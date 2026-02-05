@@ -13,7 +13,7 @@ type DatePickerFieldProps = {
   className?: string;
 };
 
-export const DatePickerField: React.FC<DatePickerFieldProps> = ({
+export const DatePickerField = ({
   value,
   onChange,
   placeholder = 'Chọn ngày',
@@ -21,7 +21,7 @@ export const DatePickerField: React.FC<DatePickerFieldProps> = ({
   maxDate,
   disabled = false,
   className,
-}) => {
+}: DatePickerFieldProps) => {
   const handleChange = (date: Date | null) => {
     onChange(date);
   };
