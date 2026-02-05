@@ -13,14 +13,14 @@ type SignatureFieldProps = {
   className?: string;
 };
 
-export const SignatureField: React.FC<SignatureFieldProps> = ({
+export const SignatureField = ({
   value,
   onChange,
   label,
   required = false,
   disabled = false,
   className,
-}) => {
+}: SignatureFieldProps) => {
   const signatureRef = useRef<SignatureCanvas>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSigned, setIsSigned] = useState(false);
