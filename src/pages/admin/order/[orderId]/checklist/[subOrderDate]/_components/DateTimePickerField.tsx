@@ -13,7 +13,7 @@ type DateTimePickerFieldProps = {
   className?: string;
 };
 
-export const DateTimePickerField: React.FC<DateTimePickerFieldProps> = ({
+export const DateTimePickerField = ({
   value,
   onChange,
   placeholder = 'Chọn ngày và giờ',
@@ -21,7 +21,7 @@ export const DateTimePickerField: React.FC<DateTimePickerFieldProps> = ({
   maxDate,
   disabled = false,
   className,
-}) => {
+}: DateTimePickerFieldProps) => {
   const handleChange = (date: Date | null) => {
     onChange(date);
   };

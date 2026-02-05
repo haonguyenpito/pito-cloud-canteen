@@ -25,12 +25,12 @@ type ImageUploadFieldProps = {
   disabled?: boolean;
 };
 
-export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
+export const ImageUploadField = ({
   value = [],
   onChange,
   maxImages = 10,
   disabled = false,
-}) => {
+}: ImageUploadFieldProps) => {
   const intl = useIntl();
   const dispatch = useAppDispatch();
   const [localImages, setLocalImages] = useState<ImageItem[]>(value);

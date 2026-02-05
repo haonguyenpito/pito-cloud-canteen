@@ -10,6 +10,8 @@ import useCheckListForm from '@hooks/useCheckListForm';
 import { orderManagementThunks } from '@redux/slices/OrderManagement.slice';
 import { adminPaths } from '@src/paths';
 import type { ChecklistListing } from '@src/types';
+import { Listing } from '@src/utils/data';
+import { HttpStatus } from '@src/utils/response';
 import type { ChecklistImage } from '@utils/types';
 
 import type { FoodHandoverChecklistFormValues } from './_components/FoodHandoverChecklistForm';
@@ -95,20 +97,24 @@ const CheckListPage = ({ orderId, subOrderDate }: CheckListPageProps) => {
       };
 
       const res = await createChecklist(apiBody);
-      if (res) {
-        setChecklist(res);
+      if (res.status === HttpStatus.CREATED) {
+        toast.success('Xác nhận biên bản thành công');
+        router.push(adminPaths.OrderDetail.replace('[orderId]', orderId));
+      } else {
+        toast.error('Có lỗi xảy ra khi lưu checklist');
       }
     } catch (error) {
       console.error('Error saving checklist:', error);
-      toast.error('Có lỗi xảy ra khi lưu checklist');
     } finally {
       setIsSubmitting(false);
     }
-    toast.success('Xác nhận biên bản thành công');
-    router.push(adminPaths.OrderDetail.replace('[orderId]', orderId));
   };
 
-  const isPageLoading = isLoading || isGetChecklistLoading;
+  const isPageLoading =
+    isLoading ||
+    isGetChecklistLoading ||
+    !order ||
+    Listing(order).getId() !== orderId;
 
   return (
     <div className="w-full min-h-screen bg-gray-50">
