@@ -4,9 +4,9 @@
 .root {
   margin-top: $adminTopbarHeight;
   min-height: calc(100vh - $adminTopbarHeight);
-  width: calc(100vw - $adminSidebarLeftPartWidth);
+  width: 100vw;
   transition: all 0.5s;
-  margin-left: $adminSidebarLeftPartWidth;
+  margin-left: 0;
 
   @include viewportLarge {
     margin-left: $adminSidebarWidth;
@@ -17,12 +17,15 @@
 .container {
   background-color: $neutralGray1;
   border-radius: 6px;
-  padding: 19px 40px 40px 40px;
-  width: calc(100vw - $adminSidebarLeftPartWidth);
-  max-width: calc(100vw - $adminSidebarLeftPartWidth);
+  padding: 16px;
+  width: 100%;
+  max-width: 100%;
+
+  @include viewportMedium {
+    padding: 19px 24px 40px 24px;
+  }
 
   @include viewportLarge {
-    width: calc(100vw - $adminSidebarWidth);
-    max-width: calc(100vw - $adminSidebarWidth);
+    padding: 19px 40px 40px 40px;
   }
 }

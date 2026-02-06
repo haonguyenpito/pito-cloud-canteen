@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 
 import Button from '@components/Button/Button';
 import IconLightOutline from '@components/Icons/IconLightOutline/IconLightOutline';
+import { cn } from '@components/lib/utils';
 import AlertModal from '@components/Modal/AlertModal';
 import OutsideClickHandler from '@components/OutsideClickHandler/OutsideClickHandler';
 import RenderWhen from '@components/RenderWhen/RenderWhen';
@@ -176,8 +177,8 @@ const OrderHeaderState: React.FC<OrderHeaderStateProps> = (props) => {
 
   return (
     <div className={css.header}>
-      <div className={css.orderTitle}>
-        <div className={css.titleLabel}>Đơn hàng </div>
+      <div className={cn(css.orderTitle, 'flex flex-col md:flex-row')}>
+        <div className={cn(css.titleLabel, 'hidden md:block')}>Đơn hàng </div>
         <div className={css.orderId}>{`#${title}`}</div>
         <div className={statusClasses}>{orderStateLabel}</div>
         <div className={css.action}>
