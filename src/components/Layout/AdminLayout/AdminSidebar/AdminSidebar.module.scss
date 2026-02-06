@@ -3,7 +3,7 @@
 
 .root {
   display: flex;
-  height: 100vh;
+  height: 100%;
   background-color: $neutralGray1;
   &::after {
     content: '';
@@ -65,15 +65,19 @@
   }
 
   .rightSide {
-    padding: 32px 16px 0 16px;
+    padding: 24px 16px 0 16px;
     width: 220px;
     position: absolute;
     background-color: $neutralGray1;
     border-right: 1px solid #d9d9d9;
     left: -$adminSidebarRightPartWidth;
     transition: left 0.3s ease-in;
+    height: 100%;
+    overflow-y: auto;
+
     @include viewportLarge {
       left: $adminSidebarLeftPartWidth;
+      padding: 32px 16px 0 16px;
     }
     .menuLabel {
       font-size: 18px;

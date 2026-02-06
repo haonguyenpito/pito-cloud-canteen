@@ -10,10 +10,26 @@
   .infor {
     padding-left: 16px;
     .inforRow {
-      display: grid;
-      grid-template-columns: 1fr 4fr;
-      margin-top: 16px;
-      align-items: center;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px; 
+      
+      @media (min-width: 768px) {
+        flex-direction: row;
+        gap: 16px;
+        margin-top: 16px;
+        align-items: flex-start;
+      }
+
+      .inforTitle {
+        min-width: 180px;
+        flex-shrink: 0;
+        
+        @media (min-width: 768px) {
+          min-width: 200px;
+        }
+      }
 
       .inforValue {
         font-weight: $fontWeightSemiBold;

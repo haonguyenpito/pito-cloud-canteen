@@ -4,6 +4,7 @@ import classNames from 'classnames';
 
 import Button from '@components/Button/Button';
 import { FieldTextInputComponent } from '@components/FormFields/FieldTextInput/FieldTextInput';
+import { cn } from '@components/lib/utils';
 import RenderWhen from '@components/RenderWhen/RenderWhen';
 import { Listing, User } from '@src/utils/data';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
@@ -91,7 +92,7 @@ const OrderHeaderInfor: React.FC<OrderHeaderInforProps> = (props) => {
   );
 
   return (
-    <div className={containerClasses}>
+    <div className={cn(containerClasses, 'p-0')}>
       <div className={css.title}>THÔNG TIN ĐẶT HÀNG</div>
       <ol className={css.infor}>
         <li>

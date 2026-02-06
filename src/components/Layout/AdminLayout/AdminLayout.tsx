@@ -26,7 +26,7 @@ const AdminLayout: React.FC<PropsWithChildren> = (props) => {
   }
 
   return (
-    <AdminLayoutWrapper>
+    <AdminLayoutWrapper isMenuOpen={isMenuOpen} onCloseMenu={onCloseMenu}>
       <AdminLayoutTopbar>
         <AdminHeader onMenuClick={toggleMenuOpen} />
       </AdminLayoutTopbar>

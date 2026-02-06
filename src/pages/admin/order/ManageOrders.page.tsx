@@ -957,7 +957,7 @@ const ManageOrdersPage = ({ showOrderType }: { showOrderType?: boolean }) => {
             </Tooltip>
           }
           rightFilters={
-            <>
+            <div className="flex flex-col items-end gap-2 md:flex-row">
               <DeliveryAgentsMealsSettingDialog />
               <Tooltip
                 tooltipContent={
@@ -996,7 +996,7 @@ const ManageOrdersPage = ({ showOrderType }: { showOrderType?: boolean }) => {
                   })}
                 </Button>
               </Tooltip>
-            </>
+            </div>
           }
         />
       </div>

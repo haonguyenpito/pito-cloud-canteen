@@ -608,7 +608,7 @@ export const ReviewContent: React.FC<any> = (props) => {
 
         <Collapsible
           label={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-xs md:text-lg">
               {intl.formatMessage({
                 id: 'ReviewOrder.menuLabel',
               })}
