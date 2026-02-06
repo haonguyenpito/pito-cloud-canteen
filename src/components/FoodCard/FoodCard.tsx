@@ -8,6 +8,7 @@ import IconPlusCircle from '@components/Icons/IconPlusCircle/IconPlusCircle';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import { addCommas } from '@helpers/format';
 import { getLabelByKey, useFoodTypeOptionsByLocale } from '@src/utils/options';
+import { getDecorator } from '@src/utils/string';
 import { Listing } from '@utils/data';
 import { EFoodType, EImageVariants } from '@utils/enums';
 import type { TListing } from '@utils/types';
@@ -64,13 +65,28 @@ const FoodCard: React.FC<TFoodCardProps> = ({
         '!border-stone-200 hover:!border-stone-400 cursor-pointer',
       )}
       onClick={handleClickFood}>
-      <div className={css.coverImage}>
-        <ResponsiveImage
-          alt="food"
-          image={Listing(food!).getImages()[0]}
-          variants={[EImageVariants.default]}
-          emptyType="food"
-        />
+      <div
+        className={classNames(
+          css.coverImage,
+          'relative w-[120px] h-[100px] rounded-lg overflow-hidden flex-shrink-0',
+        )}>
+        {Listing(food!).getImages().length > 0 ? (
+          <ResponsiveImage
+            alt="food"
+            image={Listing(food!).getImages()[0]}
+            variants={[EImageVariants.default]}
+            className="w-full h-full object-cover"
+            emptyType="food"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <img
+              src={getDecorator(Listing(food!).getId())}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
       </div>
       <div className={css.contentContainer}>
         <div className={css.topInfor}>

@@ -196,7 +196,7 @@ const SubOrderReviewModal: React.FC<SubOrderReviewModalProps> = (props) => {
                         {reply.replyRole && renderReplyRole(reply.replyRole)}
                       </div>
                     </div>
-                    <p className="text-gray-700 text-sm leading-relaxed ml-8">
+                    <p className="text-gray-700 text-sm leading-relaxed ml-8 whitespace-pre-line break-words">
                       {reply.replyContent}
                     </p>
                   </div>

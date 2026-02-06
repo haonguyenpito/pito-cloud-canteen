@@ -376,7 +376,7 @@ const ReviewCard = ({
                   </div>
                 )}
               </div>
-              <p className="text-gray-700 text-sm leading-relaxed ml-8">
+              <p className="text-gray-700 text-sm leading-relaxed ml-8 whitespace-pre-line break-words">
                 {reply.replyContent}
               </p>
               {isPartnerView && reply.status === 'pending' && (

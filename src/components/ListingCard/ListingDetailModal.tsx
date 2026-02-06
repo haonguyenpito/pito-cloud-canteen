@@ -18,7 +18,7 @@ import {
   FOOD_SIDE_DISH_OPTIONS,
   FOOD_SPECIAL_DIET_OPTIONS,
 } from '@src/utils/options';
-import { toNonAccentVietnamese } from '@src/utils/string';
+import { getDecorator, toNonAccentVietnamese } from '@src/utils/string';
 import type { TKeyValue } from '@src/utils/types';
 import { maxLength } from '@src/utils/validators';
 
@@ -32,20 +32,6 @@ type TListingDetailModalProps = {
   onClose: () => void;
   onSelectFood: () => void;
   onChangeRequirement: (value: string) => void;
-};
-
-const DECORATORS: string[] = [
-  '/static/loading-asset-1.png',
-  '/static/loading-asset-2.png',
-  '/static/loading-asset-3.png',
-  '/static/loading-asset-4.png',
-];
-
-const getDecorator = (id: string): string => {
-  if (!id) return DECORATORS[0];
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-  return DECORATORS[hash % DECORATORS.length];
 };
 
 const ListingDetailModal: React.FC<TListingDetailModalProps> = (props) => {
