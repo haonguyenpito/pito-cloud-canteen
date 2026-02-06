@@ -1,10 +1,18 @@
 @use '/src/styles/vars.scss' as *;
 @use '/src/styles/mixins.scss' as *;
+@use '/src/styles/customMediaQueries.scss' as *;
 
 .root {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  @include viewportMedium {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
 
   li[title] {
     border-radius: 4px;
@@ -14,25 +22,146 @@
       border-color: $neutralGray7;
     }
   }
+
+  // Responsive adjustments for rc-pagination items
+  :global(.rc-pagination-item) {
+    min-width: 24px;
+    height: 24px;
+    margin-right: 6px;
+    line-height: 22px;
+    font-size: 11px;
+
+    @include viewportSmall {
+      min-width: 26px;
+      height: 26px;
+      margin-right: 8px;
+      line-height: 24px;
+      font-size: 12px;
+    }
+
+    @include viewportMedium {
+      min-width: 28px;
+      height: 28px;
+      margin-right: 12px;
+      line-height: 26px;
+    }
+
+    a {
+      padding: 0 4px;
+
+      @include viewportSmall {
+        padding: 0 5px;
+      }
+
+      @include viewportMedium {
+        padding: 0 6px;
+      }
+    }
+  }
+
+  // Responsive adjustments for prev/next buttons
+  :global(.rc-pagination-prev),
+  :global(.rc-pagination-next) {
+    min-width: 24px;
+    height: 24px;
+    margin-right: 6px;
+
+    @include viewportSmall {
+      min-width: 26px;
+      height: 26px;
+      margin-right: 8px;
+    }
+
+    @include viewportMedium {
+      min-width: 28px;
+      height: 28px;
+      margin-right: 8px;
+    }
+  }
+
+  // Responsive adjustments for jump buttons
+  :global(.rc-pagination-jump-prev),
+  :global(.rc-pagination-jump-next) {
+    min-width: 24px;
+    height: 24px;
+    margin-right: 6px;
+
+    @include viewportSmall {
+      min-width: 26px;
+      height: 26px;
+      margin-right: 8px;
+    }
+
+    @include viewportMedium {
+      min-width: 28px;
+      height: 28px;
+      margin-right: 8px;
+    }
+
+    button {
+      width: 24px;
+      height: 24px;
+      margin-right: 2px;
+
+      @include viewportSmall {
+        width: 26px;
+        height: 26px;
+        margin-right: 3px;
+      }
+
+      @include viewportMedium {
+        width: 28px;
+        height: 28px;
+        margin-right: 4px;
+      }
+    }
+  }
 }
 
 .paginationInfoContainer {
-  margin-right: 16px;
+  margin-right: 8px;
+  order: 1;
+
+  @include viewportSmall {
+    margin-right: 12px;
+  }
+
+  @include viewportMedium {
+    margin-right: 16px;
+    order: 0;
+  }
+
   .paginationInfo {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: $fontWeightRegular;
     color: $neutralGray7;
+    white-space: nowrap;
+
+    @include viewportSmall {
+      font-size: 12px;
+    }
   }
 }
 
 .nextIconContainer,
 .prevIconContainer {
   @include flexCenter;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: 1px solid $neutralGray3;
   border-radius: 4px;
   transition: all 0.3s;
+  flex-shrink: 0;
+
+  @include viewportSmall {
+    width: 26px;
+    height: 26px;
+  }
+
+  @include viewportMedium {
+    width: 28px;
+    height: 28px;
+  }
 
   &:hover {
     border-color: $neutralGray7;

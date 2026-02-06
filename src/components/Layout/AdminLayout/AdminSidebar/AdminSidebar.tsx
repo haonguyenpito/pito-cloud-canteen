@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import classNames from 'classnames';
 import { useRouter } from 'next/router';
@@ -14,6 +14,7 @@ import type { TSidebarMenu } from '@components/MultiLevelSidebar/MultiLevelSideb
 import MultiLevelSidebar from '@components/MultiLevelSidebar/MultiLevelSidebar';
 import NamedLink from '@components/NamedLink/NamedLink';
 import OutsideClickHandler from '@components/OutsideClickHandler/OutsideClickHandler';
+import { useViewport } from '@hooks/useViewport';
 import { adminPaths, adminRoutes } from '@src/paths';
 
 import css from './AdminSidebar.module.scss';
@@ -236,14 +237,67 @@ const AdminSidebar: React.FC<TAdminSidebarProps> = (props) => {
     [pathname],
   );
 
+  const { isMobileLayout } = useViewport();
+
+  const [selectedMenu, setSelectedMenu] = useState<TSidebarMenu | null>(
+    activeMenu || null,
+  );
+
+  useEffect(() => {
+    if (activeMenu) {
+      setSelectedMenu(activeMenu);
+    }
+  }, [activeMenu]);
+
+  const handleIconClick = (item: TSidebarMenu) => {
+    const isMobile = isMobileLayout;
+
+    if (item.childrenMenus && item.childrenMenus.length > 0) {
+      if (isMobile) {
+        setSelectedMenu(item);
+
+        return;
+      }
+      if (item.nameLink) {
+        router.push(item.nameLink);
+
+        return;
+      }
+      setSelectedMenu(item);
+
+      return;
+    }
+
+    if (item.nameLink) {
+      router.push(item.nameLink);
+    }
+  };
+
+  const displayMenu = selectedMenu || activeMenu;
+
   return (
-    <OutsideClickHandler onOutsideClick={onCloseMenu}>
+    <OutsideClickHandler className="h-full" onOutsideClick={onCloseMenu}>
       <div className={css.root}>
         <div className={css.leftSide}>
           {LIST_SIDEBAR_MENU.map((item: TSidebarMenu) => {
             const { Icon, id, nameLink } = item;
 
             const isActive = activeMenu?.id === item.id;
+            const isSelected = selectedMenu?.id === item.id;
+
+            if (item.childrenMenus && item.childrenMenus.length > 0) {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleIconClick(item)}
+                  className={classNames(css.sidebarButton, {
+                    [css.active]: isActive || isSelected,
+                  })}>
+                  {Icon && <Icon className={css.sidebarIcon} />}
+                </button>
+              );
+            }
 
             return (
               <NamedLink
@@ -257,16 +311,16 @@ const AdminSidebar: React.FC<TAdminSidebarProps> = (props) => {
             );
           })}
         </div>
-        {activeMenu && (
+        {displayMenu && (
           <div className={css.rightSide}>
             <h1 className={css.menuLabel}>
-              {intl.formatMessage({ id: activeMenu.label })}
+              {intl.formatMessage({ id: displayMenu.label })}
             </h1>
             <MultiLevelSidebar
               rootClassName={css.multiLevelMenu}
               menuLabelClassName={css.menuItemLabel}
               subMenuLayoutClassName={css.subMenuLayout}
-              menus={activeMenu.childrenMenus || []}
+              menus={displayMenu.childrenMenus || []}
             />
           </div>
         )}

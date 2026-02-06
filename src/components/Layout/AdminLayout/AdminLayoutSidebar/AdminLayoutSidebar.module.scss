@@ -8,4 +8,14 @@
   position: fixed;
   transition: all 0.5s;
   top: $adminTopbarHeight;
+  left: -$adminSidebarWidth;
+  height: calc(100vh - $adminTopbarHeight);
+
+  @include viewportLarge {
+    left: 0;
+  }
+
+  &.menuOpen {
+    left: 0;
+  }
 }

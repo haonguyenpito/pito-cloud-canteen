@@ -49,16 +49,29 @@ const prepareChildren = (children: ReactElement[]) => {
 
 type TAdminLayoutWrapperProps = TDefaultProps & {
   children: ReactElement[];
+  isMenuOpen?: boolean;
+  onCloseMenu?: () => void;
 };
 
 const AdminLayoutWrapper = (props: TAdminLayoutWrapperProps) => {
-  const { className, children, rootClassName } = props;
+  const { className, children, rootClassName, isMenuOpen, onCloseMenu } = props;
   const preparedChildren = prepareChildren(children);
-  const classes = classNames(rootClassName || css.root, className);
+  const classes = classNames(rootClassName || css.root, className, {
+    [css.sidebarOpen]: isMenuOpen,
+  });
   const maybeFooter = preparedChildren.layoutWrapperFooter || null;
+
+  const handleOverlayClick = () => {
+    if (onCloseMenu && isMenuOpen) {
+      onCloseMenu();
+    }
+  };
 
   return (
     <div className={classes}>
+      {isMenuOpen && (
+        <div className={css.overlay} onClick={handleOverlayClick} />
+      )}
       {preparedChildren.layoutWrapperSiderbar}
       <div className={css.main}>
         {preparedChildren.layoutWrapperTopbar}

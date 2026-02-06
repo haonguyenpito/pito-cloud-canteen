@@ -1,11 +1,12 @@
 // eslint-disable-next-line import/no-named-as-default
 import React from 'react';
+import { MenuIcon } from 'lucide-react';
 import { useRouter } from 'next/router';
 
 import Avatar from '@components/Avatar/Avatar';
 import { InlineTextButton } from '@components/Button/Button';
 import IconArrow from '@components/Icons/IconArrow/IconArrow';
-import IconBell from '@components/Icons/IconBell/IconBell';
+import { cn } from '@components/lib/utils';
 import PitoLogo from '@components/PitoLogo/PitoLogo';
 import ProfileMenu from '@components/ProfileMenu/ProfileMenu';
 import ProfileMenuContent from '@components/ProfileMenuContent/ProfileMenuContent';
@@ -24,7 +25,7 @@ type TAdminHeaderProps = {
   onMenuClick: () => void;
 };
 
-const AdminHeader: React.FC<TAdminHeaderProps> = () => {
+const AdminHeader: React.FC<TAdminHeaderProps> = ({ onMenuClick }) => {
   const currentUser = useAppSelector(currentUserSelector);
   const router = useRouter();
   const handleLogoutFn = useLogout();
@@ -47,12 +48,18 @@ const AdminHeader: React.FC<TAdminHeaderProps> = () => {
   return (
     <div className={css.root}>
       <div className={css.headerRight}>
+        <InlineTextButton
+          type="button"
+          onClick={onMenuClick}
+          className={css.menuButton}>
+          <MenuIcon className={cn(css.iconMenu, 'text-black')} />
+        </InlineTextButton>
         <PitoLogo className={css.logo} />
       </div>
       <div className={css.headerLeft}>
-        <InlineTextButton type="button">
+        {/* <InlineTextButton type="button">
           <IconBell className={css.iconBell} />
-        </InlineTextButton>
+        </InlineTextButton> */}
         <div className={css.line}></div>
         <ProfileMenu>
           <ProfileMenuLabel className={css.profileMenuWrapper}>

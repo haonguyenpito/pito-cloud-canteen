@@ -23,7 +23,7 @@ export default function CheckListRoute() {
     <MetaWrapper routeName="AdminCheckListRoute">
       <div className="sticky top-0 z-10 bg-white py-3 px-6 border-b border-gray-300 shadow-sm flex items-center justify-center min-h-12">
         <div
-          className="absolute left-10 flex items-center gap-2 cursor-pointer text-base font-semibold leading-6 text-gray-700 hover:opacity-80"
+          className="absolute left-6 md:left-10 flex items-center gap-2 cursor-pointer text-base font-semibold leading-6 text-gray-700 hover:opacity-80"
           onClick={handleGoBack}>
           <IconArrow direction="left" />
         </div>
