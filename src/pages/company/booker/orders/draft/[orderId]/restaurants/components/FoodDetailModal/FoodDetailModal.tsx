@@ -1,6 +1,7 @@
 import React from 'react';
 import { useIntl } from 'react-intl';
 import Skeleton from 'react-loading-skeleton';
+import Image from 'next/image';
 
 import Button from '@components/Button/Button';
 import IconArrow from '@components/Icons/IconArrow/IconArrow';
@@ -10,6 +11,7 @@ import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import SlideModal from '@components/SlideModal/SlideModal';
 import { addCommas } from '@helpers/format';
 import { useFoodSideDishOptionsByLocale } from '@src/utils/options';
+import { getDecorator } from '@src/utils/string';
 import { Listing } from '@utils/data';
 import { EImageVariants } from '@utils/enums';
 import type { TListing } from '@utils/types';
@@ -83,12 +85,26 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
       <RenderWhen condition={!isLoading}>
         <div className={css.scrollContainer}>
           <div className={css.coverImage}>
-            <ResponsiveImage
-              alt={title}
-              image={foodGetter.getImages()[0]}
-              variants={[EImageVariants.default]}
-              emptyType="food"
-            />
+            {foodGetter.getImages().length > 0 ? (
+              <ResponsiveImage
+                alt={title}
+                image={foodGetter.getImages()[0]}
+                variants={[EImageVariants.default]}
+                className="w-full h-full object-cover"
+                emptyType="food"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Image
+                  src={getDecorator(foodGetter.getId())}
+                  alt=""
+                  className="w-full h-full"
+                  fill
+                  sizes="100px"
+                  style={{ objectFit: 'contain' }}
+                />
+              </div>
+            )}
           </div>
           <div className={css.topContent}>
             <div className={css.foodTitle}>{title}</div>

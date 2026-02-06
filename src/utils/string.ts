@@ -114,3 +114,17 @@ export const getFullName = (profile?: TProfile) => {
 
   return fullName || 'Anh/Chị';
 };
+
+const DECORATORS: string[] = [
+  '/static/loading-asset-1.png',
+  '/static/loading-asset-2.png',
+  '/static/loading-asset-3.png',
+  '/static/loading-asset-4.png',
+];
+
+export const getDecorator = (id: string): string => {
+  if (!id) return DECORATORS[0];
+  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  return DECORATORS[hash % DECORATORS.length];
+};

@@ -10,25 +10,12 @@ import { useDualFoodSelection } from '@hooks/useDualFoodSelection';
 import { useSingleFoodSelection } from '@hooks/useSingleFoodSelection';
 import { EImageVariants } from '@src/utils/enums';
 import { getLabelByKey, useFoodTypeOptionsByLocale } from '@src/utils/options';
+import { getDecorator } from '@src/utils/string';
 import { Listing } from '@utils/data';
 
 import ListingDetailModal from './ListingDetailModal';
 
 import css from './ListingCard.module.scss';
-
-const DECORATORS: string[] = [
-  '/static/loading-asset-1.png',
-  '/static/loading-asset-2.png',
-  '/static/loading-asset-3.png',
-  '/static/loading-asset-4.png',
-];
-
-const getDecorator = (id: string): string => {
-  if (!id) return DECORATORS[0];
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-  return DECORATORS[hash % DECORATORS.length];
-};
 
 type TListCardProps = {
   className?: string;
