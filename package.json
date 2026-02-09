@@ -39,6 +39,7 @@
     "async": "3.2.4",
     "autosize": "5.0.2",
     "aws-sdk": "2.1455.0",
+    "algoliasearch": "^5.20.3",
     "axios": "1.2.1",
     "bullmq": "^5.56.0",
     "class-variance-authority": "^0.7.1",
