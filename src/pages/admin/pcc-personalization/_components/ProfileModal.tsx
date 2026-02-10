@@ -29,6 +29,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const p = profile;
   const personaColor = PERSONA_COLORS[p.persona.name] || '#64748b';
+  const topCategoryPctValue =
+    typeof p.topCategoryPct === 'number' &&
+    !Number.isNaN(p.topCategoryPct) &&
+    p.topCategoryPct >= 0
+      ? Math.min(100, Math.max(0, p.topCategoryPct))
+      : 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -112,9 +118,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             <h4 className="text-sm font-semibold mb-2">
               Danh mục top: {p.topCategory}
             </h4>
-            <Progress value={p.topCategoryPct || 0} className="h-2" />
+            <Progress value={topCategoryPctValue} className="h-2" />
             <div className="text-xs text-muted-foreground mt-1">
-              {(p.topCategoryPct || 0).toFixed(1)}% của đơn hàng
+              {topCategoryPctValue.toFixed(1)}% của đơn hàng
             </div>
           </div>
         )}
