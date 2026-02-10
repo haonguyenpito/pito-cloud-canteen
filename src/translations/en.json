@@ -2706,12 +2706,10 @@
   "OrderMenuPage.title": "Order {orderName} #{title}",
   "OrderMenuPage.subtitle": "Menu by day",
   "OrderMenuPage.emptyMessage": "No menu available for this order",
-
   "common.retry": "Retry",
   "common.refresh": "Refresh",
   "common.search": "Search",
   "common.clear": "Clear",
-
   "AdminDashboard.noData": "No data available",
   "AdminDashboard.title": "PITO Cloud Canteen Dashboard",
   "AdminDashboard.dataLabel": "Data:",
@@ -2749,7 +2747,6 @@
   "AdminDashboard.concentrationRiskDescription": "Top 3 companies account for most of the revenue. Action: Diversify customer base.",
   "AdminDashboard.totalItemsInsight": "Total Items",
   "AdminDashboard.totalItemsInsightDescription": "Total number of items ordered. Avg price: {price}₫/item.",
-
   "PCCPersonalization.noData": "No data available",
   "PCCPersonalization.title": "PCC Personalization",
   "PCCPersonalization.subtitle": "Participant profiles & persona analysis",
