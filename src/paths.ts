@@ -334,6 +334,14 @@ export const adminRoutes = {
     path: '/admin/reviews',
     label: 'Quản lý đánh giá',
   },
+  PccDashboard: {
+    path: '/admin/pcc-dashboard',
+    label: 'PCC Dashboard',
+  },
+  PccPersonalization: {
+    path: '/admin/pcc-personalization',
+    label: 'PCC Personalization',
+  },
 } as const;
 
 export const companyPaths = {

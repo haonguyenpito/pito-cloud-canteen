@@ -26,6 +26,20 @@ const LIST_SIDEBAR_MENU: TSidebarMenu[] = [
     nameLink: adminRoutes.Dashboard.path,
     label: 'AdminSidebar.dashboardLabel',
     isFirstLevel: true,
+    childrenMenus: [
+      {
+        id: 'pccDashboard',
+        label: 'AdminSidebar.pccDashboardLabel',
+        nameLink: adminRoutes.Dashboard.path,
+        highlightRefLinks: [adminRoutes.PccDashboard.path],
+      },
+      {
+        id: 'pccPersonalization',
+        label: 'AdminSidebar.pccPersonalizationLabel',
+        nameLink: adminRoutes.PccPersonalization.path,
+        highlightRefLinks: [adminRoutes.PccPersonalization.path],
+      },
+    ],
   },
   {
     id: 'order',
