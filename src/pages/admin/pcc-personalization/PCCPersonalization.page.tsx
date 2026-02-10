@@ -447,7 +447,7 @@ const PCCPersonalization = () => {
               : 'border-transparent text-muted-foreground hover:text-foreground',
           )}>
           {intl.formatMessage({
-            id: 'PCCPersonalization.orderItemsTab',
+            id: 'Personalization.orderItemsTab',
             defaultMessage: 'Raw Order Items',
           })}
         </button>
@@ -460,7 +460,7 @@ const PCCPersonalization = () => {
           <Input
             className="pl-9"
             placeholder={intl.formatMessage({
-              id: 'PCCPersonalization.searchPlaceholder',
+              id: 'Personalization.searchPlaceholder',
               defaultMessage: 'Search by name...',
             })}
             value={searchTerm}
@@ -486,7 +486,7 @@ const PCCPersonalization = () => {
           onChange={(e) => handleCompanyChange(e.target.value)}>
           <option value="">
             {intl.formatMessage({
-              id: 'PCCPersonalization.allCompanies',
+              id: 'Personalization.allCompanies',
               defaultMessage: 'All Companies',
             })}
           </option>
@@ -521,43 +521,43 @@ const PCCPersonalization = () => {
                   <TableHead className="w-8">#</TableHead>
                   <TableHead>
                     <FormattedMessage
-                      id="PCCPersonalization.participantColumn"
+                      id="Personalization.participantColumn"
                       defaultMessage="Participant"
                     />
                   </TableHead>
                   <TableHead>
                     <FormattedMessage
-                      id="PCCPersonalization.companyColumn"
+                      id="Personalization.companyColumn"
                       defaultMessage="Company"
                     />
                   </TableHead>
                   <TableHead>
                     <FormattedMessage
-                      id="PCCPersonalization.personaColumn"
+                      id="Personalization.personaColumn"
                       defaultMessage="Persona"
                     />
                   </TableHead>
                   <TableHead className="text-right">
                     <FormattedMessage
-                      id="PCCPersonalization.ordersColumn"
+                      id="Personalization.ordersColumn"
                       defaultMessage="Orders"
                     />
                   </TableHead>
                   <TableHead className="text-right">
                     <FormattedMessage
-                      id="PCCPersonalization.spentColumn"
+                      id="Personalization.spentColumn"
                       defaultMessage="Spent"
                     />
                   </TableHead>
                   <TableHead className="text-right">
                     <FormattedMessage
-                      id="PCCPersonalization.varietyColumn"
+                      id="Personalization.varietyColumn"
                       defaultMessage="Variety"
                     />
                   </TableHead>
                   <TableHead className="text-center">
                     <FormattedMessage
-                      id="PCCPersonalization.statusColumn"
+                      id="Personalization.statusColumn"
                       defaultMessage="Status"
                     />
                   </TableHead>
@@ -629,7 +629,7 @@ const PCCPersonalization = () => {
                       colSpan={8}
                       className="text-center py-12 text-muted-foreground">
                       <FormattedMessage
-                        id="PCCPersonalization.noParticipants"
+                        id="Personalization.noParticipants"
                         defaultMessage="No participants found"
                       />
                     </TableCell>
@@ -671,37 +671,37 @@ const PCCPersonalization = () => {
                     <TableHead className="w-8">#</TableHead>
                     <TableHead>
                       <FormattedMessage
-                        id="PCCPersonalization.foodNameColumn"
+                        id="Personalization.foodNameColumn"
                         defaultMessage="Food Name"
                       />
                     </TableHead>
                     <TableHead>
                       <FormattedMessage
-                        id="PCCPersonalization.participantColumn"
+                        id="Personalization.participantColumn"
                         defaultMessage="Participant"
                       />
                     </TableHead>
                     <TableHead>
                       <FormattedMessage
-                        id="PCCPersonalization.companyColumn"
+                        id="Personalization.companyColumn"
                         defaultMessage="Company"
                       />
                     </TableHead>
                     <TableHead className="text-right">
                       <FormattedMessage
-                        id="PCCPersonalization.qtyColumn"
+                        id="Personalization.qtyColumn"
                         defaultMessage="Qty"
                       />
                     </TableHead>
                     <TableHead className="text-right">
                       <FormattedMessage
-                        id="PCCPersonalization.priceColumn"
+                        id="Personalization.priceColumn"
                         defaultMessage="Price"
                       />
                     </TableHead>
                     <TableHead>
                       <FormattedMessage
-                        id="PCCPersonalization.dateColumn"
+                        id="Personalization.dateColumn"
                         defaultMessage="Date"
                       />
                     </TableHead>
@@ -714,10 +714,10 @@ const PCCPersonalization = () => {
                         {i + 1}
                       </TableCell>
                       <TableCell className="font-medium text-sm max-w-[200px] truncate">
-                        {item.food_name}
+                        {item.foodName}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {item.participant_name || item.participant_id}
+                        {item.participantName || item.participantId}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {item.company || 'N/A'}
@@ -726,13 +726,13 @@ const PCCPersonalization = () => {
                         {item.quantity || 1}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm text-green-600">
-                        {item.price ? `${formatCurrency(item.price)}` : 'N/A'}
+                        {item.foodPrice
+                          ? `${formatCurrency(item.foodPrice)}`
+                          : 'N/A'}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {item.order_date
-                          ? new Date(item.order_date).toLocaleDateString(
-                              'vi-VN',
-                            )
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString('vi-VN')
                           : 'N/A'}
                       </TableCell>
                     </TableRow>
@@ -743,7 +743,7 @@ const PCCPersonalization = () => {
                         colSpan={7}
                         className="text-center py-12 text-muted-foreground">
                         <FormattedMessage
-                          id="PCCPersonalization.noOrderItems"
+                          id="Personalization.noOrderItems"
                           defaultMessage="No order items found"
                         />
                       </TableCell>

@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@components/ui/dialog';
-import { Progress } from '@components/ui/progress';
 
 import type { ParticipantProfile } from './Personalization.types';
 import { formatCurrency, PERSONA_COLORS } from './personalizationUtils';
@@ -29,12 +28,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const p = profile;
   const personaColor = PERSONA_COLORS[p.persona.name] || '#64748b';
-  const topCategoryPctValue =
-    typeof p.topCategoryPct === 'number' &&
-    !Number.isNaN(p.topCategoryPct) &&
-    p.topCategoryPct >= 0
-      ? Math.min(100, Math.max(0, p.topCategoryPct))
-      : 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -103,7 +96,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         <div className="mt-4">
           <h4 className="text-sm font-semibold mb-2">Gợi ý</h4>
           <div className="space-y-2">
-            {p.persona.recommendations.map((rec, i) => (
+            {p.persona.recommendations.map((rec: string, i: number) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <ChevronRight className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                 <span className="text-muted-foreground">{rec}</span>
@@ -111,19 +104,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             ))}
           </div>
         </div>
-
-        {/* Top Category */}
-        {p.topCategory && topCategoryPctValue > 0 && (
-          <div className="mt-4 rounded-xl border p-4">
-            <h4 className="text-sm font-semibold mb-2">
-              Danh mục top: {p.topCategory}
-            </h4>
-            <Progress value={topCategoryPctValue} className="h-2" />
-            <div className="text-xs text-muted-foreground mt-1">
-              {topCategoryPctValue.toFixed(1)}% của đơn hàng
-            </div>
-          </div>
-        )}
 
         {/* Top Foods */}
         {p.topFoods && p.topFoods.length > 0 && (

@@ -24,12 +24,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     return res.status(200).json(profile);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Personalization Participant API error:', error);
 
-    return res
-      .status(500)
-      .json({ message: error.message || 'Internal server error' });
+    return res.status(500).json({
+      message: (error as Error).message || 'Internal server error',
+    });
   }
 }
 

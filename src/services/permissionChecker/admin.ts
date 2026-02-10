@@ -10,7 +10,10 @@ const adminChecker =
     try {
       const sdk = getSdk(req, res);
 
+      console.time('adminChecker currentUser.show');
       const currentUserResponse = await sdk.currentUser.show();
+      console.timeEnd('adminChecker currentUser.show');
+
       const [currentUser] = denormalisedResponseEntities(currentUserResponse);
 
       if (!currentUser) {

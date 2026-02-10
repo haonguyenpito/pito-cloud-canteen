@@ -1,3 +1,9 @@
+import type {
+  TAlgoliaOrder,
+  TAlgoliaOrderItem,
+  TAlgoliaParticipant,
+} from '@services/algolia';
+
 export interface PersonaResult {
   name: string;
   emoji: string;
@@ -5,37 +11,14 @@ export interface PersonaResult {
   recommendations: string[];
 }
 
-export interface TopFood {
-  name: string;
-  quantity: number;
-}
-
-export interface RecentOrder {
-  date: string;
-  foods: string[];
-}
-
-export interface ParticipantProfile {
-  participantId: string;
-  name: string;
-  company: string;
-  totalOrders: number;
-  totalItems: number;
-  totalSpent: number;
-  uniqueFoods: number;
-  avgPrice: number;
-  varietyScore: number;
-  firstOrder: string;
-  lastOrder: string;
-  tenureDays: number;
-  isActive: boolean;
+export interface ParticipantProfile
+  extends Omit<
+    TAlgoliaParticipant,
+    'personaName' | 'personaEmoji' | 'topFoods' | 'recentOrders' | '_tags'
+  > {
   persona: PersonaResult;
-  categories?: Record<string, number>;
-  topCategory?: string;
-  topCategoryPct?: number;
-  topFoods?: TopFood[];
-  monthlyActivity?: Record<string, number>;
-  recentOrders?: RecentOrder[];
+  topFoods?: TAlgoliaParticipant['topFoods'];
+  recentOrders?: TAlgoliaParticipant['recentOrders'];
 }
 
 export interface PersonalizationSummary {
@@ -55,14 +38,5 @@ export interface PersonalizationData {
   source: string;
 }
 
-export interface OrderItem {
-  objectID: string;
-  food_name: string;
-  quantity: number;
-  price: number;
-  participant_id: string;
-  participant_name?: string;
-  company?: string;
-  order_date?: string;
-  status?: string;
-}
+export type OrderItem = TAlgoliaOrderItem;
+export type Order = TAlgoliaOrder;

@@ -14,12 +14,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const stats = await getAlgoliaStats();
 
     return res.status(200).json(stats);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Personalization Stats API error:', error);
 
-    return res
-      .status(500)
-      .json({ message: error.message || 'Internal server error' });
+    return res.status(500).json({
+      message: (error as Error).message || 'Internal server error',
+    });
   }
 }
 
