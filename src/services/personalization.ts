@@ -1,3 +1,4 @@
+import type { TAlgoliaParticipant } from './algolia';
 import {
   getParticipantById,
   getStats,
@@ -42,8 +43,6 @@ export interface ParticipantProfile {
   isActive: boolean;
   persona: PersonaResult;
   categories?: Record<string, number>;
-  topCategory?: string;
-  topCategoryPct?: number;
   topFoods?: TopFood[];
   monthlyActivity?: Record<string, number>;
   recentOrders?: RecentOrder[];
@@ -128,26 +127,26 @@ const PERSONA_DETAILS: Record<
 // HELPERS
 // =========================================================================
 
-function transformHitToProfile(hit: any): ParticipantProfile {
-  const personaName = hit.persona_name || 'Balanced Regular';
-  const personaEmoji = hit.persona_emoji || '⚖️';
+function transformHitToProfile(hit: TAlgoliaParticipant): ParticipantProfile {
+  const personaName = hit.personaName || 'Balanced Regular';
+  const personaEmoji = hit.personaEmoji || '⚖️';
   const details =
     PERSONA_DETAILS[personaName] || PERSONA_DETAILS['Balanced Regular'];
 
   return {
-    participantId: hit.participant_id || hit.objectID,
+    participantId: hit.participantId || hit.objectID,
     name: hit.name || 'N/A',
     company: hit.company || 'N/A',
-    totalOrders: hit.total_orders || 0,
-    totalItems: hit.total_items || 0,
-    totalSpent: hit.total_spent || 0,
-    uniqueFoods: hit.unique_foods || 0,
-    avgPrice: hit.avg_price || 0,
-    varietyScore: hit.variety_score || 0,
-    firstOrder: hit.first_order || '',
-    lastOrder: hit.last_order || '',
-    tenureDays: hit.tenure_days || 0,
-    isActive: hit.is_active ?? true,
+    totalOrders: hit.totalOrders || 0,
+    totalItems: hit.totalItems || 0,
+    totalSpent: hit.totalSpent || 0,
+    uniqueFoods: hit.uniqueFoods || 0,
+    avgPrice: hit.avgPrice || 0,
+    varietyScore: hit.varietyScore || 0,
+    firstOrder: hit.firstOrder || '',
+    lastOrder: hit.lastOrder || '',
+    tenureDays: hit.tenureDays || 0,
+    isActive: hit.isActive ?? true,
     persona: {
       name: personaName,
       emoji: personaEmoji,
@@ -155,11 +154,9 @@ function transformHitToProfile(hit: any): ParticipantProfile {
       recommendations: details.recommendations,
     },
     categories: hit.categories || {},
-    topCategory: hit.top_category || '',
-    topCategoryPct: hit.top_category_pct || 0,
-    topFoods: hit.top_foods || [],
-    monthlyActivity: hit.monthly_activity || {},
-    recentOrders: hit.recent_orders || [],
+    topFoods: hit.topFoods || [],
+    monthlyActivity: hit.monthlyActivity || {},
+    recentOrders: hit.recentOrders || [],
   };
 }
 
@@ -223,8 +220,8 @@ export async function getPersonalizationData(
     page,
   });
 
-  const profiles: ParticipantProfile[] = result.hits.map((hit: any) =>
-    transformHitToProfile(hit),
+  const profiles: ParticipantProfile[] = result.hits.map(
+    (hit: TAlgoliaParticipant) => transformHitToProfile(hit),
   );
 
   const summary = buildSummary(profiles, result.nbHits);

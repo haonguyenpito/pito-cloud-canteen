@@ -1,3 +1,4 @@
+import type { TAlgoliaOrder, TAlgoliaOrderItem } from './algolia';
 import { searchOrderItems, searchOrders } from './algolia';
 
 // =========================================================================
@@ -94,12 +95,12 @@ function getStatusColor(status: string): string {
   return colors[status.toLowerCase()] || '#94a3b8';
 }
 
-function getDateRange(orders: any[]): string {
+function getDateRange(orders: TAlgoliaOrder[]): string {
   if (orders.length === 0) return 'No data';
 
   const dates = orders
-    .filter((o: any) => o.created_at)
-    .map((o: any) => new Date(o.created_at).getTime())
+    .filter((o) => o.createdAt)
+    .map((o) => new Date(o.createdAt).getTime())
     .sort();
 
   if (dates.length === 0) return 'No data';
@@ -110,7 +111,7 @@ function getDateRange(orders: any[]): string {
   return `${earliest} - ${latest}`;
 }
 
-function calculatePriceDistribution(orders: any[]): {
+function calculatePriceDistribution(orders: TAlgoliaOrder[]): {
   [key: string]: number;
 } {
   const distribution: { [key: string]: number } = {
@@ -121,8 +122,8 @@ function calculatePriceDistribution(orders: any[]): {
     '500K+': 0,
   };
 
-  orders.forEach((o: any) => {
-    const spent = o.total_spent || 0;
+  orders.forEach((o) => {
+    const spent = o.totalSpent || 0;
     if (spent < 50000) distribution['0-50K']++;
     else if (spent < 100000) distribution['50-100K']++;
     else if (spent < 200000) distribution['100-200K']++;
@@ -152,40 +153,40 @@ export async function getDashboardData(): Promise<DashboardData> {
     searchOrders({ query: '', hitsPerPage: 10000 }),
   ]);
 
-  const orders = ordersResult.hits as any[];
+  const orders = ordersResult.hits as TAlgoliaOrder[];
 
   // Fetch larger sample of items for top foods
   const topItemsResult = await searchOrderItems({
     query: '',
     hitsPerPage: 1000,
   });
-  const rawItems = topItemsResult.hits as any[];
+  const rawItems = topItemsResult.hits as TAlgoliaOrderItem[];
 
   // Calculate KPIs
   const totalOrders = orders.length;
   const totalItems = orders.reduce(
-    (sum: number, o: any) => sum + (o.total_items || 0),
+    (sum: number, o) => sum + (o.totalItems || 0),
     0,
   );
   const totalRevenue = orders.reduce(
-    (sum: number, o: any) => sum + (o.total_spent || 0),
+    (sum: number, o) => sum + (o.totalSpent || 0),
     0,
   );
-  const completedOrders = orders.filter((o: any) =>
+  const completedOrders = orders.filter((o) =>
     o.status?.includes('complete'),
   ).length;
-  const expiredOrders = orders.filter((o: any) =>
+  const expiredOrders = orders.filter((o) =>
     o.status?.includes('expired'),
   ).length;
 
   // Unique participants
   const uniqueParticipants = new Set(
-    orders.flatMap((o: any) => o.participants || []),
+    orders.flatMap((o) => o.participants || []),
   ).size;
 
   // Status funnel
   const statusCounts: Record<string, number> = {};
-  orders.forEach((o: any) => {
+  orders.forEach((o) => {
     const status = o.status || 'unknown';
     statusCounts[status] = (statusCounts[status] || 0) + 1;
   });
@@ -201,26 +202,26 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Monthly data
   const monthlyData: MonthlyData = {};
-  orders.forEach((o: any) => {
-    if (o.created_at) {
-      const monthKey = getMonthKey(o.created_at);
+  orders.forEach((o) => {
+    if (o.createdAt) {
+      const monthKey = getMonthKey(o.createdAt);
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { count: 0, items: 0 };
       }
       monthlyData[monthKey].count++;
-      monthlyData[monthKey].items += o.total_items || 0;
+      monthlyData[monthKey].items += o.totalItems || 0;
     }
   });
 
   // Top companies
   const companyRevenue: Record<string, { revenue: number; orders: number }> =
     {};
-  orders.forEach((o: any) => {
+  orders.forEach((o) => {
     const company = o.company || 'Unknown';
     if (!companyRevenue[company]) {
       companyRevenue[company] = { revenue: 0, orders: 0 };
     }
-    companyRevenue[company].revenue += o.total_spent || 0;
+    companyRevenue[company].revenue += o.totalSpent || 0;
     companyRevenue[company].orders++;
   });
 
@@ -236,26 +237,26 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Day of week analysis
   const dowCounts = new Array(7).fill(0);
-  orders.forEach((o: any) => {
-    if (o.created_at) {
-      const day = new Date(o.created_at).getDay();
+  orders.forEach((o) => {
+    if (o.createdAt) {
+      const day = new Date(o.createdAt).getDay();
       dowCounts[day]++;
     }
   });
 
   // Hourly analysis
   const hourlyCounts = new Array(24).fill(0);
-  orders.forEach((o: any) => {
-    if (o.created_at) {
-      const hour = new Date(o.created_at).getUTCHours();
+  orders.forEach((o) => {
+    if (o.createdAt) {
+      const hour = new Date(o.createdAt).getUTCHours();
       hourlyCounts[hour]++;
     }
   });
 
   // Top foods from sample
   const foodCounts: Record<string, number> = {};
-  rawItems.forEach((item: any) => {
-    const name = item.food_name || 'Unknown';
+  rawItems.forEach((item) => {
+    const name = item.foodName || 'Unknown';
     foodCounts[name] = (foodCounts[name] || 0) + (item.quantity || 1);
   });
 
