@@ -11,8 +11,8 @@ import {
 } from '@components/ui/dialog';
 import { Progress } from '@components/ui/progress';
 
-import type { ParticipantProfile } from './PCCPersonalization.types';
-import { formatCurrency, PERSONA_COLORS } from './pccPersonalizationUtils';
+import type { ParticipantProfile } from './Personalization.types';
+import { formatCurrency, PERSONA_COLORS } from './personalizationUtils';
 
 interface ProfileModalProps {
   profile: ParticipantProfile | null;
@@ -20,7 +20,7 @@ interface ProfileModalProps {
   onClose: () => void;
 }
 
-const PCCProfileModal: React.FC<ProfileModalProps> = ({
+const ProfileModal: React.FC<ProfileModalProps> = ({
   profile,
   open,
   onClose,
@@ -62,30 +62,32 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="rounded-lg bg-muted/50 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Orders</div>
+            <div className="text-xs text-muted-foreground">Tổng đơn hàng</div>
             <div className="text-lg font-bold font-mono">{p.totalOrders}</div>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Total Spent</div>
+            <div className="text-xs text-muted-foreground">Tổng chi tiêu</div>
             <div className="text-lg font-bold font-mono text-green-600">
               {formatCurrency(p.totalSpent)}₫
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Variety Score</div>
+            <div className="text-xs text-muted-foreground">Điểm đa dạng</div>
             <div className="text-lg font-bold font-mono text-blue-600">
               {p.varietyScore.toFixed(2)}
             </div>
           </div>
           <div className="rounded-lg bg-muted/50 p-3 text-center">
-            <div className="text-xs text-muted-foreground">Tenure</div>
+            <div className="text-xs text-muted-foreground">
+              Thời gian tham gia
+            </div>
             <div className="text-lg font-bold font-mono">{p.tenureDays}d</div>
           </div>
         </div>
 
         {/* Persona Description */}
         <div className="mt-4 rounded-xl border p-4 bg-muted/30">
-          <h4 className="text-sm font-semibold mb-2">Persona Analysis</h4>
+          <h4 className="text-sm font-semibold mb-2">Phân tích persona</h4>
           <p className="text-sm text-muted-foreground">
             {p.persona.description}
           </p>
@@ -93,7 +95,7 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Recommendations */}
         <div className="mt-4">
-          <h4 className="text-sm font-semibold mb-2">Recommendations</h4>
+          <h4 className="text-sm font-semibold mb-2">Gợi ý</h4>
           <div className="space-y-2">
             {p.persona.recommendations.map((rec, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
@@ -108,11 +110,11 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
         {p.topCategory && (
           <div className="mt-4 rounded-xl border p-4">
             <h4 className="text-sm font-semibold mb-2">
-              Top Category: {p.topCategory}
+              Danh mục top: {p.topCategory}
             </h4>
             <Progress value={p.topCategoryPct || 0} className="h-2" />
             <div className="text-xs text-muted-foreground mt-1">
-              {(p.topCategoryPct || 0).toFixed(1)}% of orders
+              {(p.topCategoryPct || 0).toFixed(1)}% của đơn hàng
             </div>
           </div>
         )}
@@ -120,7 +122,7 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
         {/* Top Foods */}
         {p.topFoods && p.topFoods.length > 0 && (
           <div className="mt-4">
-            <h4 className="text-sm font-semibold mb-2">Top Foods</h4>
+            <h4 className="text-sm font-semibold mb-2">Món top</h4>
             <div className="space-y-1">
               {p.topFoods.slice(0, 5).map((food, i) => (
                 <div
@@ -139,7 +141,7 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
         {/* Activity Info */}
         <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-muted-foreground">First Order: </span>
+            <span className="text-muted-foreground">Đơn hàng đầu tiên: </span>
             <span className="font-mono">
               {p.firstOrder
                 ? new Date(p.firstOrder).toLocaleDateString('vi-VN')
@@ -147,7 +149,7 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
           <div>
-            <span className="text-muted-foreground">Last Order: </span>
+            <span className="text-muted-foreground">Đơn hàng cuối cùng: </span>
             <span className="font-mono">
               {p.lastOrder
                 ? new Date(p.lastOrder).toLocaleDateString('vi-VN')
@@ -155,11 +157,11 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
             </span>
           </div>
           <div>
-            <span className="text-muted-foreground">Unique Foods: </span>
+            <span className="text-muted-foreground">Món ăn độc nhất: </span>
             <span className="font-mono">{p.uniqueFoods}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">Avg Price: </span>
+            <span className="text-muted-foreground">Giá trung bình: </span>
             <span className="font-mono">{formatCurrency(p.avgPrice)}₫</span>
           </div>
         </div>
@@ -168,4 +170,4 @@ const PCCProfileModal: React.FC<ProfileModalProps> = ({
   );
 };
 
-export default PCCProfileModal;
+export default ProfileModal;

@@ -23,7 +23,7 @@ function getClient(): SearchClient {
 // SEARCH FUNCTIONS
 // =========================================================================
 
-export async function searchPccOrders(options: {
+export async function searchOrders(options: {
   query?: string;
   company?: string;
   status?: string;
@@ -63,7 +63,7 @@ export async function searchPccOrders(options: {
   };
 }
 
-export async function searchPccOrderItems(options: {
+export async function searchOrderItems(options: {
   query?: string;
   company?: string;
   foodName?: string;
@@ -111,7 +111,7 @@ export async function searchPccOrderItems(options: {
   };
 }
 
-export async function searchPccParticipants(options: {
+export async function searchParticipants(options: {
   query?: string;
   company?: string;
   persona?: string;
@@ -155,7 +155,7 @@ export async function searchPccParticipants(options: {
   };
 }
 
-export async function getPccParticipantById(participantId: string) {
+export async function getParticipantById(participantId: string) {
   const algolia = getClient();
 
   const response = await algolia.search({
@@ -174,7 +174,7 @@ export async function getPccParticipantById(participantId: string) {
   return result.hits?.[0] || null;
 }
 
-export async function getPccStats() {
+export async function getStats() {
   const algolia = getClient();
 
   const [ordersResponse, participantsResponse, itemsResponse] =

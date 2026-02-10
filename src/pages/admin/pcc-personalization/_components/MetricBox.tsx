@@ -8,7 +8,7 @@ interface MetricBoxProps {
   color: string;
 }
 
-const PCCMetricBox: React.FC<MetricBoxProps> = ({
+const MetricBox: React.FC<MetricBoxProps> = ({
   label,
   value,
   sub,
@@ -37,4 +37,4 @@ const PCCMetricBox: React.FC<MetricBoxProps> = ({
   );
 };
 
-export default PCCMetricBox;
+export default MetricBox;

@@ -17,7 +17,7 @@ export interface FoodData {
   quantity: number;
 }
 
-export interface PCCDashboardData {
+export interface DashboardData {
   generated_at: string;
   date_range: string;
   last_sync?: string;

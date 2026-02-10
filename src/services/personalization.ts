@@ -1,9 +1,9 @@
 import {
-  getPccParticipantById as getParticipantById,
-  getPccStats,
-  searchPccOrderItems,
-  searchPccParticipants,
-} from './pccAlgolia';
+  getParticipantById,
+  getStats,
+  searchOrderItems,
+  searchParticipants,
+} from './algolia';
 
 // =========================================================================
 // INTERFACES
@@ -216,7 +216,7 @@ export async function getPersonalizationData(
 ): Promise<PersonalizationResponse> {
   const { top = 50, company, search, page = 0 } = options;
 
-  const result = await searchPccParticipants({
+  const result = await searchParticipants({
     query: search || '',
     company,
     hitsPerPage: top,
@@ -247,7 +247,7 @@ export async function getParticipantProfileById(
 }
 
 export async function getAlgoliaStats() {
-  return getPccStats();
+  return getStats();
 }
 
 export async function getOrderItems(
@@ -258,7 +258,7 @@ export async function getOrderItems(
     search?: string;
   } = {},
 ) {
-  return searchPccOrderItems({
+  return searchOrderItems({
     query: options.search,
     company: options.company,
     page: options.page || 0,

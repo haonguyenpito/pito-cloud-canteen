@@ -35,8 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from '@components/ui/table';
-import { getPccDashboardApi } from '@src/apis/pccApi';
-import type { PCCDashboardData } from '@src/pages/admin/_components/AdminDashboard.types';
+import { getDashboardApi } from '@src/apis/dashboardApi';
+import type { DashboardData } from '@src/pages/admin/_components/AdminDashboard.types';
 import AdminDashboardInsightCard from '@src/pages/admin/_components/AdminDashboardInsightCard';
 import AdminDashboardKPICard from '@src/pages/admin/_components/AdminDashboardKPICard';
 import AdminDashboardStatusFunnelBar from '@src/pages/admin/_components/AdminDashboardStatusFunnelBar';
@@ -67,7 +67,7 @@ const formatCurrency = (amount: number): string => {
 
 const AdminDashboard = () => {
   const intl = useIntl();
-  const [data, setData] = useState<PCCDashboardData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +75,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getPccDashboardApi();
+      const response = await getDashboardApi();
       setData(response.data);
     } catch (err) {
       setError('Failed to load dashboard data');

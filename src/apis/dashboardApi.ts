@@ -1,10 +1,10 @@
 import { getApi } from './configs';
 
 // PCC Dashboard
-export const getPccDashboardApi = () => getApi('/admin/pcc-dashboard');
+export const getDashboardApi = () => getApi('/admin/dashboard');
 
 // PCC Personalization
-export const getPccPersonalizationApi = (params?: {
+export const getPersonalizationApi = (params?: {
   top?: number;
   company?: string;
   search?: string;
@@ -18,11 +18,11 @@ export const getPccPersonalizationApi = (params?: {
 
   const qs = query.toString();
 
-  return getApi(`/admin/pcc-personalization${qs ? `?${qs}` : ''}`);
+  return getApi(`/admin/personalization${qs ? `?${qs}` : ''}`);
 };
 
 // PCC Personalization - Order Items
-export const getPccOrderItemsApi = (params?: {
+export const getOrderItemsApi = (params?: {
   page?: number;
   hitsPerPage?: number;
   company?: string;
@@ -37,12 +37,12 @@ export const getPccOrderItemsApi = (params?: {
 
   const qs = query.toString();
 
-  return getApi(`/admin/pcc-personalization/order-items${qs ? `?${qs}` : ''}`);
+  return getApi(`/admin/personalization/order-items${qs ? `?${qs}` : ''}`);
 };
 
 // PCC Personalization - Stats
-export const getPccStatsApi = () => getApi('/admin/pcc-personalization/stats');
+export const getStatsApi = () => getApi('/admin/personalization/stats');
 
 // PCC Personalization - Single Participant
 export const getPccParticipantApi = (id: string) =>
-  getApi(`/admin/pcc-personalization/${id}`);
+  getApi(`/admin/personalization/${id}`);

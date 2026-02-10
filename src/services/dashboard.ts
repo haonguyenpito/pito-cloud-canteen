@@ -1,4 +1,4 @@
-import { searchPccOrderItems, searchPccOrders } from './pccAlgolia';
+import { searchOrderItems, searchOrders } from './algolia';
 
 // =========================================================================
 // INTERFACES
@@ -149,13 +149,13 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // Fetch all orders from Algolia
   const [ordersResult] = await Promise.all([
-    searchPccOrders({ query: '', hitsPerPage: 10000 }),
+    searchOrders({ query: '', hitsPerPage: 10000 }),
   ]);
 
   const orders = ordersResult.hits as any[];
 
   // Fetch larger sample of items for top foods
-  const topItemsResult = await searchPccOrderItems({
+  const topItemsResult = await searchOrderItems({
     query: '',
     hitsPerPage: 1000,
   });

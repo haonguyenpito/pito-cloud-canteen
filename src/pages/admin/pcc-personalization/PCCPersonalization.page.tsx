@@ -39,22 +39,22 @@ import {
   TableRow,
 } from '@components/ui/table';
 import {
-  getPccOrderItemsApi,
-  getPccPersonalizationApi,
-} from '@src/apis/pccApi';
+  getOrderItemsApi,
+  getPersonalizationApi,
+} from '@src/apis/dashboardApi';
 
-import PCCMetricBox from './_components/PCCMetricBox';
+import MetricBox from './_components/MetricBox';
 import type {
   OrderItem,
   ParticipantProfile,
   PersonalizationData,
-} from './_components/PCCPersonalization.types';
+} from './_components/Personalization.types';
 import {
   formatCurrency,
   PERSONA_COLORS,
   PIE_COLORS,
-} from './_components/pccPersonalizationUtils';
-import PCCProfileModal from './_components/PCCProfileModal';
+} from './_components/personalizationUtils';
+import ProfileModal from './_components/ProfileModal';
 
 const PCCPersonalization = () => {
   const intl = useIntl();
@@ -82,7 +82,7 @@ const PCCPersonalization = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await getPccPersonalizationApi({
+      const response = await getPersonalizationApi({
         search: searchQuery || undefined,
         company: filterCompany || undefined,
         top: profilesPageSize,
@@ -100,7 +100,7 @@ const PCCPersonalization = () => {
   const fetchOrderItems = useCallback(async () => {
     try {
       setItemsLoading(true);
-      const response = await getPccOrderItemsApi({
+      const response = await getOrderItemsApi({
         page: orderItemsPage - 1,
         hitsPerPage: orderItemsPageSize,
         company: filterCompany || undefined,
@@ -182,7 +182,7 @@ const PCCPersonalization = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pcc-personalization-${
+    a.download = `personalization-${
       new Date().toISOString().split('T')[0]
     }.csv`;
     a.click();
@@ -212,7 +212,7 @@ const PCCPersonalization = () => {
           <p className="text-destructive">
             {error ||
               intl.formatMessage({
-                id: 'PCCPersonalization.noData',
+                id: 'Personalization.noData',
                 defaultMessage: 'No data available',
               })}
           </p>
@@ -248,18 +248,18 @@ const PCCPersonalization = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             {intl.formatMessage({
-              id: 'PCCPersonalization.title',
+              id: 'Personalization.title',
               defaultMessage: 'PCC Personalization',
             })}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {intl.formatMessage({
-              id: 'PCCPersonalization.subtitle',
+              id: 'Personalization.subtitle',
               defaultMessage: 'Participant profiles & persona analysis',
             })}
             {data.lastSync &&
               ` · ${intl.formatMessage({
-                id: 'PCCPersonalization.lastSync',
+                id: 'Personalization.lastSync',
                 defaultMessage: 'Last sync:',
               })} ${new Date(data.lastSync).toLocaleString('vi-VN')}`}
           </p>
@@ -272,7 +272,7 @@ const PCCPersonalization = () => {
             disabled={!filteredProfiles.length}>
             <Download className="w-4 h-4 mr-2" />
             <FormattedMessage
-              id="PCCPersonalization.exportCsv"
+              id="Personalization.exportCsv"
               defaultMessage="Export CSV"
             />
           </Button>
@@ -285,15 +285,15 @@ const PCCPersonalization = () => {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <PCCMetricBox
+        <MetricBox
           label={intl.formatMessage({
-            id: 'PCCPersonalization.totalParticipants',
+            id: 'Personalization.totalParticipants',
             defaultMessage: 'Total Participants',
           })}
           value={summary.totalParticipants.toLocaleString()}
           sub={intl.formatMessage(
             {
-              id: 'PCCPersonalization.activePercentage',
+              id: 'Personalization.activePercentage',
               defaultMessage: '{percentage}% active',
             },
             { percentage: summary.activePercentage.toFixed(0) },
@@ -301,36 +301,36 @@ const PCCPersonalization = () => {
           icon={Users}
           color="hsl(221, 83%, 53%)"
         />
-        <PCCMetricBox
+        <MetricBox
           label={intl.formatMessage({
-            id: 'PCCPersonalization.avgVarietyScore',
+            id: 'Personalization.avgVarietyScore',
             defaultMessage: 'Avg Variety Score',
           })}
           value={summary.avgVarietyScore.toFixed(2)}
           sub={intl.formatMessage({
-            id: 'PCCPersonalization.varietyScale',
+            id: 'Personalization.varietyScale',
             defaultMessage: '0-1 scale',
           })}
           icon={Star}
           color="hsl(48, 96%, 53%)"
         />
-        <PCCMetricBox
+        <MetricBox
           label={intl.formatMessage({
-            id: 'PCCPersonalization.avgOrdersPerPerson',
+            id: 'Personalization.avgOrdersPerPerson',
             defaultMessage: 'Avg Orders/Person',
           })}
           value={summary.avgOrdersPerPerson.toFixed(1)}
           icon={ShoppingCart}
           color="hsl(24, 95%, 53%)"
         />
-        <PCCMetricBox
+        <MetricBox
           label={intl.formatMessage({
-            id: 'PCCPersonalization.personaTypes',
+            id: 'Personalization.personaTypes',
             defaultMessage: 'Persona Types',
           })}
           value={Object.keys(summary.personaDistribution).length.toString()}
           sub={intl.formatMessage({
-            id: 'PCCPersonalization.uniquePersonas',
+            id: 'Personalization.uniquePersonas',
             defaultMessage: 'unique personas',
           })}
           icon={Users}
@@ -344,7 +344,7 @@ const PCCPersonalization = () => {
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
             {intl.formatMessage({
-              id: 'PCCPersonalization.personaDistribution',
+              id: 'Personalization.personaDistribution',
               defaultMessage: 'Persona Distribution',
             })}
           </h3>
@@ -391,7 +391,7 @@ const PCCPersonalization = () => {
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
             {intl.formatMessage({
-              id: 'PCCPersonalization.participantsByCompany',
+              id: 'Personalization.participantsByCompany',
               defaultMessage: 'Participants by Company',
             })}
           </h3>
@@ -433,7 +433,7 @@ const PCCPersonalization = () => {
               : 'border-transparent text-muted-foreground hover:text-foreground',
           )}>
           {intl.formatMessage({
-            id: 'PCCPersonalization.profilesTab',
+            id: 'Personalization.profilesTab',
             defaultMessage: 'Participant Profiles',
           })}{' '}
           ({summary.totalParticipants.toLocaleString()})
@@ -726,7 +726,7 @@ const PCCPersonalization = () => {
                         {item.quantity || 1}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm text-green-600">
-                        {item.price ? `${formatCurrency(item.price)}₫` : 'N/A'}
+                        {item.price ? `${formatCurrency(item.price)}` : 'N/A'}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {item.order_date
@@ -773,7 +773,7 @@ const PCCPersonalization = () => {
       )}
 
       {/* Profile Modal */}
-      <PCCProfileModal
+      <ProfileModal
         profile={selectedProfile}
         open={modalOpen}
         onClose={() => setModalOpen(false)}

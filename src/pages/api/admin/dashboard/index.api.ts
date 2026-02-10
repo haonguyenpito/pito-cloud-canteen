@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
-import { getParticipantProfileById } from '@services/pccPersonalization';
+import { getDashboardData } from '@services/dashboard';
 import adminChecker from '@services/permissionChecker/admin';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -11,21 +11,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { id } = req.query;
+    const data = await getDashboardData();
 
-    if (!id || typeof id !== 'string') {
-      return res.status(400).json({ message: 'Participant ID is required' });
-    }
-
-    const profile = await getParticipantProfileById(id);
-
-    if (!profile) {
-      return res.status(404).json({ error: 'Participant not found' });
-    }
-
-    return res.status(200).json(profile);
+    return res.status(200).json(data);
   } catch (error: any) {
-    console.error('PCC Participant API error:', error);
+    console.error('PCC Dashboard API error:', error);
 
     return res
       .status(500)
