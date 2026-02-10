@@ -22,6 +22,7 @@ type NativeNotificationParams = {
   reviewId?: string;
   replyContent?: string;
   partnerName?: string;
+  companyId?: string;
 };
 const BASE_URL = process.env.NEXT_PUBLIC_CANONICAL_URL;
 
@@ -191,19 +192,35 @@ export const createNativeNotification = async (
       }
       break;
 
-    case ENativeNotificationType.Events: {
-      const url = `${BASE_URL}/participant/events/mens-day`;
-      oneSignalUserIds.forEach((oneSignalUserId: string) => {
-        sendNotification({
-          title: "Happy Men's Day!",
-          content:
-            'Quà tặng voucher 100k dành riêng cho anh. Chạm để mở quà ngay!',
-          url,
-          oneSignalUserId,
+    case ENativeNotificationType.Events:
+      {
+        const url = `${BASE_URL}/participant/events/mens-day`;
+        oneSignalUserIds.forEach((oneSignalUserId: string) => {
+          sendNotification({
+            title: "Happy Men's Day!",
+            content:
+              'Quà tặng voucher 100k dành riêng cho anh. Chạm để mở quà ngay!',
+            url,
+            oneSignalUserId,
+          });
         });
-      });
+      }
       break;
-    }
+
+    case ENativeNotificationType.Tet2026:
+      {
+        const { companyId } = notificationParams;
+        const url = `${BASE_URL}/participant/tet-2026/${companyId}`;
+        oneSignalUserIds.forEach((oneSignalUserId: string) => {
+          sendNotification({
+            title: 'Happy Tet 2026!',
+            content: 'Năm mới đến rồi, chúc mừng bạn năm mới vui vẻ!',
+            url,
+            oneSignalUserId,
+          });
+        });
+      }
+      break;
 
     default:
       break;
