@@ -1,4 +1,4 @@
-import { searchPccOrders, searchPccOrderItems } from './pccAlgolia';
+import { searchPccOrderItems, searchPccOrders } from './pccAlgolia';
 
 // =========================================================================
 // INTERFACES
@@ -71,6 +71,7 @@ function formatCurrency(amount: number): string {
   if (amount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(2)}B`;
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
   if (amount >= 1_000) return `${(amount / 1_000).toFixed(1)}K`;
+
   return Math.floor(amount).toString();
 }
 
@@ -78,6 +79,7 @@ function getMonthKey(dateStr: string): string {
   const date = new Date(dateStr);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
+
   return `${year}-${month}`;
 }
 
@@ -88,6 +90,7 @@ function getStatusColor(status: string): string {
     expired: '#ef4444',
     cancelled: '#6b7280',
   };
+
   return colors[status.toLowerCase()] || '#94a3b8';
 }
 
@@ -103,6 +106,7 @@ function getDateRange(orders: any[]): string {
 
   const earliest = new Date(dates[0]).toLocaleDateString();
   const latest = new Date(dates[dates.length - 1]).toLocaleDateString();
+
   return `${earliest} - ${latest}`;
 }
 
@@ -209,10 +213,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   });
 
   // Top companies
-  const companyRevenue: Record<
-    string,
-    { revenue: number; orders: number }
-  > = {};
+  const companyRevenue: Record<string, { revenue: number; orders: number }> =
+    {};
   orders.forEach((o: any) => {
     const company = o.company || 'Unknown';
     if (!companyRevenue[company]) {
@@ -227,8 +229,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       company,
       revenue: data.revenue,
       orders: data.orders,
-      share:
-        totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+      share: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
     }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10);
@@ -278,8 +279,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       completed_orders: completedOrders,
       completion_rate:
         totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0,
-      expired_rate:
-        totalOrders > 0 ? (expiredOrders / totalOrders) * 100 : 0,
+      expired_rate: totalOrders > 0 ? (expiredOrders / totalOrders) * 100 : 0,
       expired_count: expiredOrders,
     },
     status_funnel: statusFunnel,
@@ -298,4 +298,3 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   return dashboard;
 }
-
