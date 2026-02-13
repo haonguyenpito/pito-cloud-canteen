@@ -319,11 +319,9 @@ export async function searchParticipants(options: {
   if (options.persona) {
     filters.push(`persona_name:"${options.persona}"`);
   }
-  if (options.isActive !== undefined) {
-    filters.push(`is_active:${options.isActive}`);
-  }
 
-  const response = await algolia.search<TAlgoliaParticipantRaw>({
+  filters.push('is_active:true');
+  const response = await algolia.search({
     requests: [
       {
         indexName: PCC_PARTICIPANTS_INDEX,
