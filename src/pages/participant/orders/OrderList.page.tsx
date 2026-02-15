@@ -61,7 +61,7 @@ import OrderListHeaderSection from './components/OrderListHeaderSection/OrderLis
 import RatingSubOrderModal from './components/RatingSubOrderModal/RatingSubOrderModal';
 import SubOrderCard from './components/SubOrderCard/SubOrderCard';
 import SubOrderDetailModal from './components/SubOrderDetailModal/SubOrderDetailModal';
-import Tet2026Button from './components/Tet2026Button/Tet2026Button';
+// import Tet2026Button from './components/Tet2026Button/Tet2026Button';
 import UpdateProfileModal from './components/UpdateProfileModal/UpdateProfileModal';
 import WelcomeModal from './components/WelcomeModal/WelcomeModal';
 import { OrderListActions, OrderListThunks } from './OrderList.slice';
@@ -188,8 +188,8 @@ const OrderListPage = () => {
   const walkthroughEnable = false;
   const welcomeModalControl = useBoolean(walkthroughEnable);
 
-  const { companyList = [] } = currentUserGetter.getMetadata();
-  const companyId = companyList[0];
+  // const { companyList = [] } = currentUserGetter.getMetadata();
+  // const companyId = companyList[0];
 
   const showLoadingModal =
     (fetchOrdersInProgress ||
@@ -843,9 +843,9 @@ const OrderListPage = () => {
 
   return (
     <ParticipantLayout>
-      <div className="flex justify-end">
+      {/* <div className="flex justify-end">
         <Tet2026Button companyId={companyId} />
-      </div>
+      </div> */}
       <OrderListHeaderSection
         openNotificationModal={notificationModalControl.setTrue}
         numberOfUnseenNotifications={numberOfUnseenNotifications}
