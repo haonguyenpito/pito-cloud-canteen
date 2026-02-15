@@ -215,7 +215,7 @@ export const createNativeNotification = async (
           sendNotification({
             title: 'PITO Cloud Canteen',
             content:
-              'Cảm ơn bạn vì đã đồng hành cùng PITO Cloud Canteen. Chúc mừng Xuân Bính Ngọ 2026',
+              '[Xem video] - Cảm ơn bạn vì đã đồng hành cùng PITO Cloud Canteen! Chúc mừng Xuân Bính Ngọ 2026',
             url,
             oneSignalUserId,
           });

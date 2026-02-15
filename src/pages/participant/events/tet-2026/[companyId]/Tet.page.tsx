@@ -38,7 +38,6 @@ const TetPage = ({ companyId }: { companyId: string }) => {
               <video
                 src={`https://api-prod.pito.vn/storage/v1/object/public/videos/customer-site/pcc-${companyId}.mp4`}
                 autoPlay
-                muted
                 loop
                 playsInline
                 className="block w-full object-cover"
