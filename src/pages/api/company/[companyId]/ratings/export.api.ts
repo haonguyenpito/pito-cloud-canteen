@@ -12,7 +12,12 @@ import type {
   UserListing,
   WithFlexSDKData,
 } from '@src/types';
-import { EImageVariants, EListingType, EUserRole } from '@src/utils/enums';
+import {
+  EImageVariants,
+  EListingType,
+  EPartnerReply,
+  EUserRole,
+} from '@src/utils/enums';
 
 export const retrieveAll = async <T extends Array<any>>(
   queryFunction: (params: any) => Promise<WithFlexSDKData<T>>,
@@ -108,17 +113,23 @@ const getReplyRoleLabel = (replyRole: EUserRole): string => {
     [EUserRole.booker]: 'Booker',
     [EUserRole.participant]: 'Participant',
   };
+
   return labels[replyRole] ?? 'NA';
 };
 
 /** Format replies as single string for export (e.g. "Author (Role): content\n...") */
-const formatRepliesForExport = (replies: TReviewReply[] | undefined): string => {
+const formatRepliesForExport = (
+  replies: TReviewReply[] | undefined,
+): string => {
   if (!replies?.length) return '';
+
   return replies
     .filter((r): r is TReviewReply => !!r)
     .map(
       (r) =>
-        `${r.authorName || 'NA'} (${getReplyRoleLabel(r.replyRole)}): ${(r.replyContent || '').replace(/\n/g, ' ')}`,
+        `${r.authorName || 'NA'} (${getReplyRoleLabel(r.replyRole)}): ${(
+          r.replyContent || ''
+        ).replace(/\n/g, ' ')}`,
     )
     .join('\n');
 };
@@ -157,7 +168,16 @@ const generateRatingsXLSX = (
     const date = timestamp ? new Date(+timestamp).toLocaleDateString() : '';
     const restaurantId = metadata?.restaurantId || '';
     const foodName = metadata?.foodName || '';
-    const repliesText = formatRepliesForExport(metadata?.replies);
+
+    const validReplies = metadata?.replies?.filter(
+      (reply) =>
+        !(
+          reply?.replyRole === EUserRole.partner &&
+          (reply?.status === EPartnerReply.rejected ||
+            reply?.status === EPartnerReply.pending)
+        ),
+    ) as TReviewReply[];
+    const repliesText = formatRepliesForExport(validReplies);
 
     return {
       'Rating ID': rating.id?.uuid || '',
@@ -258,7 +278,15 @@ const generateRatingsCSV = (
     const date = timestamp ? new Date(+timestamp).toLocaleDateString() : '';
     const restaurantId = metadata?.restaurantId || '';
     const foodName = metadata?.foodName || '';
-    const repliesText = formatRepliesForExport(metadata?.replies);
+    const validReplies = metadata?.replies?.filter(
+      (reply) =>
+        !(
+          reply?.replyRole === EUserRole.partner &&
+          (reply?.status === EPartnerReply.rejected ||
+            reply?.status === EPartnerReply.pending)
+        ),
+    ) as TReviewReply[];
+    const repliesText = formatRepliesForExport(validReplies);
 
     const row = [
       rating.id?.uuid || '',
