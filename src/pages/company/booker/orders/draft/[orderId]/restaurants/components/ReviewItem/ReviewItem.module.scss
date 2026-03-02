@@ -70,4 +70,52 @@
     @include textTemplate(12px, $fontWeightRegular, 16px);
     color: $neutralGray6;
   }
+
+  .repliesSection {
+    margin-top: 12px;
+    padding-left: 12px;
+    border-left: 2px solid $neutralGray4;
+  }
+
+  .replyItem {
+    margin-bottom: 8px;
+
+    &:last-of-type {
+      margin-bottom: 4px;
+    }
+  }
+
+  .replyHeader {
+    @include flexAlign(center);
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .replyAuthor {
+    @include textTemplate(  px, $fontWeightSemiBold, 16px);
+    color: $neutralGray6;
+  }
+
+  .replyContent {
+    margin: 0;
+    padding-left: 0;
+    @include textTemplate(12px, $fontWeightRegular, 16px);
+    color: $neutralGray7;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+
+  .replyToggle {
+    margin-top: 4px;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    @include textTemplate(12px, $fontWeightMedium, 16px);
+    color: $primaryPri2;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
