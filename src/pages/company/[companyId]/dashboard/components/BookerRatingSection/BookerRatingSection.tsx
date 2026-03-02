@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 
 import { getCompanyRatingsApi } from '@apis/companyApi';
 import Avatar from '@components/Avatar/Avatar';
+import { renderReplyRole } from '@helpers/review/ui';
 import { EmptyWrapper } from '@pages/admin/scanner/[planId]/EmptyWrapper';
 import { LoadingWrapper } from '@pages/admin/scanner/[planId]/LoadingWrapper';
 import { enGeneralPaths } from '@src/paths';
@@ -25,6 +26,9 @@ const BookerRatingSection = () => {
     [],
   );
   const [inProgress, setInProgress] = useState<boolean>(true);
+  const [expandedRepliesByRatingId, setExpandedRepliesByRatingId] = useState<
+    Record<string, boolean>
+  >({});
 
   // load 5 latest rating listing of current company id
   useEffect(() => {
@@ -93,7 +97,7 @@ const BookerRatingSection = () => {
 
           <div className="flex flex-col gap-2 mt-2">
             {ratingListing.length > 0 ? (
-              ratingListing.map((rating) =>
+              ratingListing.map((rating, ratingIndex) =>
                 rating.reviewer ? (
                   <div
                     key={rating.id?.uuid}
@@ -135,6 +139,84 @@ const BookerRatingSection = () => {
                         {!!rating.attributes?.metadata?.detailTextRating &&
                           ` - ${rating.attributes?.metadata?.detailTextRating}`}
                       </p>
+                      {Array.isArray(rating.attributes?.metadata?.replies) &&
+                        rating.attributes?.metadata?.replies.filter(Boolean)
+                          .length > 0 && (
+                          <div className="mt-3 pl-3 border-l border-gray-300">
+                            {(() => {
+                              const replies =
+                                rating.attributes?.metadata?.replies?.filter(
+                                  (reply) => !!reply,
+                                ) || [];
+
+                              const ratingKey =
+                                rating.id?.uuid ?? `rating-${ratingIndex}`;
+                              const isExpanded =
+                                expandedRepliesByRatingId[ratingKey] ?? false;
+
+                              const visibleReplies = isExpanded
+                                ? replies
+                                : replies.slice(0, 2);
+
+                              return (
+                                <>
+                                  {visibleReplies.map((reply) => {
+                                    if (!reply) return null;
+
+                                    return (
+                                      <div
+                                        key={
+                                          reply.id ||
+                                          `${reply.repliedAt}-${reply.authorId}`
+                                        }
+                                        className="mb-2">
+                                        <div className="flex items-start gap-2 mb-1">
+                                          <div className="w-6 h-6 bg-[#ef3d2a] rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                                            {reply.authorName?.charAt(0) || 'U'}
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-gray-500 font-semibold text-sm">
+                                              {reply.authorName || 'NA'}
+                                            </span>
+                                            {reply.replyRole &&
+                                              renderReplyRole(reply.replyRole)}
+                                          </div>
+                                        </div>
+                                        <p className="text-gray-700 text-sm leading-relaxed ml-8 whitespace-pre-line break-words">
+                                          {reply.replyContent}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {replies.length > 2 && (
+                                    <button
+                                      type="button"
+                                      className="ml-8 mt-1 text-xs font-medium text-blue-600 hover:underline"
+                                      onClick={() => {
+                                        setExpandedRepliesByRatingId(
+                                          (prevState) => ({
+                                            ...prevState,
+                                            [ratingKey]: !isExpanded,
+                                          }),
+                                        );
+                                      }}>
+                                      {isExpanded
+                                        ? formatMessage({
+                                            id: 'BookerRatingSection.collapseReplies',
+                                            defaultMessage: 'Thu gọn phản hồi',
+                                          })
+                                        : formatMessage({
+                                            id: 'BookerRatingSection.showMoreReplies',
+                                            defaultMessage: 'Xem thêm phản hồi',
+                                          })}
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                     </div>
                   </div>
                 ) : null,

@@ -8,10 +8,11 @@ import { getIntegrationSdk } from '@services/sdk';
 import type {
   OrderListing,
   RatingListing,
+  TReviewReply,
   UserListing,
   WithFlexSDKData,
 } from '@src/types';
-import { EImageVariants, EListingType } from '@src/utils/enums';
+import { EImageVariants, EListingType, EUserRole } from '@src/utils/enums';
 
 export const retrieveAll = async <T extends Array<any>>(
   queryFunction: (params: any) => Promise<WithFlexSDKData<T>>,
@@ -99,6 +100,29 @@ export const retrieveAllByIdChunks = async <T extends Array<any>>(
   return allPages;
 };
 
+const getReplyRoleLabel = (replyRole: EUserRole): string => {
+  const labels: Record<EUserRole, string> = {
+    [EUserRole.admin]: 'Admin',
+    [EUserRole.company]: 'Company',
+    [EUserRole.partner]: 'Partner',
+    [EUserRole.booker]: 'Booker',
+    [EUserRole.participant]: 'Participant',
+  };
+  return labels[replyRole] ?? 'NA';
+};
+
+/** Format replies as single string for export (e.g. "Author (Role): content\n...") */
+const formatRepliesForExport = (replies: TReviewReply[] | undefined): string => {
+  if (!replies?.length) return '';
+  return replies
+    .filter((r): r is TReviewReply => !!r)
+    .map(
+      (r) =>
+        `${r.authorName || 'NA'} (${getReplyRoleLabel(r.replyRole)}): ${(r.replyContent || '').replace(/\n/g, ' ')}`,
+    )
+    .join('\n');
+};
+
 /**
  * Generate XLSX file from ratings data
  */
@@ -133,6 +157,7 @@ const generateRatingsXLSX = (
     const date = timestamp ? new Date(+timestamp).toLocaleDateString() : '';
     const restaurantId = metadata?.restaurantId || '';
     const foodName = metadata?.foodName || '';
+    const repliesText = formatRepliesForExport(metadata?.replies);
 
     return {
       'Rating ID': rating.id?.uuid || '',
@@ -144,6 +169,7 @@ const generateRatingsXLSX = (
       Date: date,
       'Restaurant ID': restaurantId,
       'Food Name': foodName,
+      'Phản hồi': repliesText,
     };
   });
 
@@ -166,6 +192,7 @@ const generateRatingsXLSX = (
       { wch: 12 }, // Date
       { wch: 20 }, // Restaurant ID
       { wch: 25 }, // Food Name
+      { wch: 50 }, // Phản hồi
     ];
     worksheet['!cols'] = columnWidths;
 
@@ -213,6 +240,7 @@ const generateRatingsCSV = (
     'Date',
     'Restaurant ID',
     'Food Name',
+    'Phản hồi',
   ];
 
   const csvRows = [headers.join(',')];
@@ -230,6 +258,7 @@ const generateRatingsCSV = (
     const date = timestamp ? new Date(+timestamp).toLocaleDateString() : '';
     const restaurantId = metadata?.restaurantId || '';
     const foodName = metadata?.foodName || '';
+    const repliesText = formatRepliesForExport(metadata?.replies);
 
     const row = [
       rating.id?.uuid || '',
@@ -241,6 +270,7 @@ const generateRatingsCSV = (
       date,
       `"${restaurantId}"`,
       `"${foodName}"`,
+      `"${repliesText.replace(/"/g, '""')}"`,
     ];
 
     csvRows.push(row.join(','));

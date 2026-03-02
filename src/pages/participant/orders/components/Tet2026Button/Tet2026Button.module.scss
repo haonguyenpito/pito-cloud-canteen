@@ -1,0 +1,127 @@
+.tetButtonOuter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  isolation: isolate;
+}
+
+.ambientGlow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 204, 0, 0.15) 0%,
+    transparent 70%
+  );
+  animation: pulseGlow 4s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.rotatingBorderWrapper {
+  position: absolute;
+  inset: 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+  padding: 1.5px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.rotatingBorder {
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #ffd700 90deg,
+    transparent 180deg,
+    #ff6b35 270deg,
+    transparent 360deg
+  );
+  animation: rotateBorder 3s linear infinite;
+}
+
+@keyframes rotateBorder {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tetButton {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: linear-gradient(135deg, #c41e22 0%, #b01a1d 100%);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(196, 30, 34, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 6px 18px rgba(196, 30, 34, 0.4);
+    background: linear-gradient(135deg, #d42426 0%, #c41e22 100%);
+
+    .shimmer {
+      transform: translateX(250%);
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.buttonInner {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  position: relative;
+  z-index: 2;
+}
+
+.mainRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tetLabel {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffeeba;
+}
+
+.horse2026Art {
+  width: 75px;
+  height: auto;
+}
+
+.horsePath {
+  animation: horseWink 3s ease-in-out infinite;
+}

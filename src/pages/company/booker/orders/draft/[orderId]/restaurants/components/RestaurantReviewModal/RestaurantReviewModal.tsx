@@ -7,6 +7,7 @@ import RenderWhen from '@components/RenderWhen/RenderWhen';
 import SlideModal from '@components/SlideModal/SlideModal';
 import Tabs from '@components/Tabs/Tabs';
 import { useViewport } from '@hooks/useViewport';
+import type { TReviewReply } from '@src/types';
 import { Listing } from '@src/utils/data';
 import type { TListing } from '@src/utils/types';
 
@@ -59,9 +60,13 @@ const ReviewItemList = ({
             detailRating,
             timestamp,
             foodName,
+            secondaryFoodName,
             detailTextRating,
+            replies,
           } = review.attributes?.metadata || {};
           const { createdAt: reviewAt } = review.attributes || {};
+          const foodNameValue =
+            foodName + (secondaryFoodName ? ` + ${secondaryFoodName}` : '');
 
           return (
             <div className={css.reviewItem} key={review.id?.uuid}>
@@ -70,9 +75,10 @@ const ReviewItemList = ({
                 detailRating={detailRating}
                 user={review.reviewer}
                 timestamp={timestamp ? +timestamp : undefined}
-                foodName={foodName}
+                foodName={foodNameValue}
                 detailTextRating={detailTextRating}
                 reviewAt={reviewAt ? new Date(reviewAt) : undefined}
+                replies={replies?.filter((r): r is TReviewReply => !!r) || []}
               />
             </div>
           );

@@ -210,11 +210,12 @@ export const createNativeNotification = async (
     case ENativeNotificationType.Tet2026:
       {
         const { companyId } = notificationParams;
-        const url = `${BASE_URL}/participant/tet-2026/${companyId}`;
+        const url = `${BASE_URL}/participant/events/tet-2026/${companyId}`;
         oneSignalUserIds.forEach((oneSignalUserId: string) => {
           sendNotification({
-            title: 'Happy Tet 2026!',
-            content: 'Năm mới đến rồi, chúc mừng bạn năm mới vui vẻ!',
+            title: 'PITO Cloud Canteen',
+            content:
+              '[Xem video] - Cảm ơn bạn vì đã đồng hành cùng PITO Cloud Canteen! Chúc mừng Xuân Bính Ngọ 2026',
             url,
             oneSignalUserId,
           });

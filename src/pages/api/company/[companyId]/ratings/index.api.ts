@@ -11,7 +11,12 @@ import type {
   UserListing,
   WithFlexSDKData,
 } from '@src/types';
-import { EImageVariants, EListingType } from '@src/utils/enums';
+import {
+  EImageVariants,
+  EListingType,
+  EPartnerReply,
+  EUserRole,
+} from '@src/utils/enums';
 
 export const retrieveAll = async <T extends Array<any>>(
   queryFunction: (params: any) => Promise<WithFlexSDKData<T>>,
@@ -315,6 +320,17 @@ const handler = async (
       );
       const orderId = metadata?.orderId;
       const orderData = ordersData.find((order) => order.id?.uuid === orderId);
+
+      const replies = metadata?.replies;
+      const validReplies = replies?.filter(
+        (reply) =>
+          !(
+            reply?.replyRole === EUserRole.partner &&
+            (reply?.status === EPartnerReply.rejected ||
+              reply?.status === EPartnerReply.pending)
+          ),
+      );
+      rating.attributes!.metadata!.replies = validReplies;
 
       return {
         ...rating,

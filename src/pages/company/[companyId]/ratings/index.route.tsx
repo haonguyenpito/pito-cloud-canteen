@@ -10,7 +10,13 @@ import FieldTextInput from '@components/FormFields/FieldTextInput/FieldTextInput
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import { type TColumn, TableForm } from '@components/Table/Table';
 import OrderDateField from '@pages/company/booker/orders/new/quiz/meal-date/OrderDateField/OrderDateField';
-import type { OrderListing, RatingListing, UserListing } from '@src/types';
+import type {
+  OrderListing,
+  RatingListing,
+  TReviewReply,
+  UserListing,
+} from '@src/types';
+import { EUserRole } from '@src/utils/enums';
 
 export interface BookerViewerRatingData {
   data: Array<
@@ -26,6 +32,18 @@ export interface BookerViewerRatingData {
     perPage: number;
   };
 }
+
+const getReplyRoleLabel = (replyRole: EUserRole): string => {
+  const labels: Record<EUserRole, string> = {
+    [EUserRole.admin]: 'Admin',
+    [EUserRole.company]: 'Company',
+    [EUserRole.partner]: 'Partner',
+    [EUserRole.booker]: 'Booker',
+    [EUserRole.participant]: 'Participant',
+  };
+
+  return labels[replyRole] ?? 'NA';
+};
 
 const TABLE_COLUMN: TColumn[] = [
   {
@@ -74,6 +92,59 @@ const TABLE_COLUMN: TColumn[] = [
       return <div>{new Date(date).toLocaleDateString()}</div>;
     },
   },
+  {
+    key: 'replies',
+    label: 'Phản hồi',
+    render: ({
+      replies,
+      ratingId,
+      isRepliesExpanded,
+      onToggleReplies,
+    }: {
+      replies?: TReviewReply[];
+      ratingId?: string;
+      isRepliesExpanded?: boolean;
+      onToggleReplies?: (id: string) => void;
+    }) => {
+      if (!replies?.length) {
+        return <div className="text-gray-400">—</div>;
+      }
+
+      const visibleReplies =
+        isRepliesExpanded ?? false ? replies : replies.slice(0, 2);
+      const hasMore = replies.length > 2;
+
+      return (
+        <div className="flex flex-col gap-1 text-sm">
+          {visibleReplies.map((reply, idx) => (
+            <div
+              key={reply.id ?? idx}
+              className="border-l-2 border-gray-200 pl-2">
+              <span className="font-medium text-gray-600">
+                {reply.authorName || 'NA'}
+                {reply.replyRole && (
+                  <span className="ml-1 text-gray-500 font-normal">
+                    ({getReplyRoleLabel(reply.replyRole)})
+                  </span>
+                )}
+              </span>
+              <p className="text-gray-700 whitespace-pre-line break-words mt-0.5">
+                {reply.replyContent}
+              </p>
+            </div>
+          ))}
+          {hasMore && ratingId && onToggleReplies && (
+            <button
+              type="button"
+              className="text-xs font-medium text-blue-600 hover:underline mt-1 text-left"
+              onClick={() => onToggleReplies(ratingId)}>
+              {isRepliesExpanded ? 'Thu gọn phản hồi' : 'Xem thêm phản hồi'}
+            </button>
+          )}
+        </div>
+      );
+    },
+  },
 ];
 
 export default function CompanyDetailRoute() {
@@ -82,6 +153,10 @@ export default function CompanyDetailRoute() {
   const { query } = router;
   const { page, perPage, orderCode, startDate, endDate } = query;
   const intl = useIntl();
+
+  const [expandedRepliesByRatingId, setExpandedRepliesByRatingId] = useState<
+    Record<string, boolean>
+  >({});
 
   const [ratingListing, setRatingListing] = useState<BookerViewerRatingData>({
     data: [],
@@ -148,23 +223,41 @@ export default function CompanyDetailRoute() {
           setInProgress(false);
         });
     }
-  }, [companyId as string, page, orderCode, startDate, endDate]);
+  }, [page, orderCode, startDate, endDate, companyId, perPage]);
 
   if (!companyId) {
     return null;
   }
 
-  const parseToTableData = ratingListing.data.map((rating) => ({
-    key: rating.id?.uuid || 'N/A',
-    data: {
-      id: rating.id?.uuid || 'N/A',
-      code: rating.attributes?.metadata?.orderCode || 'N/A',
-      name: rating.reviewer?.attributes?.email || 'N/A',
-      rate: rating.attributes?.metadata?.generalRating || 'N/A',
-      description: rating.attributes?.metadata?.detailTextRating || 'N/A',
-      date: rating.attributes?.metadata?.timestamp || 'N/A',
-    },
-  }));
+  const handleToggleReplies = (ratingId: string) => {
+    setExpandedRepliesByRatingId((prev) => ({
+      ...prev,
+      [ratingId]: !prev[ratingId],
+    }));
+  };
+
+  const parseToTableData = ratingListing.data.map((rating) => {
+    const ratingId = rating.id?.uuid ?? 'N/A';
+
+    return {
+      key: ratingId,
+      data: {
+        id: ratingId,
+        code: rating.attributes?.metadata?.orderCode || 'N/A',
+        name: rating.reviewer?.attributes?.email || 'N/A',
+        rate: rating.attributes?.metadata?.generalRating || 'N/A',
+        description: rating.attributes?.metadata?.detailTextRating || 'N/A',
+        date: rating.attributes?.metadata?.timestamp || 'N/A',
+        replies:
+          rating.attributes?.metadata?.replies?.filter(
+            (r): r is TReviewReply => !!r,
+          ) ?? [],
+        ratingId,
+        isRepliesExpanded: expandedRepliesByRatingId[ratingId] ?? false,
+        onToggleReplies: handleToggleReplies,
+      },
+    };
+  });
 
   return (
     <div className="w-full max-w-[90%] mx-auto py-4">
