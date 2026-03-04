@@ -237,7 +237,6 @@ export const BookerChecklistSignatureForm = ({
             )}
           </div>
 
-          {/* Signature Section - 3 columns like admin, only Client editable */}
           <div className="mb-8 pt-6 border-t border-gray-300">
             <h3 className="text-lg font-semibold mb-4">Phần ký tên</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -272,7 +271,7 @@ export const BookerChecklistSignatureForm = ({
                   control={form.control}
                   name="clientSignature"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col gap-2">
+                    <FormItem className="flex flex-col gap-2 space-y-0">
                       <FormLabel className="text-sm font-medium">
                         Khách hàng <span className="text-red-500">*</span>
                       </FormLabel>
