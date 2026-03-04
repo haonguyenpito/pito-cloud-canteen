@@ -46,12 +46,14 @@ export const HowItWorksSteps = ({
             className="absolute -z-10 md:size-64 size-45 -rotate-90 bottom-0 md:-bottom-20 md:-right-20 right-auto md:left-auto -left-20 md:transform-none scale-50 translate-x-[0] translate-y-[160px]"
           />
           <div className="mt-0 relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-            <iframe
-              src="https://fast.wistia.net/embed/iframe/7za7iibhgy?autoPlay=true&mute=true&playerColor=000000"
-              title="Media Frame"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen={false}
-              className="absolute top-0 left-0 w-full h-full"
+            <video
+              src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/he-thong-tu-de-xuat-menu.mp4"
+              autoPlay
+              muted
+              loop
+              controls
+              playsInline
+              className="absolute top-0 left-0 w-full h-full object-cover"
             />
           </div>
         </div>
@@ -71,12 +73,14 @@ export const HowItWorksSteps = ({
             className="absolute -z-10 size-12 -top-6 md:left-8 left-auto md:right-auto right-0"
           />
           <div className="mt-0 relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-            <iframe
-              src="https://fast.wistia.net/embed/iframe/8u3jxgesk7?autoPlay=true&mute=true&playerColor=000000"
-              title="Media Frame"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen={false}
-              className="absolute top-0 left-0 w-full h-full"
+            <video
+              src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/nhan-vien-tu-dong-chon-mon.mp4"
+              autoPlay
+              muted
+              loop
+              controls
+              playsInline
+              className="absolute top-0 left-0 w-full h-full object-cover"
             />
           </div>
         </div>
