@@ -155,6 +155,8 @@
   "AdminOrderDetailRoute.title": "Admin | Order details",
   "AdminCheckListRoute.description": "Order checklist",
   "AdminCheckListRoute.title": "Admin | Order checklist",
+  "BookerCheckListRoute.description": "Sign handover checklist",
+  "BookerCheckListRoute.title": "Sign handover checklist",
   "AdminPartnerPaymentRoute.description": "Partner payment",
   "AdminPartnerPaymentRoute.title": "Admin | Partner payment",
   "AdminOrderReviewRoute.description": "Order reviews",

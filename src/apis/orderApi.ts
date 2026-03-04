@@ -13,7 +13,7 @@ import type { ApiResponse } from '@src/utils/response';
 import type { TCreateChecklistApiBody, TObject } from '@utils/types';
 
 import type { TBodyParams } from './configs';
-import { deleteApi, getApi, postApi, putApi } from './configs';
+import { deleteApi, getApi, patchApi, postApi, putApi } from './configs';
 
 type TCreateBookerOrderApiBody = {
   companyId: string;
@@ -277,3 +277,28 @@ export const getChecklistApi = (orderId: string, subOrderDate: string) =>
   getApi<ApiResponse<ChecklistListing>>(
     `/orders/${orderId}/checklist/${subOrderDate}`,
   );
+
+/**
+ * Get checklist (public - for booker page, no auth required)
+ * @param orderId - Order ID
+ * @param subOrderDate - Sub order date
+ * @returns Checklist data
+ */
+export const getChecklistBookerApi = (orderId: string, subOrderDate: string) =>
+  getApi<ApiResponse<ChecklistListing>>(
+    `/orders/${orderId}/checklist/${subOrderDate}/booker`,
+  );
+
+/**
+ * Update checklist client signature (public - for booker page)
+ * @param orderId - Order ID
+ * @param subOrderDate - Sub order date
+ * @param body - clientSignature and clientNameSignature
+ * @returns Updated checklist data
+ */
+export const updateChecklistClientSignatureApi = (
+  orderId: string,
+  subOrderDate: string,
+  body: { clientSignature: string; clientNameSignature: string },
+): Promise<AxiosResponse<ApiResponse<ChecklistListing>>> =>
+  patchApi(`/orders/${orderId}/checklist/${subOrderDate}/booker`, body);
