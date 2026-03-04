@@ -12,22 +12,9 @@ import Image from 'next/image';
 
 import featureImage from '../../assets/admin/feature.webp';
 import stepBg from '../../assets/stepBg.svg';
-import VideoSection from '../VideoSection';
 
 const Feature = () => {
   const intl = useIntl();
-  // const [activeIndex, setActiveIndex] = useState<number>(0);
-
-  const videoId = useMemo(
-    () => (intl.locale === 'vi' ? 'vhlrnaj7r4' : 'kpc1u5v2ac'),
-    [intl.locale],
-  );
-
-  const inlineEmbedUrl = useMemo(
-    () =>
-      `https://fast.wistia.net/embed/iframe/${videoId}?autoPlay=false&mute=true&playerColor=000000`,
-    [videoId],
-  );
 
   const steps = useMemo(() => {
     return [
@@ -88,9 +75,14 @@ const Feature = () => {
           className="size-full object-cover absolute -z-10"
         />
         <div className="w-[95%] aspect-[5/3] object-cover absolute -z-10">
-          <VideoSection
-            embedUrl={inlineEmbedUrl}
-            className="w-full !rounded-xl"
+          <video
+            src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/nhan-vien-tu-dong-chon-mon.mp4"
+            autoPlay
+            muted
+            loop
+            controls
+            playsInline
+            className="absolute top-0 left-0 w-full h-full object-cover"
           />
         </div>
       </div>

@@ -27,8 +27,8 @@ const Experience = () => {
         textColor: '#3598BF',
         icon: <PiForkKnife />,
         imgSrc:
-          'https://fast.wistia.net/embed/iframe/8u3jxgesk7?autoPlay=true&mute=true&playerColor=000000',
-        type: 'gif',
+          'https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/nhan-vien-tu-dong-chon-mon.mp4',
+        type: 'video',
       },
       {
         id: 2,
@@ -50,8 +50,8 @@ const Experience = () => {
         textColor: '#D680A3',
         icon: <PiUser />,
         imgSrc:
-          'https://fast.wistia.net/embed/iframe/tpn0y59zt5?autoPlay=true&mute=true&playerColor=000000',
-        type: 'gif',
+          'https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/giao-va-setup-tan-noi.mp4',
+        type: 'video',
       },
     ];
   }, [intl]);
@@ -71,15 +71,18 @@ const Experience = () => {
           {(() => {
             const activeItem = data.find((item) => item.id === indexActive);
 
-            if (activeItem?.type === 'gif') {
+            if (activeItem?.type === 'video') {
               return (
                 <div className="relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-                  <iframe
+                  <video
                     src={activeItem.imgSrc as string}
-                    title="Media Frame"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen={false}
-                    className="absolute top-0 left-0 w-full h-full"
+                    title="Video"
+                    autoPlay
+                    muted
+                    loop
+                    controls
+                    playsInline
+                    className="absolute top-0 left-0 w-full h-full object-cover"
                   />
                 </div>
               );
@@ -129,15 +132,17 @@ const Experience = () => {
               {item.id === indexActive && (
                 <div className="block md:hidden">
                   {(() => {
-                    if (item?.type === 'gif') {
+                    if (item?.type === 'video') {
                       return (
                         <div className="relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-                          <iframe
+                          <video
                             src={item.imgSrc as string}
-                            title="Media Frame"
-                            allow="autoplay; encrypted-media; picture-in-picture"
-                            allowFullScreen={false}
-                            className="absolute top-0 left-0 w-full h-full"
+                            autoPlay
+                            muted
+                            loop
+                            controls
+                            playsInline
+                            className="absolute top-0 left-0 w-full h-full object-cover"
                           />
                         </div>
                       );
