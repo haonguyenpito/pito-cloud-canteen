@@ -104,6 +104,23 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         const companyAccount = await fetchUser(companyId);
         const { subAccountId } = companyAccount.attributes.profile.privateData;
 
+        // Check checklist is already exists
+        const checklistExistsResponse = await integrationSdk.listings.query({
+          meta_orderId: orderId,
+          meta_subOrderDate: subOrderDate,
+          meta_listingType: EListingType.checklist,
+        });
+        const [checklistExists] = denormalisedResponseEntities(
+          checklistExistsResponse,
+        );
+        if (checklistExists) {
+          return new FailedResponse({
+            status: HttpStatus.BAD_REQUEST,
+            message:
+              'Checklist for this order and sub order date already exists',
+          }).send(res);
+        }
+
         if (!subAccountId) {
           return new FailedResponse({
             status: HttpStatus.INTERNAL_SERVER_ERROR,
