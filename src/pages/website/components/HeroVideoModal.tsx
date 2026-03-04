@@ -46,7 +46,7 @@ const HeroVideoModal = ({
 
   return (
     <div
-      className={`bg-transparent border-none w-full rounded-[8px] md:max-w-[60vw] overflow-auto md:w-full relative transition-all duration-300 ease-in-out ${
+      className={`bg-transparent border-none w-full max-w-full md:max-w-[60vw] rounded-[8px] overflow-hidden md:overflow-auto md:w-full relative transition-all duration-300 ease-in-out ${
         isModalOpen
           ? 'opacity-100 scale-100 visible'
           : 'opacity-0 scale-90 invisible'

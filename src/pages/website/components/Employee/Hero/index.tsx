@@ -64,14 +64,18 @@ const Hero = () => {
               })}
             </span>
 
-            <div className="flex md:flex-row flex-col md:items-center items-stretch w-full gap-2 mt-8">
-              <button
-                type="button"
-                onClick={() => setIsModalHeroOpen(true)}
-                className="capitalize btn border font-[unbounded] border-gray-300 bg-black text-white py-3 px-6 font-semibold hover:opacity-90 transition-all duration-200 hover:scale-[1.01]">
-                {intl.formatMessage({ id: 'see-how-pito-cloud-canteen-works' })}
-              </button>
-            </div>
+            {!isMobile && (
+              <div className="flex md:flex-row flex-col md:items-center items-stretch w-full gap-2 mt-8">
+                <button
+                  type="button"
+                  onClick={() => setIsModalHeroOpen(true)}
+                  className="capitalize btn border font-[unbounded] border-gray-300 bg-black text-white py-3 px-6 font-semibold hover:opacity-90 transition-all duration-200 hover:scale-[1.01]">
+                  {intl.formatMessage({
+                    id: 'see-how-pito-cloud-canteen-works',
+                  })}
+                </button>
+              </div>
+            )}
           </div>
 
           {isMobile ? (
@@ -102,11 +106,11 @@ const Hero = () => {
         </div>
 
         {/* decorations */}
-        <div className="aspect-[277/255] h-[65%] z-0 md:top-[10%] md:-left-[12%] absolute md:flex hidden rotate-[104deg]">
+        <div className="aspect-[277/255] h-[65%] z-0 md:top-[10%] xl:-left-[14%] absolute xl:flex hidden rotate-[104deg]">
           <Image src={lemon} alt="lemon decor" fill />
         </div>
 
-        <div className="aspect-[11/8] h-[20%] z-10 md:top-[20%] md:left-[4%] absolute md:flex hidden -rotate-[20deg]">
+        <div className="aspect-[11/8] h-[20%] z-10 md:top-[20%] xl:left-[3%] absolute xl:flex hidden -rotate-[20deg]">
           <Image src={blue2} alt="lemon triangle decor" fill />
         </div>
       </div>
