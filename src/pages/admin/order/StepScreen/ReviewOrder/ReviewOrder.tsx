@@ -259,6 +259,9 @@ export const ReviewContent: React.FC<any> = (props) => {
   const [shareMenuLinkTooltip, setShareMenuLinkTooltip] = useState(
     'Chia sẻ link thực đơn',
   );
+  const [shareChecklistLinkTooltip, setShareChecklistLinkTooltip] = useState(
+    'Chia sẻ link biên bản xác nhận',
+  );
   const allowTriggerGenerateUserLabelFile = useRef(false);
   const thermalPrintSectionRef = useRef<HTMLDivElement>(null);
 
@@ -438,6 +441,15 @@ export const ReviewContent: React.FC<any> = (props) => {
     }, 2000);
   };
 
+  const handleShareChecklistLink = () => {
+    const checklistLink = `${process.env.NEXT_PUBLIC_CANONICAL_URL}/company/orders/${orderId}/checklist/${timeStamp}`;
+    navigator.clipboard.writeText(checklistLink);
+    setShareChecklistLinkTooltip('Đã sao chép link biên bản xác nhận');
+    setTimeout(() => {
+      setShareChecklistLinkTooltip('Chia sẻ link biên bản xác nhận');
+    }, 2000);
+  };
+
   return (
     <>
       <div className="flex flex-col w-full gap-2">
@@ -608,7 +620,7 @@ export const ReviewContent: React.FC<any> = (props) => {
 
         <Collapsible
           label={
-            <div className="flex items-center gap-2 text-xs md:text-lg">
+            <div className="flex items-center gap-3 text-xs md:text-lg">
               {intl.formatMessage({
                 id: 'ReviewOrder.menuLabel',
               })}
@@ -625,6 +637,7 @@ export const ReviewContent: React.FC<any> = (props) => {
                   className="w-4 h-4 text-blue-700"
                 />
               </Tooltip>
+              <span>|</span>
               <Link
                 href={adminPaths.Checklist.replace(
                   '[orderId]',
@@ -635,6 +648,21 @@ export const ReviewContent: React.FC<any> = (props) => {
                 }}>
                 Biên bản xác nhận
               </Link>
+              <span>|</span>
+              <span>Biên bản xác nhận của khách hàng</span>
+              <Tooltip
+                overlayClassName={css.toolTipOverlay}
+                trigger="hover"
+                placement="top"
+                tooltipContent={shareChecklistLinkTooltip}>
+                <LinkIcon
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShareChecklistLink();
+                  }}
+                  className="w-4 h-4 text-blue-700"
+                />
+              </Tooltip>
             </div>
           }>
           <RenderWhen condition={shouldShowFoodList}>

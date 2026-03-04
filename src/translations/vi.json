@@ -155,6 +155,8 @@
   "AdminOrderDetailRoute.title": "Admin | Chi tiết đơn hàng",
   "AdminCheckListRoute.description": "Checklist đơn hàng",
   "AdminCheckListRoute.title": "Admin | Checklist đơn hàng",
+  "BookerCheckListRoute.description": "Ký tên biên bản bàn giao",
+  "BookerCheckListRoute.title": "Ký tên biên bản bàn giao",
   "AdminPartnerPaymentRoute.description": "Thanh toán đối tác",
   "AdminPartnerPaymentRoute.title": "Admin | Thanh toán đối tác",
   "AdminOrderReviewRoute.description": "Đánh giá đơn hàng",

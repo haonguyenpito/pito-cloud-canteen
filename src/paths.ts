@@ -44,6 +44,7 @@ export const publicPaths = [
   '/website',
   '/sitemap.xml',
   '/robots.txt',
+  '/company/orders/[orderId]/checklist/[subOrderDate]',
 ];
 
 export const enGeneralPaths = {
@@ -84,6 +85,7 @@ export const enGeneralPaths = {
     orders: {
       '[orderId]': {
         index: (orderId: string) => `/company/orders/${orderId}`,
+        checklist: (orderId: string) => `/company/orders/${orderId}/checklist`,
       },
     },
     '[companyId]': {
@@ -352,6 +354,7 @@ export const companyPaths = {
   ManageOrderDetail: '/company/orders/[orderId]',
   ManageOrderPicking: '/company/orders/[orderId]/picking',
   OrderRating: '/company/orders/[orderId]/rating',
+  Checklist: '/company/orders/[orderId]/checklist/[subOrderDate]',
   GroupSetting: '/company/[companyId]/group-setting',
   Logo: '/company/[companyId]/logo',
   Members: '/company/[companyId]/members',
