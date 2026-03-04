@@ -78,7 +78,7 @@ const ModalAlt = ({ onClose, isModalOpen }: ModalProps) => {
 
   return (
     <div
-      className={`fixed inset-0 flex justify-center items-center transition-all duration-300 ease-in-out ${
+      className={`fixed inset-0 flex justify-center items-start md:items-center p-4 md:p-0 overflow-y-auto transition-all duration-300 ease-in-out ${
         isModalOpen
           ? 'opacity-100 visible bg-black/80 z-[1000]'
           : 'opacity-0 invisible z-10'
@@ -121,7 +121,7 @@ const ModalAlt = ({ onClose, isModalOpen }: ModalProps) => {
         {/* rhs */}
         <div
           ref={formHeight}
-          className="overflow-auto w-full md:w-[45%] flex flex-col p-4 md:p-10 bg-white !rounded-none md:rounded-3xl absolute h-fit right-0">
+          className="overflow-auto w-full md:w-[45%] flex flex-col p-4 md:p-10 bg-white rounded-3xl md:absolute md:right-0">
           {/* Close Button */}
           <button
             onClick={onClose}
