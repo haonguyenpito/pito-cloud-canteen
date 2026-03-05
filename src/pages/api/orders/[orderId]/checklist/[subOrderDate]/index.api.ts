@@ -8,6 +8,7 @@ import adminChecker from '@services/permissionChecker/admin';
 import { getIntegrationSdk, getSdk } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
 import { adminPaths } from '@src/paths';
+import type { ChecklistListing } from '@src/types';
 import {
   FailedResponse,
   HttpStatus,
@@ -154,10 +155,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             clientNameSignature,
           },
         });
-        const [checklist] = denormalisedResponseEntities(checklistResponse);
+        const [checklist] = denormalisedResponseEntities(
+          checklistResponse,
+        ) as ChecklistListing[];
 
-        // Send Slack notification
-        if (checklist) {
+        // Send Slack notification if only client signature is signed
+        if (checklist && clientSignature) {
           const BASE_URL = process.env.NEXT_PUBLIC_CANONICAL_URL;
           const checklistLink = `${BASE_URL}${adminPaths.Checklist.replace(
             '[orderId]',
