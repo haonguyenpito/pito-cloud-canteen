@@ -98,17 +98,26 @@ const CheckListPage = ({ orderId, subOrderDate }: CheckListPageProps) => {
 
       const res = await createChecklist(apiBody);
       if (res.status === HttpStatus.CREATED) {
-        const link = `${
-          process.env.NEXT_PUBLIC_CANONICAL_URL
-        }${companyPaths.Checklist.replace('[orderId]', orderId).replace(
-          '[subOrderDate]',
-          subOrderDate,
-        )}`;
-        setChecklistShareLink(link);
-        setIsShareModalOpen(true);
-        toast.success(
-          'Xác nhận biên bản thành công. Vui lòng chia sẻ link biên bản cho khách hàng',
+        const hasClientSignature = Boolean(
+          apiBody.clientSignature || apiBody.clientNameSignature,
         );
+
+        if (!hasClientSignature) {
+          const link = `${
+            process.env.NEXT_PUBLIC_CANONICAL_URL
+          }${companyPaths.Checklist.replace('[orderId]', orderId).replace(
+            '[subOrderDate]',
+            subOrderDate,
+          )}`;
+          setChecklistShareLink(link);
+          setIsShareModalOpen(true);
+          toast.success(
+            'Xác nhận biên bản thành công. Vui lòng chia sẻ link biên bản cho khách hàng',
+          );
+        } else {
+          setIsShareModalOpen(false);
+          toast.success('Xác nhận biên bản thành công');
+        }
 
         getChecklist().then((data) => {
           if (data) {

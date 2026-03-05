@@ -4,12 +4,15 @@ import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
 import { adminQueryListings } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
+import { createSlackNotification } from '@services/slackNotification';
+import { adminPaths } from '@src/paths';
+import type { ChecklistListing } from '@src/types';
 import {
   FailedResponse,
   HttpStatus,
   SuccessResponse,
 } from '@src/utils/response';
-import { EListingType } from '@utils/enums';
+import { EListingType, ESlackNotificationType } from '@utils/enums';
 
 type TUpdateClientSignatureBody = {
   clientSignature: string;
@@ -88,11 +91,33 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           metadata: updatedMetadata,
         });
 
-        const [updatedChecklist] = await adminQueryListings({
+        const [updatedChecklist] = (await adminQueryListings({
           meta_orderId: orderId,
           meta_subOrderDate: subOrderDate,
           meta_listingType: EListingType.checklist,
-        });
+        })) as ChecklistListing[];
+
+        // Send Slack notification if only client signature is signed
+        const BASE_URL = process.env.NEXT_PUBLIC_CANONICAL_URL;
+        const checklistLink = `${BASE_URL}${adminPaths.Checklist.replace(
+          '[orderId]',
+          orderId,
+        ).replace('[subOrderDate]', subOrderDate)}`;
+
+        createSlackNotification(
+          ESlackNotificationType.HANDOVER_FOOD_CHECKLIST,
+          {
+            handoverFoodChecklistData: {
+              companyName:
+                updatedChecklist?.attributes?.metadata?.clientName || '',
+              recordedTime:
+                updatedChecklist?.attributes?.metadata?.recordedTime || '',
+              checklistLink,
+              orderCode:
+                updatedChecklist?.attributes?.metadata?.orderCode || '',
+            },
+          },
+        );
 
         return new SuccessResponse({
           data: updatedChecklist ?? null,
