@@ -12,11 +12,6 @@ import { ENativeNotificationType, ENotificationType } from '@src/utils/enums';
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
     const { dataParams, queryParams = {} } = req.body;
-    if (!dataParams.title || !dataParams.id) {
-      return res
-        .status(400)
-        .json({ error: 'Restaurant name and ID are required' });
-    }
     const newRestaurantName = dataParams.title;
     const restaurantId = dataParams.id;
     const integrationSdk = getIntegrationSdk();
@@ -24,23 +19,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       dataParams,
       queryParams,
     );
-    // sync restaurant name to restaurant owner
-    const restaurantOwnerResponse = await integrationSdk.users.query({
-      meta_restaurantListingId: restaurantId,
-      meta_isPartner: true,
-      perPage: 1,
-    });
-    const [restaurantOwner] = denormalisedResponseEntities(
-      restaurantOwnerResponse,
-    );
-    const restaurantOwnerId = restaurantOwner?.id?.uuid;
-    if (restaurantOwnerId) {
-      await integrationSdk.users.updateProfile({
-        id: restaurantOwnerId,
-        displayName: newRestaurantName,
-        lastName: newRestaurantName.split(' ')[0],
-        firstName: newRestaurantName.split(' ').slice(1).join(' '),
+    if (dataParams.title && dataParams.id) {
+      // sync restaurant name to restaurant owner
+      const restaurantOwnerResponse = await integrationSdk.users.query({
+        meta_restaurantListingId: restaurantId,
+        meta_isPartner: true,
+        perPage: 1,
       });
+      const [restaurantOwner] = denormalisedResponseEntities(
+        restaurantOwnerResponse,
+      );
+      const restaurantOwnerId = restaurantOwner?.id?.uuid;
+      if (restaurantOwnerId) {
+        await integrationSdk.users.updateProfile({
+          id: restaurantOwnerId,
+          displayName: newRestaurantName,
+          lastName: newRestaurantName.split(' ')[0],
+          firstName: newRestaurantName.split(' ').slice(1).join(' '),
+        });
+      }
     }
 
     const restaurant = await fetchListing(dataParams?.id, ['author']);
