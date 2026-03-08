@@ -102,19 +102,21 @@ const logout = createAsyncThunk(
 const signUp = createAsyncThunk(
   SIGN_UP,
   async (params: TObject, { dispatch, extra: sdk }) => {
-    const { email, password, firstName, lastName, ...rest } = params;
+    const { email, password, firstName, lastName, gender, ...rest } = params;
     const defaultParams = {
       email,
       password,
       firstName,
       lastName,
     };
+    const genderValue = gender === 'MALE' ? 'male' : 'female';
     const createUserParams = isEmpty(rest)
       ? defaultParams
       : {
           ...defaultParams,
           protectedData: {
             ...rest,
+            gender: genderValue,
           },
           privateData: {
             verifyEmail: { send: true },

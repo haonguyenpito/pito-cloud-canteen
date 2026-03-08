@@ -9,6 +9,7 @@ import Button from '@components/Button/Button';
 import Form from '@components/Form/Form';
 import FieldCheckbox from '@components/FormFields/FieldCheckbox/FieldCheckbox';
 import FieldPasswordInput from '@components/FormFields/FieldPasswordInput/FieldPasswordInput';
+import FieldSelect from '@components/FormFields/FieldSelect/FieldSelect';
 import FieldTextInput from '@components/FormFields/FieldTextInput/FieldTextInput';
 import { generalPaths } from '@src/paths';
 import type { TDefaultProps } from '@utils/types';
@@ -29,6 +30,7 @@ export type TSignUpFormValues = {
   email: string;
   password: string;
   confirmPassword: string;
+  gender: string;
   phoneNumber?: string;
   privacyAndPolicy: boolean;
 };
@@ -106,6 +108,18 @@ const SignUpFormComponent: React.FC<TSignUpFormComponentProps> = (props) => {
   const phoneNumberLabel = intl.formatMessage({
     id: 'SignUpForm.phoneNumber.label',
   });
+  const genderPlaceholder = intl.formatMessage({
+    id: 'SignUpForm.gender.placeholder',
+  });
+  const genderLabel = intl.formatMessage({
+    id: 'SignUpForm.gender.label',
+  });
+  const genderMale = intl.formatMessage({
+    id: 'SignUpForm.gender.male',
+  });
+  const genderFemale = intl.formatMessage({
+    id: 'SignUpForm.gender.female',
+  });
 
   const privacyPolicyPartA = intl.formatMessage({
     id: 'SignUpForm.privacyPolicy.partA',
@@ -152,6 +166,9 @@ const SignUpFormComponent: React.FC<TSignUpFormComponentProps> = (props) => {
   const phoneNumberValidators = phoneNumberFormatValid(
     intl.formatMessage({ id: 'SignUpForm.phoneNumber.invalid' }),
   );
+  const genderValidators = composeValidators(
+    required(intl.formatMessage({ id: 'SignUpForm.gender.required' })),
+  );
 
   const navigateToSignInPage = () => {
     router.push({ query: router.query, pathname: generalPaths.SignIn });
@@ -186,6 +203,16 @@ const SignUpFormComponent: React.FC<TSignUpFormComponentProps> = (props) => {
           label={nameLabel}
           errorClass={css.errorClass}
         />
+
+        <FieldSelect
+          id={formId ? `${formId}.gender` : 'gender'}
+          name="gender"
+          label={genderLabel}
+          validate={genderValidators}>
+          <option value="">{genderPlaceholder}</option>
+          <option value="MALE">{genderMale}</option>
+          <option value="FEMALE">{genderFemale}</option>
+        </FieldSelect>
 
         <FieldTextInput
           id={formId ? `${formId}.email` : 'email'}
