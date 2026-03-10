@@ -208,10 +208,17 @@ const SignUpFormComponent: React.FC<TSignUpFormComponentProps> = (props) => {
           id={formId ? `${formId}.gender` : 'gender'}
           name="gender"
           label={genderLabel}
+          placeholder={genderPlaceholder}
           validate={genderValidators}>
-          <option value="">{genderPlaceholder}</option>
-          <option value="MALE">{genderMale}</option>
-          <option value="FEMALE">{genderFemale}</option>
+          <option value="" disabled hidden>
+            {genderPlaceholder}
+          </option>
+          <option className="text-black" value="MALE">
+            {genderMale}
+          </option>
+          <option className="text-black" value="FEMALE">
+            {genderFemale}
+          </option>
         </FieldSelect>
 
         <FieldTextInput
