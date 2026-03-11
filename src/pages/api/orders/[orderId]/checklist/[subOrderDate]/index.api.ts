@@ -8,6 +8,7 @@ import adminChecker from '@services/permissionChecker/admin';
 import { getIntegrationSdk, getSdk } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
 import { adminPaths } from '@src/paths';
+import type { ChecklistListing } from '@src/types';
 import {
   FailedResponse,
   HttpStatus,
@@ -104,6 +105,23 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         const companyAccount = await fetchUser(companyId);
         const { subAccountId } = companyAccount.attributes.profile.privateData;
 
+        // Check checklist is already exists
+        const checklistExistsResponse = await integrationSdk.listings.query({
+          meta_orderId: orderId,
+          meta_subOrderDate: subOrderDate,
+          meta_listingType: EListingType.checklist,
+        });
+        const [checklistExists] = denormalisedResponseEntities(
+          checklistExistsResponse,
+        );
+        if (checklistExists) {
+          return new FailedResponse({
+            status: HttpStatus.BAD_REQUEST,
+            message:
+              'Checklist for this order and sub order date already exists',
+          }).send(res);
+        }
+
         if (!subAccountId) {
           return new FailedResponse({
             status: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -137,10 +155,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             clientNameSignature,
           },
         });
-        const [checklist] = denormalisedResponseEntities(checklistResponse);
+        const [checklist] = denormalisedResponseEntities(
+          checklistResponse,
+        ) as ChecklistListing[];
 
-        // Send Slack notification
-        if (checklist) {
+        // Send Slack notification if only client signature is signed
+        if (checklist && clientSignature) {
           const BASE_URL = process.env.NEXT_PUBLIC_CANONICAL_URL;
           const checklistLink = `${BASE_URL}${adminPaths.Checklist.replace(
             '[orderId]',

@@ -40,6 +40,7 @@ import { preparePickingOrderChangeNotificationData } from '@helpers/order/orderC
 import { getTrackingLink } from '@helpers/order/prepareDataHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
+import useCheckListForm from '@hooks/useCheckListForm';
 import { AdminManageOrderThunks } from '@pages/admin/order/AdminManageOrder.slice';
 import { EApiUpdateMode } from '@pages/api/orders/[orderId]/plan/update.service';
 import { company } from '@redux/slices';
@@ -49,8 +50,8 @@ import {
   orderAsyncActions,
   saveDraftEditOrder,
 } from '@redux/slices/Order.slice';
-import { adminPaths } from '@src/paths';
-import type { PlanListing, UserListing } from '@src/types';
+import { adminPaths, companyPaths } from '@src/paths';
+import type { ChecklistListing, PlanListing, UserListing } from '@src/types';
 import { Listing, User } from '@utils/data';
 import { formatTimestamp } from '@utils/dates';
 import {
@@ -206,6 +207,46 @@ export const ReviewContent: React.FC<any> = (props) => {
     string | undefined
   >(deliveryManPhoneNumber);
 
+  const { orderId: orderIdFromQuery } = router.query as {
+    orderId: string;
+  };
+  const subOrderDate = timeStamp;
+
+  const { getChecklist, isGetChecklistLoading: isChecklistLoading } =
+    useCheckListForm(orderIdFromQuery, subOrderDate);
+
+  const [checklist, setChecklist] = useState<ChecklistListing | null>(null);
+
+  useEffect(() => {
+    getChecklist().then((data) => {
+      if (data) {
+        setChecklist(data);
+      } else {
+        setChecklist(null);
+      }
+    });
+  }, [getChecklist, subOrderDate]);
+
+  const checkListPath = useMemo(() => {
+    if (
+      checklist &&
+      checklist != null &&
+      !checklist?.attributes?.metadata?.clientNameSignature
+    ) {
+      return `
+        ${companyPaths.Checklist.replace('[orderId]', orderIdFromQuery).replace(
+          '[subOrderDate]',
+          subOrderDate,
+        )}`;
+    }
+
+    return `
+      ${adminPaths.Checklist.replace('[orderId]', orderIdFromQuery).replace(
+        '[subOrderDate]',
+        subOrderDate,
+      )}`;
+  }, [checklist, orderIdFromQuery, subOrderDate]);
+
   const orderInDraftState = useAppSelector((state) => state.Order.order);
   const orderDetailInDraftState = useAppSelector(
     (state) => state.Order.orderDetail,
@@ -258,6 +299,9 @@ export const ReviewContent: React.FC<any> = (props) => {
 
   const [shareMenuLinkTooltip, setShareMenuLinkTooltip] = useState(
     'Chia sẻ link thực đơn',
+  );
+  const [shareChecklistLinkTooltip, setShareChecklistLinkTooltip] = useState(
+    'Chia sẻ link biên bản xác nhận',
   );
   const allowTriggerGenerateUserLabelFile = useRef(false);
   const thermalPrintSectionRef = useRef<HTMLDivElement>(null);
@@ -438,6 +482,15 @@ export const ReviewContent: React.FC<any> = (props) => {
     }, 2000);
   };
 
+  const handleShareChecklistLink = () => {
+    const checkListLink = `${process.env.NEXT_PUBLIC_CANONICAL_URL}${checkListPath}`;
+    navigator.clipboard.writeText(checkListLink);
+    setShareChecklistLinkTooltip('Đã sao chép link biên bản xác nhận');
+    setTimeout(() => {
+      setShareChecklistLinkTooltip('Chia sẻ link biên bản xác nhận');
+    }, 2000);
+  };
+
   return (
     <>
       <div className="flex flex-col w-full gap-2">
@@ -608,7 +661,7 @@ export const ReviewContent: React.FC<any> = (props) => {
 
         <Collapsible
           label={
-            <div className="flex items-center gap-2 text-xs md:text-lg">
+            <div className="flex items-center gap-3 text-xs md:text-lg">
               {intl.formatMessage({
                 id: 'ReviewOrder.menuLabel',
               })}
@@ -626,15 +679,37 @@ export const ReviewContent: React.FC<any> = (props) => {
                 />
               </Tooltip>
               <Link
-                href={adminPaths.Checklist.replace(
-                  '[orderId]',
-                  orderId,
-                ).replace('[subOrderDate]', timeStamp)}
+                href={checkListPath}
                 onClick={(e) => {
                   e.stopPropagation();
-                }}>
+                }}
+                className={classNames({
+                  'pointer-events-none opacity-50': isChecklistLoading,
+                })}
+                tabIndex={isChecklistLoading ? -1 : 0}
+                aria-disabled={isChecklistLoading}>
                 Biên bản xác nhận
               </Link>
+              <Tooltip
+                overlayClassName={css.toolTipOverlay}
+                trigger="hover"
+                placement="top"
+                tooltipContent={shareChecklistLinkTooltip}>
+                <span
+                  className={classNames({
+                    'pointer-events-none opacity-50': isChecklistLoading,
+                  })}>
+                  <LinkIcon
+                    onClick={(e) => {
+                      if (isChecklistLoading) return;
+                      e.stopPropagation();
+                      handleShareChecklistLink();
+                    }}
+                    className="w-4 h-4 text-blue-700"
+                    aria-disabled={isChecklistLoading}
+                  />
+                </span>
+              </Tooltip>
             </div>
           }>
           <RenderWhen condition={shouldShowFoodList}>

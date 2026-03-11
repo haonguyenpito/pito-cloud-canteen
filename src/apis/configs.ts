@@ -88,6 +88,16 @@ export const putApi = <T = any>(path: string, body: TObject = {}) => {
   return axios.put<T>(`${apiBaseUrl()}${path}`, body);
 };
 
+export const patchApi = <T = any>(
+  path: string,
+  body: TObject = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<AxiosResponse<T>> => {
+  return axios.patch<T>(`${apiBaseUrl()}${path}`, body, {
+    signal: options.signal,
+  });
+};
+
 export const deleteApi = (path: string, data: TObject = {}) => {
   // get any keys of data in req.body
   return axios.delete(`${apiBaseUrl()}${path}`, { data });
@@ -102,6 +112,7 @@ export enum HttpMethod {
   GET = 'GET',
   POST = 'POST',
   PUT = 'PUT',
+  PATCH = 'PATCH',
   DELETE = 'DELETE',
   OPTIONS = 'OPTIONS',
 }
