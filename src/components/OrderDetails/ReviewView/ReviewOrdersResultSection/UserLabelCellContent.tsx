@@ -3,6 +3,7 @@ function UserLabelCellContent({
   companyName,
   partnerName,
   mealDate,
+  groupName,
   participantName,
   foodName,
   qrCodeImageSrc,
@@ -12,40 +13,56 @@ function UserLabelCellContent({
   companyName: string;
   partnerName: string;
   mealDate: string;
+  groupName?: string;
   participantName: string;
   foodName: string;
   qrCodeImageSrc: string;
   note?: string;
 }) {
+  const hasGroupName = Boolean(groupName && String(groupName).trim());
   if (type === 'thermal') {
     return (
       <div className="relative w-full h-full gap-0 px-[4mm] py-[2mm]">
         <div className="flex items-center justify-between w-full">
-          <div className="w-[calc(100%-30mm)] h-[14mm] overflow-hidden">
+          <div className="w-[calc(100%-30mm)] h-[14mm] overflow-hidden flex flex-col justify-start">
             <div
-              className="text-[2.6mm] h-[4.2mm] overflow-hidden"
+              className={`${hasGroupName ? 'text-[2.2mm]' : 'text-[2.6mm]'}`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 0.95,
+                lineHeight: 1.2,
               }}>
               {companyName}
             </div>
             <div
-              className="text-[2.6mm] italic h-[4.2mm] overflow-hidden"
+              className={`italic ${
+                hasGroupName ? 'text-[2.2mm]' : 'text-[2.6mm]'
+              }`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 0.95,
+                lineHeight: 1.2,
               }}>
               {partnerName}
             </div>
             <div
-              className="text-[2.6mm] font-semibold h-[4.2mm] overflow-hidden"
+              className={`font-semibold ${
+                hasGroupName ? 'text-[2.2mm]' : 'text-[2.6mm]'
+              }`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 0.95,
+                lineHeight: 1.2,
               }}>
               {mealDate}
             </div>
+            {hasGroupName && (
+              <div
+                className="text-[2.2mm]"
+                style={{
+                  fontFamily: 'Quicksand',
+                  lineHeight: 1.2,
+                }}>
+                {groupName}
+              </div>
+            )}
           </div>
           <div className="mx-auto flex gap-1 w-[28mm] justify-end">
             <p
@@ -153,31 +170,45 @@ function UserLabelCellContent({
     return (
       <div className="relative w-full h-full gap-0 p-[4mm] ">
         <div className="flex items-center justify-between w-full">
-          <div className="w-[calc(100%-30mm)] h-[14mm] overflow-hidden">
+          <div className="w-[calc(100%-30mm)] h-[14mm] overflow-hidden flex flex-col justify-start">
             <div
-              className="text-[2.8mm] h-[4.75mm] overflow-hidden"
+              className={`${hasGroupName ? 'text-[2.4mm]' : 'text-[2.8mm]'}`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 1.0,
+                lineHeight: 1.2,
               }}>
               {companyName}
             </div>
             <div
-              className="text-[2.8mm] italic h-[4.75mm] overflow-hidden"
+              className={`italic ${
+                hasGroupName ? 'text-[2.4mm]' : 'text-[2.8mm]'
+              }`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 1.0,
+                lineHeight: 1.2,
               }}>
               {partnerName}
             </div>
             <div
-              className="text-[2.8mm] font-semibold h-[4.5mm] overflow-hidden"
+              className={`font-semibold ${
+                hasGroupName ? 'text-[2.4mm]' : 'text-[2.8mm]'
+              }`}
               style={{
                 fontFamily: 'Quicksand',
-                lineHeight: 1.0,
+                lineHeight: 1.2,
               }}>
               {mealDate}
             </div>
+            {hasGroupName && (
+              <div
+                className="text-[2.4mm]"
+                style={{
+                  fontFamily: 'Quicksand',
+                  lineHeight: 1.2,
+                }}>
+                {groupName}
+              </div>
+            )}
           </div>
           <div className="mx-auto flex gap-1 w-[28mm] justify-end">
             <p

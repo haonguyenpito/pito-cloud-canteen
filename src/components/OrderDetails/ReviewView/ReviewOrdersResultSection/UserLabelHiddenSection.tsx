@@ -24,6 +24,7 @@ function UserLabelHiddenSection({
         partnerName: firstCurrent.partnerName,
         companyName: firstCurrent.companyName,
         mealDate: firstCurrent.mealDate,
+        groupName: firstCurrent.groupName,
         participantName: '   ',
         foodName: '   ',
         timestamp: firstCurrent.timestamp,
@@ -59,6 +60,7 @@ function UserLabelHiddenSection({
                   partnerName={userLabelRecord.partnerName}
                   companyName={userLabelRecord.companyName}
                   mealDate={userLabelRecord.mealDate}
+                  groupName={userLabelRecord.groupName}
                   participantName={userLabelRecord.participantName}
                   foodName={userLabelRecord.foodName}
                   qrCodeImageSrc={userLabelRecord.qrCodeImageSrc}
