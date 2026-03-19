@@ -75,6 +75,7 @@ export function UserLabelThermalPrintSection({
             partnerName={userLabelRecord.partnerName}
             companyName={userLabelRecord.companyName}
             mealDate={userLabelRecord.mealDate}
+            groupName={userLabelRecord.groupName}
             participantName={userLabelRecord.participantName}
             foodName={userLabelRecord.foodName}
             qrCodeImageSrc={userLabelRecord.qrCodeImageSrc}
@@ -93,6 +94,7 @@ export interface UserLabelRecord {
   timestamp: string;
   participantName: string;
   foodName: string;
+  groupName?: string;
   requirement?: string;
   qrCodeImageSrc: string;
 }
@@ -837,7 +839,7 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
     ? preparedDataGroups.reduce<UserLabelRecord[]>(
         (result, { date, groupOrderData, orderDataForOthers }) => {
           if (date === targetedDate || targetedDate === 'all') {
-            const processData = (orderData: any[]) => {
+            const processData = (orderData: any[], groupName?: string) => {
               return orderData.map(
                 ({
                   memberData,
@@ -870,16 +872,16 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
                     participantName,
                     foodName,
                     timestamp: date,
+                    groupName,
                     qrCodeImageSrc: qrCodeImageSrcMap[date],
                   } satisfies UserLabelRecord;
                 },
               );
             };
-
             const userLabelData = [
               ...processData(orderDataForOthers),
               ...groupOrderData.flatMap((group: TObject) =>
-                processData(group.orderData),
+                processData(group.orderData, group.groupName),
               ),
             ];
 

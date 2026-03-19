@@ -3,6 +3,7 @@ function UserLabelCellNormalContent({
   companyName,
   partnerName,
   mealDate,
+  groupName,
   foodName,
   note,
 }: {
@@ -10,9 +11,11 @@ function UserLabelCellNormalContent({
   companyName: string;
   partnerName: string;
   mealDate: string;
+  groupName?: string;
   foodName: string;
   note?: string;
 }) {
+  const hasGroupName = Boolean(groupName && String(groupName).trim());
   if (type === 'thermal') {
     return (
       <div className="relative w-full h-full gap-0 px-[4mm] py-[2mm]">
@@ -36,12 +39,25 @@ function UserLabelCellNormalContent({
             </div>
           </div>
           <div
-            className="text-[2.6mm] font-semibold h-[8mm] overflow-hidden"
-            style={{
-              fontFamily: 'Quicksand',
-              lineHeight: 0.95,
-            }}>
-            {mealDate}
+            className={`font-semibold h-[14mm] overflow-hidden flex flex-col justify-start ${
+              hasGroupName ? 'text-[2.2mm]' : 'text-[2.6mm]'
+            }`}>
+            <div
+              style={{
+                fontFamily: 'Quicksand',
+                lineHeight: 1.2,
+              }}>
+              {mealDate}
+            </div>
+            {hasGroupName && (
+              <div
+                style={{
+                  fontFamily: 'Quicksand',
+                  lineHeight: 1.2,
+                }}>
+                {groupName}
+              </div>
+            )}
           </div>
         </div>
 
@@ -106,12 +122,25 @@ function UserLabelCellNormalContent({
             </div>
           </div>
           <div
-            className="text-[2.8mm] font-semibold h-[8mm] overflow-hidden"
-            style={{
-              fontFamily: 'Quicksand',
-              lineHeight: 1.0,
-            }}>
-            {mealDate}
+            className={`font-semibold h-[14mm] overflow-hidden flex flex-col justify-start ${
+              hasGroupName ? 'text-[2.4mm]' : 'text-[2.8mm]'
+            }`}>
+            <div
+              style={{
+                fontFamily: 'Quicksand',
+                lineHeight: 1.2,
+              }}>
+              {mealDate}
+            </div>
+            {hasGroupName && (
+              <div
+                style={{
+                  fontFamily: 'Quicksand',
+                  lineHeight: 1.2,
+                }}>
+                {groupName}
+              </div>
+            )}
           </div>
         </div>
 
