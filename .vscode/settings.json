@@ -39,5 +39,6 @@
     {
       "text": "Use const intl = useIntl() to get intl object",
     }
-  ]
+  ],
+  "typescript.tsdk": "node_modules\\typescript\\lib"
 }

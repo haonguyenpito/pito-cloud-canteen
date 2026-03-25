@@ -29,12 +29,14 @@ const HowItWorks = () => {
           </div>
           <div className="col-span-1 relative w-full aspect-auto md:aspect-[12/7]">
             <div className="relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-              <iframe
-                src="https://fast.wistia.net/embed/iframe/7za7iibhgy?autoPlay=true&mute=true&playerColor=000000"
-                title="Media Frame"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen={false}
-                className="absolute top-0 left-0 w-full h-full"
+              <video
+                src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/he-thong-tu-de-xuat-menu.mp4"
+                autoPlay
+                muted
+                loop
+                controls
+                playsInline
+                className="absolute top-0 left-0 w-full h-full object-cover"
               />
             </div>
           </div>
@@ -43,12 +45,14 @@ const HowItWorks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-[60px]">
           <div className="order-2 md:order-1 col-span-1 relative w-full aspect-auto md:aspect-[12/7]">
             <div className="relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-              <iframe
-                src="https://fast.wistia.net/embed/iframe/8u3jxgesk7?autoPlay=true&mute=true&playerColor=000000"
-                title="Media Frame"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen={false}
-                className="absolute top-0 left-0 w-full h-full"
+              <video
+                src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/nhan-vien-tu-dong-chon-mon.mp4"
+                autoPlay
+                muted
+                loop
+                controls
+                playsInline
+                className="absolute top-0 left-0 w-full h-full object-cover"
               />
             </div>
           </div>
@@ -87,12 +91,14 @@ const HowItWorks = () => {
           </div>
           <div className="col-span-1 relative w-full aspect-auto md:aspect-[12/7]">
             <div className="relative w-full aspect-video rounded-md overflow-hidden border border-neutral-200">
-              <iframe
-                src="https://fast.wistia.net/embed/iframe/tpn0y59zt5?autoPlay=true&mute=true&playerColor=000000"
-                title="Media Frame"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen={false}
-                className="absolute top-0 left-0 w-full h-full"
+              <video
+                src="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/giao-va-setup-tan-noi.mp4"
+                autoPlay
+                muted
+                loop
+                controls
+                playsInline
+                className="absolute top-0 left-0 w-full h-full object-cover"
               />
             </div>
           </div>

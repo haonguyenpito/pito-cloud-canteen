@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
-import VideoSection from './VideoSection';
-
 const SimplifyOrdering = () => {
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const intl = useIntl();
@@ -12,19 +10,19 @@ const SimplifyOrdering = () => {
       step: intl.formatMessage({
         id: 'menus-are-auto-generated-adjustable-anytime',
       }),
-      image: '7za7iibhgy',
+      image: 'he-thong-tu-de-xuat-menu',
     },
     {
       step: intl.formatMessage({
         id: 'choose-meals-for-the-whole-week-with-just-a-few-clicks',
       }),
-      image: '8u3jxgesk7',
+      image: 'nhan-vien-tu-dong-chon-mon',
     },
     {
       step: intl.formatMessage({
         id: 'meals-delivered-directly-to-your-desk-no-need-to-pick-up',
       }),
-      image: 'tpn0y59zt5',
+      image: 'giao-va-setup-tan-noi',
     },
   ];
 
@@ -32,8 +30,13 @@ const SimplifyOrdering = () => {
     <div className="pt-16 px-5 flex md:flex-row-reverse flex-col gap-4 md:px-0 md:pb-16 max-w-[1024px] mx-auto">
       <div className="md:w-1/2 relative md:flex items-end justify-center hidden">
         <div className="w-full rounded-2xl overflow-hidden shadow-lg">
-          <VideoSection
-            embedUrl={`https://fast.wistia.net/embed/iframe/${steps[activeIndex].image}?autoPlay=true&mute=true&playerColor=000000`}
+          <video
+            src={`https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/${steps[activeIndex].image}.mp4`}
+            autoPlay
+            muted
+            loop
+            controls
+            playsInline
             className="w-full"
           />
         </div>
@@ -62,8 +65,13 @@ const SimplifyOrdering = () => {
               {activeIndex === index && (
                 <div className="md:w-1/2 relative flex md:hidden items-end justify-center mt-2 md:mt-0">
                   <div className="w-full rounded-2xl overflow-hidden shadow-lg">
-                    <VideoSection
-                      embedUrl={`https://fast.wistia.net/embed/iframe/${step.image}?autoPlay=true&mute=true&playerColor=000000`}
+                    <video
+                      src={`https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/${step.image}.mp4`}
+                      autoPlay
+                      muted
+                      loop
+                      controls
+                      playsInline
                       className="w-full"
                     />
                   </div>
