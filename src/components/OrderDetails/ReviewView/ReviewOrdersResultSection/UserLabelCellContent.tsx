@@ -30,7 +30,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 0.95,
               }}>
               {companyName}
             </div>
@@ -39,7 +39,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 0.95,
               }}>
               {partnerName}
             </div>
@@ -48,7 +48,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 0.95,
               }}>
               {mealDate}
             </div>
@@ -177,7 +177,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 1.0,
               }}>
               {companyName}
             </div>
@@ -186,7 +186,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 1.0,
               }}>
               {partnerName}
             </div>
@@ -195,7 +195,7 @@ function UserLabelCellContent({
               style={{
                 wordBreak: 'break-word',
                 fontFamily: 'Quicksand',
-                lineHeight: 1.2,
+                lineHeight: 1.0,
               }}>
               {mealDate}
             </div>

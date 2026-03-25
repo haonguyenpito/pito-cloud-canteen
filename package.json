@@ -36,10 +36,10 @@
     "@splidejs/react-splide": "^0.7.12",
     "@tailwindcss/postcss": "^4.0.3",
     "@types/react-signature-canvas": "^1.0.7",
+    "algoliasearch": "^5.20.3",
     "async": "3.2.4",
     "autosize": "5.0.2",
     "aws-sdk": "2.1455.0",
-    "algoliasearch": "^5.20.3",
     "axios": "1.2.1",
     "bullmq": "^5.56.0",
     "class-variance-authority": "^0.7.1",
@@ -165,7 +165,7 @@
     "stylelint-prettier": "2.0.0",
     "stylelint-processor-styled-components": "1.10.0",
     "tailwindcss": "^3.4.17",
-    "typescript": "5.6.3"
+    "typescript": "6.0.2"
   },
   "browser": {
     "fs": false

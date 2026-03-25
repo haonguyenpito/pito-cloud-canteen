@@ -22,24 +22,17 @@ const Hero = () => {
 
   const [isModalHeroOpen, setIsModalHeroOpen] = useState(false);
 
-  const videoId = useMemo(
-    () => (intl.locale === 'vi' ? 'vhlrnaj7r4' : 'kpc1u5v2ac'),
+  const videoUrl = useMemo(
+    () =>
+      intl.locale === 'vi'
+        ? 'https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/gioi-thieu-pcc.mp4'
+        : 'https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/introduction-pcc.mp4',
     [intl.locale],
   );
 
-  const inlineEmbedUrl = useMemo(
-    () =>
-      `https://fast.wistia.net/embed/iframe/${videoId}?autoPlay=true&mute=true&playerColor=000000`,
-    [videoId],
-  );
+  const inlineEmbedUrl = useMemo(() => videoUrl, [videoUrl]);
 
-  const modalEmbedUrl = useMemo(
-    () =>
-      `https://fast.wistia.net/embed/iframe/${videoId}?mute=true&playerColor=000000${
-        isModalHeroOpen ? '&autoPlay=true' : '&play=false'
-      }`,
-    [videoId, isModalHeroOpen],
-  );
+  const modalEmbedUrl = useMemo(() => videoUrl, [videoUrl]);
 
   const isMobile = typeof width === 'number' && width <= 768;
 
