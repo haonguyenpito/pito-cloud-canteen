@@ -37,7 +37,7 @@ const Hero2 = () => {
 
         {width <= 768 && (
           <VideoSection
-            embedUrl="https://fast.wistia.net/embed/iframe/s5r9t8jg3o?autoplay=1&loop=1&controls=0&modestbranding=1&rel=0&fs=0&showinfo=0&mute=1"
+            embedUrl="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/gioi-thieu-pcc.mp4"
             className="w-full z-10"
           />
         )}
@@ -73,9 +73,7 @@ const Hero2 = () => {
             onClose={() => setIsModalHeroOpen(false)}
             videoComponent={
               <VideoSection
-                embedUrl={`https://fast.wistia.net/embed/iframe/s5r9t8jg3o?loop=1&controls=0&modestbranding=1&rel=0&fs=0&showinfo=0&mute=1&&playerColor=000000${
-                  isModalHeroOpen ? '&autoPlay=true' : '&play=false'
-                }`}
+                embedUrl="https://pito-test-bucket.s3.ap-southeast-2.amazonaws.com/gioi-thieu-pcc.mp4"
                 className="w-full block md:hidden"
               />
             }
