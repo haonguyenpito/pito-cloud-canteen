@@ -120,6 +120,7 @@ type SlackNotificationParams = {
     ratingScore: number;
     content: string;
     images: string[];
+    companyName: string;
     ratingUserName: string;
     partnerName: string;
     orderLink: string;
@@ -202,6 +203,8 @@ export const createSlackNotification = async (
         const userTypeData = getUserTypeDataByUserType(
           notificationParams.participantRatingData.ratingUserType,
         );
+        const companyName =
+          notificationParams.participantRatingData.companyName;
 
         if (!userTypeData) return;
 
@@ -213,7 +216,7 @@ export const createSlackNotification = async (
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `[${userTypeData.label}] ${
+                  text: `[${userTypeData.label} - ${companyName}] ${
                     notificationParams.participantRatingData.ratingUserName
                   } đã đánh giá ${
                     notificationParams.participantRatingData.ratingScore

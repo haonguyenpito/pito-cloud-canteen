@@ -58,14 +58,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   switch (apiMethod) {
     case HttpMethod.POST:
       try {
-        const {
-          companyName,
-          rating,
-          detailTextRating,
-          imageIdList,
-          imageUrlList,
-          planId,
-        } = req.body as POSTParticipantRating;
+        const { rating, detailTextRating, imageIdList, imageUrlList, planId } =
+          req.body as POSTParticipantRating;
         const sdk = getSdk(req, res);
 
         const currentUser: WithFlexSDKData<UserListing> =
@@ -104,6 +98,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         if (!orderListing.attributes?.metadata?.companyId) {
           throw new Error('Company id not found');
         }
+
+        const companyName = orderListing.attributes.metadata?.companyName;
 
         const review = await postParticipantRatingFn({
           companyName,
