@@ -84,6 +84,7 @@ export const postRatingFn = async ({
       ratingUserName,
       ratingUserType: 'booker',
       orderCode,
+      companyName,
       orderLink: `${process.env.NEXT_PUBLIC_CANONICAL_URL}/admin/order/${orderId}`,
     },
   });
@@ -154,6 +155,7 @@ export const postParticipantRatingFn = async ({
       ratingUserName,
       ratingUserType: 'participant',
       orderCode,
+      companyName,
       orderLink: `${process.env.NEXT_PUBLIC_CANONICAL_URL}/admin/order/${orderId}`,
       subDate: timestamp,
     },
