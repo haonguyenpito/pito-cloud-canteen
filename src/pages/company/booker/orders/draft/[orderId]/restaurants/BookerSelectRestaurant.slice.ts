@@ -36,6 +36,33 @@ type WithReviewer<T> = T & {
 
 export type RatingListingWithReviewer = WithReviewer<RatingListing>;
 
+const parseHiddenReviewUserIds = (value: string | undefined) => {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return [];
+  }
+
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((id) => String(id || '').trim()).filter(Boolean);
+      }
+    } catch (error) {
+      console.error('Error parsing hidden review user ids', error);
+    }
+  }
+
+  return raw
+    .split(',')
+    .map((id) => id.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+};
+
+const hiddenReviewUserIds = new Set(
+  parseHiddenReviewUserIds(process.env.NEXT_PUBLIC_HIDDEN_REVIEWS_USER_IDS),
+);
+
 // ================ Initial states ================ //
 type TOrderInitialState = {
   restaurant: TListing | null;
@@ -458,9 +485,14 @@ const fetchRestaurantReviews = createAsyncThunk(
       });
 
     const ratingListings: RatingListing[] = ratingListingsResponse.data.data;
+    const visibleRatingListings = ratingListings.filter((rating) => {
+      const reviewerId = rating.attributes?.metadata?.reviewerId;
+
+      return !hiddenReviewUserIds.has(String(reviewerId || '').trim());
+    });
 
     const ratingListWithUser = await Promise.all(
-      ratingListings.map(async (rating) => {
+      visibleRatingListings.map(async (rating) => {
         const reviewerId = rating.attributes?.metadata?.reviewerId;
 
         const reviewer: WithFlexSDKData<UserListing> = await sdk.users.show({
