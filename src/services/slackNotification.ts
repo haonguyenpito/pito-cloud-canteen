@@ -216,7 +216,7 @@ export const createSlackNotification = async (
                 type: 'section',
                 text: {
                   type: 'mrkdwn',
-                  text: `[${userTypeData.label} - ${companyName}] ${
+                  text: `[${userTypeData.label} - *${companyName}*] ${
                     notificationParams.participantRatingData.ratingUserName
                   } đã đánh giá ${
                     notificationParams.participantRatingData.ratingScore
