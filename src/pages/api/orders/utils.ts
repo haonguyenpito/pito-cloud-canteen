@@ -24,6 +24,10 @@ export type TNormalizedOrderDetail = {
           foodPrice: number;
           requirement?: string;
           participantId: string;
+          secondaryFoodId?: string;
+          secondaryFoodName?: string;
+          secondaryFoodPrice?: number;
+          secondaryRequirement?: string;
         }[];
       };
     };
@@ -79,13 +83,27 @@ export const normalizeOrderDetail = ({
         const { participantIds, bookingInfo } = Object.entries(
           memberOrdersMap,
         ).reduce<TNormalizedOrderDetail['params']['extendedData']['metadata']>(
-          (prevResult, [participantId, { foodId, status, requirement }]) => {
+          (
+            prevResult,
+            [
+              participantId,
+              {
+                foodId,
+                status,
+                requirement,
+                secondaryFoodId,
+                secondaryRequirement,
+              },
+            ],
+          ) => {
             const {
               participantIds: prevParticipantList = [],
               bookingInfo: prevBookingInfo = [],
             } = prevResult;
             const currFoodInfo = foodList[foodId];
-
+            const currSecondaryFoodInfo = secondaryFoodId
+              ? foodList[secondaryFoodId]
+              : null;
             if (currFoodInfo && isJoinedPlan(foodId, status)) {
               return {
                 ...prevResult,
@@ -95,6 +113,12 @@ export const normalizeOrderDetail = ({
                   ...currFoodInfo,
                   participantId,
                   requirement,
+                  ...(currSecondaryFoodInfo && {
+                    secondaryFoodId,
+                    secondaryFoodName: currSecondaryFoodInfo?.foodName,
+                    secondaryFoodPrice: currSecondaryFoodInfo?.foodPrice,
+                    secondaryRequirement,
+                  }),
                 }),
               };
             }

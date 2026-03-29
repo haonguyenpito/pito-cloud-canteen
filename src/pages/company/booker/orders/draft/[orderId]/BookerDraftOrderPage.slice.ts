@@ -140,15 +140,12 @@ const addOrderParticipants = createAsyncThunk(
 
 const deleteOrderParticipants = createAsyncThunk(
   'app/BookerDraftOrderPage/DELETE_ORDER_PARTICIPANTS',
-  async ({ orderId, participantId, participants }: TObject, { getState }) => {
+  async ({ participantId }: { participantId: string }, { getState }) => {
     const { participantData } = getState().BookerDraftOrderPage;
-    const bodyParams = {
-      orderId,
-      participants,
-      participantId,
-    };
+    const { order } = getState().Order;
+    const orderId = Listing(order as TListing).getId();
 
-    await deleteParticipantFromOrderApi(orderId, bodyParams);
+    await deleteParticipantFromOrderApi(orderId, { participantId });
 
     return participantData.filter((p) => p.id.uuid !== participantId);
   },

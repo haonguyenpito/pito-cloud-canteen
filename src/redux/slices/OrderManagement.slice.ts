@@ -1,6 +1,7 @@
 /* eslint-disable import/no-cycle */
 /* eslint-disable @typescript-eslint/no-shadow */
 import { createSlice } from '@reduxjs/toolkit';
+import get from 'lodash/get';
 import groupBy from 'lodash/groupBy';
 import isEmpty from 'lodash/isEmpty';
 import omit from 'lodash/omit';
@@ -64,6 +65,7 @@ import {
   EParticipantOrderStatus,
 } from '@utils/enums';
 import { EHttpStatusCode, storableError } from '@utils/errors';
+import { removeParticipantFromOrderDetail } from '@utils/order';
 import type {
   TCompany,
   TCurrentUser,
@@ -859,45 +861,17 @@ const deleteParticipant = createAsyncThunk(
       const { participantId } = params;
       const {
         id: { uuid: orderId },
-        attributes: {
-          metadata: { participants = [] },
-        },
       } = getState().OrderManagement.orderData!;
       const {
         id: { uuid: planId },
-        attributes: {
-          metadata: { orderDetail = {} },
-        },
       } = getState().OrderManagement.planData!;
 
-      const newOrderDetail = Object.entries(orderDetail).reduce(
-        (result, current) => {
-          const [date, orderDetailOnDate] = current;
-          const { memberOrders } = orderDetailOnDate as TObject;
-
-          return {
-            ...result,
-            [date]: {
-              ...(orderDetailOnDate as TObject),
-              memberOrders: omit(memberOrders, [participantId]),
-            },
-          };
-        },
-        {},
-      );
-
-      const bodyParams = {
+      await deleteParticipantFromOrderApi(orderId, {
         participantId,
-        participants: participants.filter(
-          (pId: string) => pId !== participantId,
-        ),
-        newOrderDetail,
         planId,
-      };
+      });
 
-      await deleteParticipantFromOrderApi(orderId, bodyParams);
-
-      return bodyParams;
+      return { participantId };
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -1957,21 +1931,32 @@ const OrderManagementSlice = createSlice({
         state.isDeletingParticipant = true;
       })
       .addCase(deleteParticipant.fulfilled, (state, { payload }) => {
+        const { participantId } = payload;
         state.isDeletingParticipant = false;
         state.participantData = state.participantData.filter(
-          (p) => p.id.uuid !== payload.participantId,
+          (p) => p.id.uuid !== participantId,
         );
+        const participants = get(
+          state.orderData,
+          'attributes.metadata.participants',
+          [],
+        ) as string[];
         set(
           state.orderData,
           'attributes.metadata.participants',
-          payload.participants,
+          participants.filter((pId: string) => pId !== participantId),
         );
-        set(
+        const orderDetail = get(
           state.planData,
           'attributes.metadata.orderDetail',
-          payload.newOrderDetail,
+          {},
+        ) as TPlan['orderDetail'];
+        const newOrderDetail = removeParticipantFromOrderDetail(
+          orderDetail,
+          participantId,
         );
-        state.draftOrderDetail = payload.newOrderDetail;
+        set(state.planData, 'attributes.metadata.orderDetail', newOrderDetail);
+        state.draftOrderDetail = newOrderDetail;
       })
       .addCase(deleteParticipant.rejected, (state) => {
         state.isDeletingParticipant = false;

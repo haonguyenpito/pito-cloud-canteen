@@ -30,7 +30,7 @@ const SignInPage = () => {
   ) : null;
 
   const handleSubmitSignIn = async (values: TSignInFormValues) => {
-    await dispatch(authThunks.login(values));
+    await dispatch(authThunks.login(values)).unwrap();
     await dispatch(userThunks.fetchCurrentUser());
     await dispatch(authThunks.authInfo());
   };
