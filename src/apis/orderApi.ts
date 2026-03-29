@@ -44,6 +44,10 @@ export type TUpdateOrderApiBody = {
     shipperName?: string;
   };
 };
+export type TDeleteParticipantFromOrderApiBody = {
+  participantId: string;
+  planId?: string;
+};
 
 export const createBookerOrderApi = (body: TCreateBookerOrderApiBody) =>
   postApi('/orders', body);
@@ -73,8 +77,10 @@ export const updatePlanDetailsApi = (orderId: string, body: TObject) =>
 export const addParticipantToOrderApi = (orderId: string, body: TObject) =>
   postApi(`/orders/${orderId}/participant`, body);
 
-export const deleteParticipantFromOrderApi = (orderId: string, body: TObject) =>
-  deleteApi(`/orders/${orderId}/participant`, body);
+export const deleteParticipantFromOrderApi = (
+  orderId: string,
+  body: TDeleteParticipantFromOrderApiBody,
+) => deleteApi(`/orders/${orderId}/participant`, body);
 // ------------------------- //
 
 export const addUpdateMemberOrder = (

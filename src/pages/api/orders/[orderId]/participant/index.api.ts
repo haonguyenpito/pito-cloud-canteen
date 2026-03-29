@@ -8,9 +8,11 @@ import logger from '@helpers/logger';
 import cookies from '@services/cookie';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { getIntegrationSdk, handleError } from '@services/sdk';
+import type { TPlan } from '@src/utils/orderTypes';
+import type { TObject } from '@src/utils/types';
 import { denormalisedResponseEntities, Listing } from '@utils/data';
 import { EParticipantOrderStatus } from '@utils/enums';
-import type { TObject } from '@utils/types';
+import { removeParticipantFromOrderDetail } from '@utils/order';
 
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   const integrationSdk = getIntegrationSdk();
@@ -190,31 +192,49 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       try {
         const {
           query: { orderId = '' },
-          body: {
-            planId,
-            participantId = '',
-            participants = [],
-            newOrderDetail = {},
-          },
+          body: { planId, participantId = '' },
         } = req;
 
-        const orderListing = await integrationSdk.listings.show({
-          id: orderId,
-        });
-        const { removedParticipants = [] } =
+        if (isEmpty(participantId)) {
+          res.status(400).json({ message: 'Missing participantId' });
+
+          return;
+        }
+
+        const [orderListing] = denormalisedResponseEntities(
+          await integrationSdk.listings.show({
+            id: orderId as string,
+          }),
+        );
+        const { participants = [], removedParticipants = [] } =
           Listing(orderListing).getMetadata();
 
+        const newParticipants = participants.filter(
+          (pId: string) => pId !== participantId,
+        );
+
         await integrationSdk.listings.update({
-          id: orderId,
+          id: orderId as string,
           metadata: {
-            participants,
+            participants: newParticipants,
             removedParticipants: uniq([...removedParticipants, participantId]),
           },
         });
 
         if (!isEmpty(planId)) {
+          const [planListing] = denormalisedResponseEntities(
+            await integrationSdk.listings.show({
+              id: planId as string,
+            }),
+          );
+          const { orderDetail = {} } = Listing(planListing).getMetadata();
+          const newOrderDetail = removeParticipantFromOrderDetail(
+            orderDetail as TPlan['orderDetail'],
+            participantId,
+          );
+
           await integrationSdk.listings.update({
-            id: planId,
+            id: planId as string,
             metadata: {
               orderDetail: newOrderDetail,
             },
