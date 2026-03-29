@@ -1,8 +1,11 @@
+import omit from 'lodash/omit';
+
 import logger from '@helpers/logger';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { createSlackNotification } from '@services/slackNotification';
 import { Listing, User } from '@src/utils/data';
 import { ESlackNotificationType } from '@src/utils/enums';
+import type { TPlan } from '@src/utils/orderTypes';
 
 import { buildFullName } from './emailTemplate/participantOrderPicking';
 
@@ -379,4 +382,25 @@ export function buildActualUserPlan(
   });
 
   return actualUserPlan;
+}
+
+export type TOrderDetail = TPlan['orderDetail'];
+
+export function removeParticipantFromOrderDetail(
+  orderDetail: TOrderDetail,
+  participantId: string,
+): TOrderDetail {
+  return (
+    Object.entries(orderDetail) as [string, TOrderDetail[string]][]
+  ).reduce<TOrderDetail>((result, [date, dayDetail]) => {
+    const memberOrders = dayDetail.memberOrders ?? {};
+
+    return {
+      ...result,
+      [date]: {
+        ...dayDetail,
+        memberOrders: omit(memberOrders, participantId),
+      },
+    };
+  }, {});
 }

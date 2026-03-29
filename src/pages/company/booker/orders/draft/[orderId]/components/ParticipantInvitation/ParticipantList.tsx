@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import difference from 'lodash/difference';
 
 import AlertModal from '@components/Modal/AlertModal';
 import ParticipantCard from '@components/OrderDetails/EditView/ManageParticipantsSection/ParticipantCard';
@@ -28,7 +27,6 @@ const ParticipantList: React.FC<TParticipantListProps> = () => {
   const order = useAppSelector((state) => state.Order.order);
 
   const orderGetter = Listing(order);
-  const participantIds = participantData.map((p) => User(p as TUser).getId());
 
   const { nonAccountEmails = [] } = orderGetter.getMetadata();
 
@@ -47,8 +45,6 @@ const ParticipantList: React.FC<TParticipantListProps> = () => {
       dispatch(
         BookerDraftOrderPageThunks.deleteOrderParticipants({
           participantId: currentParticipantId,
-          orderId: orderGetter.getId(),
-          participants: difference(participantIds, [currentParticipantId]),
         }),
       );
       const deletedParticipant = participantData.find(
