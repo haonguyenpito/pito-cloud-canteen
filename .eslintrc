@@ -36,6 +36,13 @@
     "newline-before-return": "error"
   },
   "overrides": [
+    // Allow devDependencies in test and setup files
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "jest.setup.ts"],
+      "rules": {
+        "import/no-extraneous-dependencies": ["error", { "devDependencies": true }]
+      }
+    },
     // Configuration for TypeScript files
     {
       "files": ["**/*.ts", "**/*.tsx"],

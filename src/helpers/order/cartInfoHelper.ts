@@ -1,3 +1,39 @@
+/**
+ * ⚠️ BEHAVIORAL CONTRACT — cartInfoHelper.ts
+ *
+ * PURPOSE: Core price calculation engine. All monetary amounts in VND (integers).
+ * Rounding errors compound — always use Math.round(), never Math.floor()/Math.ceil().
+ *
+ * WHY `isEmpty(client) || isEmpty(partner)` (not &&):
+ *   - calculatePriceQuotationInfoFromQuotation returns {} early if EITHER the
+ *     client or partner quotation is missing. A quotation is only meaningful
+ *     when both sides are present. Using && would allow half-populated quotations
+ *     to proceed, producing incorrect totals.
+ *
+ * WHY noExportVat DEDUCTS INSTEAD OF ADDS:
+ *   - vatPercentageBaseOnVatSetting returns a NEGATIVE percentage for noExportVat
+ *     (e.g., -0.04 instead of 0.04). This means VATFee is negative and
+ *     totalWithVAT < totalPrice — the partner pays the VAT, not the client.
+ *   - The UI displays Math.abs(VATFee), so the sign is internal only.
+ *   - DO NOT change the sign convention without updating all callers.
+ *
+ * WHY isPartnerFlow SKIPS PITOFee:
+ *   - When calculating the partner-facing quotation for a specific date+partner,
+ *     PITOFee (the PITO Cloud Canteen service fee charged TO THE CLIENT) must not
+ *     appear on the partner invoice. PITOFee is always 0 in partner flows.
+ *   - The isPartnerFlow condition is `date && partnerId` — both must be present.
+ *
+ * VAT MODES SUMMARY:
+ *   - vat:         Standard: VAT applied on provisional total (totalWithoutVAT)
+ *   - noExportVat: Deduction: negative VAT applied on menu price (totalPrice).
+ *                  Used when the partner cannot issue a VAT invoice.
+ *   - direct:      No VAT: vatPercentage = 0. totalWithVAT = totalWithoutVAT.
+ *
+ * SERVICE FEE vs PITOFee:
+ *   - serviceFee: deducted from partner payment (percentage of totalPrice)
+ *   - PITOFee (PCCFee): added to client invoice per delivery day (tiered by headcount)
+ *   - They are calculated independently and must not be conflated.
+ */
 import isEmpty from 'lodash/isEmpty';
 import pick from 'lodash/pick';
 

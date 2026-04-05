@@ -15,7 +15,10 @@ import IconArrow from '@components/Icons/IconArrow/IconArrow';
 import IconArrowFull from '@components/Icons/IconArrow/IconArrowFull';
 import ParticipantLayout from '@components/ParticipantLayout/ParticipantLayout';
 import { prepareOrderDeadline } from '@helpers/order/prepareDataHelper';
-import { getIsAllowAddSecondaryFood, isOrderOverDeadline } from '@helpers/orderHelper';
+import {
+  getIsAllowAddSecondaryFood,
+  isOrderOverDeadline,
+} from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useViewport } from '@hooks/useViewport';
@@ -197,13 +200,13 @@ const ParticipantPlan = () => {
     toast.success(
       foodName
         ? `${intl.formatMessage({
-          id: 'da-them-mon',
-        })} ${foodName} ${intl.formatMessage({
-          id: 'cho-ngay',
-        })} ${formatTimestamp(+timestamp)}`
+            id: 'da-them-mon',
+          })} ${foodName} ${intl.formatMessage({
+            id: 'cho-ngay',
+          })} ${formatTimestamp(+timestamp)}`
         : `${intl.formatMessage({
-          id: 'khong-chon-mon-cho-ngay',
-        })} ${formatTimestamp(+timestamp)}`,
+            id: 'khong-chon-mon-cho-ngay',
+          })} ${formatTimestamp(+timestamp)}`,
       {
         position: isMobileLayout ? 'top-center' : 'bottom-center',
         toastId: 'add-to-cart',
@@ -228,8 +231,7 @@ const ParticipantPlan = () => {
     plan,
     isAllowAddSecondaryFood,
   );
-  const isAllDaysHaveDishInCart =
-    selectedDays === orderDays.length;
+  const isAllDaysHaveDishInCart = selectedDays === orderDays.length;
 
   const selectedDayDate =
     orderDayState && Number(orderDayState)
@@ -237,8 +239,8 @@ const ParticipantPlan = () => {
       : null;
   const selectedDayLabel = selectedDayDate
     ? `${intl.formatMessage({
-      id: `Calendar.week.dayHeader.${selectedDayDate.getDay()}`,
-    })}, ${selectedDayDate.getDate()}/${selectedDayDate.getMonth() + 1}`
+        id: `Calendar.week.dayHeader.${selectedDayDate.getDay()}`,
+      })}, ${selectedDayDate.getDate()}/${selectedDayDate.getMonth() + 1}`
     : '';
 
   return (
@@ -251,8 +253,7 @@ const ParticipantPlan = () => {
             onClick={showMobileInfoSection}>
             <ShoppingCartIcon className="w-4 h-4" />
             <span className={css.cartCornerBadge}>
-              {selectedDays}
-              /{orderDays.length}
+              {selectedDays}/{orderDays.length}
             </span>
           </button>
         )}

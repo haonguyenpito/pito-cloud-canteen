@@ -92,7 +92,7 @@
   }
 
   .replyAuthor {
-    @include textTemplate(  px, $fontWeightSemiBold, 16px);
+    @include textTemplate(px, $fontWeightSemiBold, 16px);
     color: $neutralGray6;
   }
 

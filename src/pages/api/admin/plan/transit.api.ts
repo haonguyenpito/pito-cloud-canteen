@@ -1,5 +1,47 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable @typescript-eslint/naming-convention */
+/**
+ * ⚠️ BEHAVIORAL CONTRACT — transit.api.ts (Admin Sub-Order State Machine Hub)
+ *
+ * PURPOSE: All Sharetribe sub-order state transitions (START_DELIVERY,
+ * COMPLETE_DELIVERY, OPERATOR_CANCEL_*) route through this single endpoint.
+ * It is the exclusive control point for sub-order delivery lifecycle.
+ *
+ * WHY ALL TRANSITIONS ARE OPERATOR-ONLY:
+ *   - The Sharetribe transaction process uses `operator` actor for every
+ *     post-initiation transition. Partners cannot self-confirm or self-reject.
+ *   - This ensures PITO controls the entire delivery lifecycle and can intervene
+ *     at any stage without partner or customer action.
+ *   - Changing any transition to `customer` or `provider` actor requires a
+ *     Sharetribe CLI deploy of process.edn — it cannot be done via API.
+ *
+ * WHY START_DELIVERY vs COMPLETE_DELIVERY FIRE DIFFERENT SIDE EFFECTS:
+ *   - START_DELIVERY: notifies participants + booker that food is on the way.
+ *     No scheduler created (delivery is already in progress).
+ *   - COMPLETE_DELIVERY: notifies participants + booker of completion, THEN:
+ *     1. Creates an EventBridge scheduler to send food rating notifications
+ *        after TIME_TO_SEND_FOOD_RATING_NOTIFICATION minutes.
+ *     2. Calls transitionOrderStatus to check if all sub-orders are complete
+ *        and advance the parent order state if so.
+ *   - The rating scheduler must be created AFTER delivery completion, not before.
+ *     Creating it at START_DELIVERY would fire before food is received.
+ *
+ * WHY OPERATOR_CANCEL_* VARIANTS ALL SHARE THE SAME HANDLER:
+ *   - OPERATOR_CANCEL_PLAN, OPERATOR_CANCEL_AFTER_PARTNER_CONFIRMED, and
+ *     OPERATOR_CANCEL_AFTER_PARTNER_REJECTED differ only in which Sharetribe
+ *     state they are valid from. The side effects (email, Firebase, payment
+ *     modification, quotation update) are identical for all cancel paths.
+ *   - modifyPaymentWhenCancelSubOrderService is called with Promise.allSettled
+ *     (not Promise.all) to ensure payment modification failures do not prevent
+ *     the order status transition from completing.
+ *
+ * INVARIANT: updatePlanListing(transition) is ALWAYS called at the end of every
+ * successful transition to persist the lastTransition on the plan's orderDetail.
+ * If you add a new transition case, ensure it also calls updatePlanListing.
+ *
+ * ADMIN-ONLY: This endpoint is wrapped with adminChecker — non-admin callers
+ * receive 403. Do not remove the permission checker.
+ */
 import isEmpty from 'lodash/isEmpty';
 import omit from 'lodash/omit';
 import { DateTime } from 'luxon';

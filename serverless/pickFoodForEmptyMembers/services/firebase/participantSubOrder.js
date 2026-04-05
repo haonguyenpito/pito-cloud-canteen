@@ -43,11 +43,11 @@ const addParticipantSubOrder = async ({
     const newFoodImage =
       foodImages.length > 0
         ? {
-          ...foodImages[0],
-          id: {
-            uuid: foodImages[0].id.uuid,
-          },
-        }
+            ...foodImages[0],
+            id: {
+              uuid: foodImages[0].id.uuid,
+            },
+          }
         : null;
 
     const subOrderDocumentParams = {
