@@ -38,19 +38,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         const [companyAccount] = denormalisedResponseEntities(currentUserRes);
         const { restaurantListingId: restaurantId } =
           CurrentUser(companyAccount).getMetadata();
-        const response = await getReviews(
-          restaurantId,
-          page,
-          perPage,
-          ratings,
-          integrationSdk,
-        );
+        const response = await getReviews(restaurantId, page, perPage, ratings);
         const { pagination, data: reviews } = response;
 
         const userIds: string[] = [];
         const orderIds: string[] = [];
 
-        const rawDetailData: [] = reviews.map((review: TListing) => {
+        const rawDetailData = reviews.map((review: TListing) => {
           const reviewListing = Listing(review);
           const id = reviewListing.getId();
           const {

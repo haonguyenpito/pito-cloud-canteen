@@ -167,7 +167,7 @@ const RatingSubOrderModal: React.FC<TRatingSubOrderModalProps> = (props) => {
         handleClose={handleClose}
         containerClassName={classNames(css.modalContainer, '!px-4')}
         title={`${intl.formatMessage({ id: 'danh-gia-mon' })} ${foodName} ${
-          secondaryFoodName && `+ ${secondaryFoodName}`
+          secondaryFoodName ? `+ ${secondaryFoodName}` : ''
         }`}>
         {renderer}
       </Modal>

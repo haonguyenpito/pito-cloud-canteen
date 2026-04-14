@@ -1,3 +1,41 @@
+/**
+ * ⚠️ BEHAVIORAL CONTRACT — initiate-transaction.service.ts
+ *
+ * PURPOSE: Creates Sharetribe transactions for each sub-order date in a plan.
+ * This is the POINT OF NO RETURN in the order lifecycle. Once a transaction is
+ * created, it can only be cancelled via operator transitions (not deleted).
+ *
+ * WHY Promise.all (parallel, not sequential):
+ *   - normalizedOrderDetail.map(onCreateTx) runs all transaction initiations in
+ *     parallel. Sharetribe allows concurrent calls; parallel creation is faster
+ *     for orders with many dates (e.g., 22 working days).
+ *   - PARTIAL FAILURE: If one date's transaction fails mid-batch, the previously
+ *     created transactions are already committed in Sharetribe but the plan
+ *     listing has not yet been updated with their IDs. Re-running initiation
+ *     will re-attempt only the dates with no txId (getSubOrdersWithNoTxId).
+ *     This makes the operation idempotent for new sub-orders.
+ *
+ * WHY EDITED SUB-ORDERS ARE HANDLED SEPARATELY:
+ *   - Sub-orders that were modified after initiation (lastTransition ===
+ *     INITIATE_TRANSACTION) need their OLD transaction cancelled first
+ *     (OPERATOR_CANCEL_PLAN), then a new transaction created. This two-phase
+ *     update is why editedSubOrders is processed after subOrdersWithNoTxId.
+ *
+ * WHY subAccountTrustedSdk (not integrationSdk) FOR TRANSACTION CREATION:
+ *   - transactions.initiate is `privileged? true` in the process definition.
+ *     Only a trusted SDK instance (exchange token from the company sub-account)
+ *     can call this transition. Using integrationSdk here will throw a 403.
+ *   - The company sub-account is fetched fresh every call — do not cache it.
+ *
+ * WHY VAT SETTINGS ARE UPDATED AFTER TRANSACTION CREATION:
+ *   - The partner's current VAT setting (vat/noExportVat/direct) is snapshotted
+ *     onto the order listing at transaction time. This freezes the VAT setting
+ *     for payment calculation, even if the partner changes it later.
+ *   - updateVatSettings must run after partnerIds is fully populated.
+ *
+ * INVARIANT: bookingProcessAlias in configs.ts MUST match the deployed Sharetribe
+ * process alias. A mismatch causes all initiations to fail with a 404/422.
+ */
 import isEmpty from 'lodash/isEmpty';
 import uniq from 'lodash/uniq';
 

@@ -1,0 +1,112 @@
+{
+  "ignorePatterns": [
+    "node_modules/",
+    "build/",
+    "dist/",
+    ".next/",
+    "coverage/",
+    "public/",
+    "next.config.js"
+  ],
+  "extends": [
+    "airbnb-base",
+    "next/core-web-vitals",
+    "plugin:prettier/recommended"
+  ],
+  "rules": {
+    "prettier/prettier": ["error", { "endOfLine": "auto" }],
+    "import/no-cycle": "off",
+    "consistent-return": "off",
+    "no-param-reassign": [
+      "off",
+      {
+        "props": true,
+        "ignorePropertyModificationsFor": ["state"]
+      }
+    ],
+    "no-nested-ternary": "off",
+    "no-console": "off",
+    "no-return-await": "off",
+    "no-plusplus": "off",
+    "newline-before-return": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "jest.setup.ts"],
+      "rules": {
+        "import/no-extraneous-dependencies": ["error", { "devDependencies": true }]
+      }
+    },
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "plugins": ["@typescript-eslint", "unused-imports", "simple-import-sort"],
+      "extends": [
+        "plugin:@typescript-eslint/recommended",
+        "next/core-web-vitals",
+        "plugin:prettier/recommended"
+      ],
+      "rules": {
+        "react/destructuring-assignment": "off",
+        "react/require-default-props": "off",
+        "react/jsx-props-no-spreading": "off",
+        "@next/next/no-img-element": "off",
+        "@typescript-eslint/comma-dangle": "off",
+        "@typescript-eslint/consistent-type-imports": "error",
+        "import/prefer-default-export": "off",
+        "simple-import-sort/imports": [
+          "error",
+          {
+            "groups": [
+              ["^react", "^@?\\w"],
+              [
+                "(@(apis|components|configs|forms|helpers|hooks|pages|redux|services|sharetribe|src|styles|translations|utils))(/.*|$)"
+              ],
+              ["^\\u0000"],
+              ["^\\.\\.(?!/?$)", "^\\.\\./?$"],
+              ["^\\./(?=.*/)(?!/?$)", "^\\.(?!/?$)", "^\\./?$"],
+              ["^.+\\.?(scss|css)$"]
+            ]
+          }
+        ],
+        "simple-import-sort/exports": "error",
+        "@typescript-eslint/no-unused-vars": "off",
+        "unused-imports/no-unused-imports": "error",
+        "prefer-destructuring": "off",
+        "unused-imports/no-unused-vars": [
+          "error",
+          {
+            "varsIgnorePattern": "^_",
+            "argsIgnorePattern": "^_"
+          }
+        ],
+        "no-underscore-dangle": "off",
+        "@typescript-eslint/naming-convention": "off",
+        "import/extensions": [
+          "error",
+          "ignorePackages",
+          {
+            "ts": "never",
+            "tsx": "never",
+            "js": "never",
+            "jsx": "never"
+          }
+        ],
+        "no-shadow": "off",
+        "@typescript-eslint/no-shadow": "error"
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "tests/**/*.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-non-null-assertion": "off"
+      }
+    }
+  ]
+}

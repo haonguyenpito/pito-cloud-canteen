@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import logger from '@helpers/logger';
+import { isHiddenReviewUser } from '@helpers/review/visibility';
 import {
   postParticipantRatingFn,
   updateRatingForRestaurantFn,
@@ -66,6 +67,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           await sdk.currentUser.show();
 
         const { reviewerId, timestamp, generalRating, detailRating } = rating;
+        const shouldNotifyPartnerChannels = !isHiddenReviewUser(reviewerId);
         const plan: PlanListing = await fetchListing(planId);
         const planListing = Listing(plan as any);
         const { orderDetail = {} } = planListing.getMetadata();
@@ -159,10 +161,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         });
 
         if (
-          generalRating <= 2 ||
-          (detailRating?.food.rating && detailRating?.food.rating <= 2) ||
-          (detailRating?.packaging.rating &&
-            detailRating?.packaging.rating <= 2)
+          shouldNotifyPartnerChannels &&
+          (generalRating <= 2 ||
+            (detailRating?.food.rating && detailRating?.food.rating <= 2) ||
+            (detailRating?.packaging.rating &&
+              detailRating?.packaging.rating <= 2))
         ) {
           createNativeNotificationToPartner(
             ENativeNotificationType.PartnerSubOrderNegativeRating,

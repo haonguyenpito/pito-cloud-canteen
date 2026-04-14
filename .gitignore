@@ -40,5 +40,8 @@ yarn.lock
 *.tsbuildinfo
 next-env.d.ts
 
+# eslint cache
+.eslintcache
+
 # zip files in serverless directory
 serverless/*.zip

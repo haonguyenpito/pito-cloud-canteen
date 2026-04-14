@@ -1,3 +1,44 @@
+/**
+ * ⚠️ BEHAVIORAL CONTRACT — initialize-payment.service.ts
+ * =======================================================
+ * PURPOSE: Creates Firebase payment records (client + partner) for a plan at
+ * order start time. This materialises the payment ledger entries that admin will
+ * later confirm.
+ *
+ * PRECONDITIONS:
+ *   - orderListing and planListing must be valid, fully-populated Sharetribe
+ *     listing objects (fetched server-side via integration SDK).
+ *   - The plan must NOT already have a confirmed payment record. Calling this
+ *     again on a confirmed order will create duplicate partner records (there is
+ *     no idempotency guard on partner writes — the caller is responsible).
+ *   - For in-progress edited orders (isEditInProgressOrder), the existing client
+ *     record is UPDATED, not duplicated. This path is safe to re-run.
+ *
+ * SIDE EFFECTS:
+ *   - Writes N partner payment records to Firestore (one per active sub-order
+ *     date). These writes are FIRE-AND-FORGET (no await) — failures are silent.
+ *   - Writes or updates one client payment record in Firestore.
+ *   - All Firestore writes are IRREVERSIBLE in practice once admin-confirmed.
+ *
+ * INVARIANTS:
+ *   - totalPrice values come from calculatePriceQuotationPartner /
+ *     calculatePriceQuotationInfoFromOrder (VAT already applied). Never pass
+ *     raw prices here.
+ *   - Sub-orders with lastTransition ∈ {OPERATOR_CANCEL_PLAN,
+ *     OPERATOR_CANCEL_AFTER_PARTNER_CONFIRMED,
+ *     OPERATOR_CANCEL_AFTER_PARTNER_REJECTED} are excluded — they must NEVER
+ *     generate payment records.
+ *   - orderId and planId must both be non-empty strings.
+ *   - amount is intentionally 0 at initialisation — it is the actual cash
+ *     collected, filled in later by admin.
+ *
+ * FAILURE:
+ *   - Partner record write failures are currently silent (fire-and-forget).
+ *     Do NOT change the client record write to fire-and-forget without
+ *     understanding the audit implications.
+ *   - If this function throws, the caller (start-order.api.ts) must not
+ *     proceed to initiate-transaction — the payment record must exist first.
+ */
 import compact from 'lodash/compact';
 import isEmpty from 'lodash/isEmpty';
 

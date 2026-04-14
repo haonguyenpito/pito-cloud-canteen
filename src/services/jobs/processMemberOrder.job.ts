@@ -1,3 +1,43 @@
+/**
+ * ⚠️ BEHAVIORAL CONTRACT — processMemberOrder.job.ts
+ *
+ * PURPOSE: Persists participant food selections to Sharetribe plan listings
+ * via a BullMQ queue. Without the distributed lock, concurrent food picks for
+ * the same plan would race and silently overwrite each other.
+ *
+ * WHY THE LOCK EXISTS:
+ *   - Sharetribe's listings.update is not atomic: read-modify-write in the job
+ *     handler has a data-loss window if two jobs run simultaneously for the same
+ *     planId. The Redis lock (DistributedLock) serializes writes per plan.
+ *   - Lock key: `lock:plan:<planId>` — per plan, not per order, because a plan
+ *     holds the orderDetail object that all members write into.
+ *   - TTL = 30 000 ms. The job extends the lock mid-flight (after fetchListing)
+ *     to prevent expiry during a slow Sharetribe API call.
+ *   - DO NOT remove or shorten the lock without profiling concurrent job latency.
+ *
+ * WHY 3 RETRIES (attempts: 3) + EXPONENTIAL BACKOFF:
+ *   - BullMQ retries the entire job (including re-acquiring the lock) on failure.
+ *   - Exponential backoff (base 2 000 ms) avoids thundering-herd under Redis
+ *     pressure. Do not reduce attempts below 3 or remove backoff.
+ *
+ * WHY maxRetries = 100 FOR LOCK ACQUISITION (not job retries):
+ *   - Lock retry loop inside the job gives up after 100 * ~100 ms ≈ 10 s.
+ *   - After 100 attempts, the job throws, triggering a BullMQ job retry.
+ *   - Raising maxRetries beyond 100 risks a single job stalling the queue for
+ *     a long time; lowering it risks premature failures under burst load.
+ *
+ * JOB ID COLLISION (deduplication):
+ *   - jobId = `${orderId}-${planId}-${currentUserId}`.
+ *   - A new job for the same user+plan removes the previous pending job before
+ *     enqueuing. This means only the LATEST pick for a user is persisted if
+ *     they update rapidly. This is intentional — last write wins per user.
+ *
+ * ADDING ANONYMOUS PARTICIPANTS:
+ *   - If currentUserId is not in participants or anonymous arrays on the order
+ *     listing, the job appends them to anonymous. This must remain atomic with
+ *     the plan write; separating the two updates would create an inconsistency
+ *     window.
+ */
 import type { Job } from 'bullmq';
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';

@@ -55,7 +55,13 @@ const ReviewCard = ({
   const { isAdmin, isBooker, isPartner } = currentUserGetter.getMetadata();
 
   // eslint-disable-next-line prettier/prettier
-  const role = isAdmin ? EUserRole.admin : isBooker ? EUserRole.booker : isPartner ? EUserRole.partner : EUserRole.participant;
+  const role = isAdmin
+    ? EUserRole.admin
+    : isBooker
+    ? EUserRole.booker
+    : isPartner
+    ? EUserRole.partner
+    : EUserRole.participant;
 
   const handleReplySubmit = async () => {
     if (!replyText.trim() || isDisabledReply) return;
