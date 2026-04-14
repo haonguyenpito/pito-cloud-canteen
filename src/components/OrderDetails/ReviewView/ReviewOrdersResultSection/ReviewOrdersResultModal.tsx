@@ -835,8 +835,8 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
       });
   };
 
-  const userLabelRecords = isHasGroups
-    ? preparedDataGroups.reduce<UserLabelRecord[]>(
+  const userLabelRecords: UserLabelRecord[] = isHasGroups
+    ? (preparedDataGroups.reduce(
         (result, { date, groupOrderData, orderDataForOthers }) => {
           if (date === targetedDate || targetedDate === 'all') {
             const processData = (orderData: any[], groupName?: string) => {
@@ -860,7 +860,7 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
                   const { name: participantName } = memberData || {};
                   const { foodName, requirement } = foodData || {};
 
-                  return {
+                  const userLabelRecord: UserLabelRecord = {
                     partnerName: restaurant?.restaurantName,
                     requirement,
                     companyName:
@@ -874,7 +874,9 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
                     timestamp: date,
                     groupName,
                     qrCodeImageSrc: qrCodeImageSrcMap[date],
-                  } satisfies UserLabelRecord;
+                  };
+
+                  return userLabelRecord;
                 },
               );
             };
@@ -891,7 +893,7 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
           return result;
         },
         [] as UserLabelRecord[],
-      )
+      ) as UserLabelRecord[])
     : preparedData
         .reduce<UserLabelRecord[]>((result, { date, orderData }) => {
           if (date === targetedDate || targetedDate === 'all') {
@@ -915,7 +917,7 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
                 const { name: participantName } = memberData || {};
                 const { foodName, requirement } = foodData || {};
 
-                return {
+                const userLabelRecord: UserLabelRecord = {
                   partnerName: restaurant?.restaurantName,
                   requirement,
                   companyName:
@@ -927,7 +929,9 @@ const ReviewOrdersResultModal: React.FC<TReviewOrdersResultModalProps> = (
                   foodName,
                   timestamp: date,
                   qrCodeImageSrc: qrCodeImageSrcMap[date],
-                } satisfies UserLabelRecord;
+                };
+
+                return userLabelRecord;
               },
             );
 
