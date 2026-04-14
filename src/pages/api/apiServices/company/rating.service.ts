@@ -1,6 +1,7 @@
 import round from 'lodash/round';
 import uniq from 'lodash/uniq';
 
+import { isHiddenReviewUser } from '@helpers/review/visibility';
 import { denormalisedResponseEntities } from '@services/data';
 import { fetchListing } from '@services/integrationHelper';
 import { createFirebaseDocNotification } from '@services/notifications';
@@ -120,6 +121,7 @@ export const postParticipantRatingFn = async ({
   const integrationSdk = getIntegrationSdk();
   const { restaurantId, ...rest } = rating;
   const { orderId, timestamp, reviewerId, generalRating } = rest;
+  const shouldNotifyPartnerChannels = !isHiddenReviewUser(reviewerId);
   const restaurantListing = await fetchListing(restaurantId, ['author']);
 
   const listingAuthorUser = User(restaurantListing.author);
@@ -161,16 +163,18 @@ export const postParticipantRatingFn = async ({
     },
   });
 
-  createFirebaseDocNotification(
-    ENotificationType.SUB_ORDER_REVIEWED_BY_PARTICIPANT,
-    {
-      userId: authorId,
-      orderId,
-      subOrderDate: timestamp,
-      companyName,
-      reviewerId,
-    },
-  );
+  if (shouldNotifyPartnerChannels) {
+    createFirebaseDocNotification(
+      ENotificationType.SUB_ORDER_REVIEWED_BY_PARTICIPANT,
+      {
+        userId: authorId,
+        orderId,
+        subOrderDate: timestamp,
+        companyName,
+        reviewerId,
+      },
+    );
+  }
 
   return denormalisedResponseEntities(response)[0];
 };

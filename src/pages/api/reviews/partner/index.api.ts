@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
+import { queryAllListings } from '@helpers/apiHelpers';
+import { isHiddenReviewUser } from '@helpers/review/visibility';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
 import partnerChecker from '@services/permissionChecker/partner';
@@ -38,21 +40,40 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           if (!restaurantId) {
             return res.status(401).json({ message: 'Unauthorized' });
           }
-          const ratingString = ratings?.join(',');
-          const response = await sdk.listings.query({
-            meta_listingType: EListingType.rating,
-            meta_restaurantId: restaurantId,
-            page: Number(page),
-            perPage: Number(perPage),
-            meta_generalRatingValue: `has_any:${ratingString}`,
-            include: ['images', 'author'],
+          const response = await queryAllListings({
+            query: {
+              meta_listingType: EListingType.rating,
+              meta_restaurantId: restaurantId,
+              include: ['images', 'author'],
+            },
           });
 
-          const reviews: RatingListing[] =
-            denormalisedResponseEntities(response);
+          const reviews: RatingListing[] = response as RatingListing[];
+          const visibleReviews = reviews.filter((review) => {
+            const reviewerId = review.attributes?.metadata?.reviewerId;
+            const generalRating = review.attributes?.metadata?.generalRating;
+
+            if (isHiddenReviewUser(reviewerId)) {
+              return false;
+            }
+
+            if (!ratings || !ratings.length || ratings.length >= 5) {
+              return true;
+            }
+
+            return ratings.includes(Number(generalRating));
+          });
+
+          const currentPage = Number(page);
+          const currentPerPage = Number(perPage);
+          const startIndex = (currentPage - 1) * currentPerPage;
+          const endIndex = startIndex + currentPerPage;
+          const paginatedReviews = visibleReviews.slice(startIndex, endIndex);
+          const totalItems = visibleReviews.length;
+          const totalPages = Math.ceil(totalItems / currentPerPage);
 
           const reviewsWithReplies = await Promise.all(
-            reviews.map(async (review) => {
+            paginatedReviews.map(async (review) => {
               const metadata = review.attributes?.metadata;
               const authorId = metadata?.reviewerId;
               const author = await integrationSdk.users.show({
@@ -73,10 +94,10 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           );
 
           const pagination: TPagination = {
-            page: Number(page),
-            perPage: Number(perPage),
-            totalItems: response.data.meta?.totalItems || 0,
-            totalPages: response.data.meta?.totalPages || 0,
+            page: currentPage,
+            perPage: currentPerPage,
+            totalItems,
+            totalPages,
           };
 
           return new SuccessResponse({

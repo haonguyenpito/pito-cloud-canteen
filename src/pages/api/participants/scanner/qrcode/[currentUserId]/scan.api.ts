@@ -408,7 +408,7 @@ const createScannedRecord = async (
 ): Promise<Omit<FirebaseScannedRecord, 'id'>> => {
   const { foodListing, memberListing, secondFoodListing } = processedData;
 
-  const record = {
+  const record: Omit<FirebaseScannedRecord, 'id'> = {
     planId: context.planId,
     timestamp: context.timestampNum,
     memberId: context.currentUserId,
@@ -432,7 +432,7 @@ const createScannedRecord = async (
     }),
     ...(context.groupId && { groupId: context.groupId }),
     ...(context.screen && { screen: context.screen }),
-  } satisfies Omit<FirebaseScannedRecord, 'id'>;
+  };
 
   try {
     // const scannedRecordRef = collection(

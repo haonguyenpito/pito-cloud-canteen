@@ -229,7 +229,7 @@ const SubOrderDetail: React.FC<TSubOrderDetailProps> = ({
           )?.foodName,
           timestamp: date,
           qrCodeImageSrc,
-        } satisfies UserLabelRecord;
+        };
 
         acc.push(userLabelRecord);
       }

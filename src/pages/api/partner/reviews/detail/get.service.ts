@@ -1,6 +1,7 @@
 import _ from 'lodash';
 
 import { queryAllListings } from '@helpers/apiHelpers';
+import { isHiddenReviewUser } from '@helpers/review/visibility';
 import { EListingType } from '@src/utils/enums';
 import { Listing } from '@utils/data';
 
@@ -9,37 +10,30 @@ const getReviews = async (
   page: number,
   perPage: number,
   ratings: number[],
-  sdk: any,
 ) => {
   const query = {
     meta_listingType: EListingType.rating,
     meta_restaurantId: restaurantId,
   };
 
-  if (ratings.length >= 5 || !ratings.length) {
-    const response = await sdk.listings.query({
-      ...query,
-      ...(page && { page }),
-      ...(perPage && { perPage }),
-    });
-
-    const { meta: pagination, data = [] } = response.data;
-
-    return {
-      pagination,
-      data,
-    };
-  }
-
   const reviewListings: [] = await queryAllListings({
     query,
   });
-  const filterReview = reviewListings.filter((reivew) => {
-    const { generalRating } = Listing(reivew).getMetadata();
+
+  const filterReview = reviewListings.filter((review) => {
+    const { generalRating, reviewerId } = Listing(review).getMetadata();
+
+    if (isHiddenReviewUser(reviewerId)) {
+      return false;
+    }
+
+    if (ratings.length >= 5 || !ratings.length) {
+      return true;
+    }
 
     return ratings.findIndex((rating) => rating === generalRating) >= 0;
   });
-  const totalPages = Math.ceil(filterReview.length / 10);
+  const totalPages = Math.ceil(filterReview.length / perPage);
 
   const pagination = {
     totalItems: filterReview.length,
