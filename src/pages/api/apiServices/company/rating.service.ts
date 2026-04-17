@@ -147,23 +147,22 @@ export const postParticipantRatingFn = async ({
     },
   });
 
-  createSlackNotification(ESlackNotificationType.PARTICIPANT_RATING, {
-    participantRatingData: {
-      ratingId: response.data.data.id.uuid,
-      ratingScore: generalRating,
-      content: detailTextRating,
-      images: imageUrlList,
-      partnerName: restaurantListing.attributes.title,
-      ratingUserName,
-      ratingUserType: 'participant',
-      orderCode,
-      companyName,
-      orderLink: `${process.env.NEXT_PUBLIC_CANONICAL_URL}/admin/order/${orderId}`,
-      subDate: timestamp,
-    },
-  });
-
   if (shouldNotifyPartnerChannels) {
+    createSlackNotification(ESlackNotificationType.PARTICIPANT_RATING, {
+      participantRatingData: {
+        ratingId: response.data.data.id.uuid,
+        ratingScore: generalRating,
+        content: detailTextRating,
+        images: imageUrlList,
+        partnerName: restaurantListing.attributes.title,
+        ratingUserName,
+        ratingUserType: 'participant',
+        orderCode,
+        companyName,
+        orderLink: `${process.env.NEXT_PUBLIC_CANONICAL_URL}/admin/order/${orderId}`,
+        subDate: timestamp,
+      },
+    });
     createFirebaseDocNotification(
       ENotificationType.SUB_ORDER_REVIEWED_BY_PARTICIPANT,
       {
