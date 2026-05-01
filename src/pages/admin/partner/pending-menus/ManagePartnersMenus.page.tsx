@@ -127,6 +127,18 @@ const TABLE_COLUMNS: TColumn[] = [
     },
   },
   {
+    key: 'appliedExtraFee',
+    label: 'Phụ phí',
+    render: (data: any) =>
+      data?.appliedExtraFee > 0 ? (
+        <span className="text-amber-600 font-semibold text-sm whitespace-nowrap">
+          +{(data.appliedExtraFee as number).toLocaleString('vi-VN')}đ
+        </span>
+      ) : (
+        <span className="text-gray-400 text-sm">—</span>
+      ),
+  },
+  {
     key: 'actions',
     label: '',
     render: (data: any) => (
@@ -144,7 +156,13 @@ const TABLE_COLUMNS: TColumn[] = [
 
 const parseMenusToTableData = (
   menus: (MenuListing & { restaurantName: string })[],
-  { onViewDetail }: { onViewDetail: (menuId: string) => void },
+  {
+    onViewDetail,
+    menuExtraFees,
+  }: {
+    onViewDetail: (menuId: string) => void;
+    menuExtraFees: Record<string, number | undefined>;
+  },
 ) => {
   return menus.map((menu, index) => {
     const menuId = menu?.id?.uuid || '';
@@ -170,6 +188,7 @@ const parseMenusToTableData = (
         startDate,
         endDate,
         status,
+        appliedExtraFee: menuExtraFees[menuId],
         onViewDetail,
       },
     };
@@ -190,15 +209,16 @@ const ManagePartnersMenusPage = () => {
     fetchPendingMenusInProgress,
     fetchPendingMenusError,
     applyExtraFeeInProgress,
+    menuExtraFees,
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
   useEffect(() => {
-    dispatch(
-      ManagePartnersMenusThunks.fetchPendingMenus({
-        page: 1,
-        perPage: 20,
-      }),
-    );
+    dispatch(ManagePartnersMenusThunks.fetchPendingMenus({ page: 1, perPage: 20 }))
+      .unwrap()
+      .then(({ menus }) => {
+        dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
+      })
+      .catch(() => {});
   }, [dispatch]);
 
   const handleViewDetail = (menuId: string) => {
@@ -206,12 +226,12 @@ const ManagePartnersMenusPage = () => {
   };
 
   const handlePageChange = (page: number, pageSize?: number) => {
-    dispatch(
-      ManagePartnersMenusThunks.fetchPendingMenus({
-        page,
-        perPage: pageSize || 20,
-      }),
-    );
+    dispatch(ManagePartnersMenusThunks.fetchPendingMenus({ page, perPage: pageSize || 20 }))
+      .unwrap()
+      .then(({ menus }) => {
+        dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
+      })
+      .catch(() => {});
   };
 
   const handleExposeValues = ({ values }: { values: any; valid: boolean }) => {
@@ -227,7 +247,6 @@ const ManagePartnersMenusPage = () => {
       }),
     );
     setIsExtraFeeModalOpen(false);
-    setSelectedMenuIds([]);
     toast.success(
       `Đã áp dụng phụ phí ${extraFee.toLocaleString('vi-VN')}đ cho ${selectedMenuIds.length} menu`,
     );
@@ -235,6 +254,7 @@ const ManagePartnersMenusPage = () => {
 
   const tableData = parseMenusToTableData(pendingMenus, {
     onViewDetail: handleViewDetail,
+    menuExtraFees,
   });
 
   const title = intl.formatMessage({

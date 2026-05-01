@@ -78,6 +78,9 @@ export function parseFoodsFromMenu(
       const foodListing = Listing(food);
       const { price, title, publicData } = foodListing.getAttributes();
 
+      const extraFee = (publicData?.extraFee as number) || 0;
+      const finalPrice = price.amount + extraFee;
+
       if (
         options?.findExactPackagePerMember &&
         options?.findExactPackagePerMember?.active
@@ -85,7 +88,7 @@ export function parseFoodsFromMenu(
         const packagePerMember =
           options?.findExactPackagePerMember.packagePerMember;
 
-        if (price.amount !== packagePerMember) {
+        if (finalPrice !== packagePerMember) {
           return;
         }
       }
@@ -95,7 +98,7 @@ export function parseFoodsFromMenu(
         foodId: key,
         foodName: title,
         minQuantity: foodListing.getPublicData().minQuantity ?? 0,
-        price: price.amount,
+        price: finalPrice,
         foodUnit: publicData?.unit ?? '',
         numberOfMainDishes: publicData?.numberOfMainDishes ?? 2,
       });
