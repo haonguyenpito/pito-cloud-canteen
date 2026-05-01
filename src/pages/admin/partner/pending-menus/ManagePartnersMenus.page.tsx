@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { shallowEqual } from 'react-redux';
+import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
@@ -14,6 +15,7 @@ import type { MenuListing } from '@src/types';
 import { formatTimestamp } from '@utils/dates';
 import { EListingStates, EMenuMealType, EMenuType } from '@utils/enums';
 
+import ApplyExtraFeeModal from './components/ApplyExtraFeeModal/ApplyExtraFeeModal';
 import { ManagePartnersMenusThunks } from './ManagePartnersMenus.slice';
 
 const getMealTypeLabel = (mealType: string) => {
@@ -179,15 +181,17 @@ const ManagePartnersMenusPage = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  // Redux selectors
+  const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
+  const [isExtraFeeModalOpen, setIsExtraFeeModalOpen] = useState(false);
+
   const {
     pendingMenus,
     pagination,
     fetchPendingMenusInProgress,
     fetchPendingMenusError,
+    applyExtraFeeInProgress,
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
-  // Fetch pending menus on mount
   useEffect(() => {
     dispatch(
       ManagePartnersMenusThunks.fetchPendingMenus({
@@ -209,6 +213,26 @@ const ManagePartnersMenusPage = () => {
       }),
     );
   };
+
+  const handleExposeValues = ({ values }: { values: any; valid: boolean }) => {
+    setSelectedMenuIds(values?.rowCheckbox || []);
+  };
+
+  const handleApplyExtraFee = async (extraFee: number) => {
+    await dispatch(
+      ManagePartnersMenusThunks.applyExtraFeeToMenus({
+        selectedMenuIds,
+        menus: pendingMenus,
+        extraFee,
+      }),
+    );
+    setIsExtraFeeModalOpen(false);
+    setSelectedMenuIds([]);
+    toast.success(
+      `Đã áp dụng phụ phí ${extraFee.toLocaleString('vi-VN')}đ cho ${selectedMenuIds.length} menu`,
+    );
+  };
+
   const tableData = parseMenusToTableData(pendingMenus, {
     onViewDetail: handleViewDetail,
   });
@@ -226,13 +250,35 @@ const ManagePartnersMenusPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
-          <span className="text-xl font-bold text-amber-600">
-            {pagination.totalItems}
-          </span>
-          <span className="text-gray-700">
-            <FormattedMessage id="ManagePartnersMenusApproval.pendingCount" />
-          </span>
+        <div className="flex items-center gap-3">
+          {selectedMenuIds.length > 0 && (
+            <Button
+              variant="primary"
+              className="flex items-center gap-2"
+              onClick={() => setIsExtraFeeModalOpen(true)}>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Thêm phụ phí ({selectedMenuIds.length})
+            </Button>
+          )}
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
+            <span className="text-xl font-bold text-amber-600">
+              {pagination.totalItems}
+            </span>
+            <span className="text-gray-700">
+              <FormattedMessage id="ManagePartnersMenusApproval.pendingCount" />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -253,6 +299,8 @@ const ManagePartnersMenusPage = () => {
             data={tableData}
             pagination={pagination}
             onCustomPageChange={handlePageChange}
+            hasCheckbox
+            exposeValues={handleExposeValues}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
@@ -279,6 +327,14 @@ const ManagePartnersMenusPage = () => {
           </div>
         )}
       </div>
+
+      <ApplyExtraFeeModal
+        isOpen={isExtraFeeModalOpen}
+        selectedCount={selectedMenuIds.length}
+        onClose={() => setIsExtraFeeModalOpen(false)}
+        onApply={handleApplyExtraFee}
+        isApplying={applyExtraFeeInProgress}
+      />
     </div>
   );
 };
