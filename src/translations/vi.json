@@ -621,6 +621,8 @@
   "EditPartnerFoodForm.priceMinLength": "Đơn giá phải lớn hơn hoặc bằng 1000đ",
   "EditPartnerFoodForm.pricePlaceholder": "Nhập đơn giá",
   "EditPartnerFoodForm.priceRequired": "Vui lòng nhập đơn giá",
+  "EditPartnerFoodForm.extraFeeLabel": "Phí phụ thu",
+  "EditPartnerFoodForm.displayPriceHint": "Giá hiển thị với khách: {price} đ",
   "EditPartnerFoodForm.sideDishLabel": "Món ăn kèm",
   "EditPartnerFoodForm.sideDishPlaceholder": "Chọn món ăn kèm",
   "EditPartnerFoodForm.specialDietsLabel": "Chế độ dinh dưỡng đặc biệt",

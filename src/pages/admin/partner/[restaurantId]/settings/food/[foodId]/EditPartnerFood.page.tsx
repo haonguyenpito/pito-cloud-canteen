@@ -75,6 +75,7 @@ const EditPartnerFoodPage = () => {
       description,
       price: parsePrice(price?.amount || 0),
       ...publicData,
+      extraFee: parsePrice(publicData?.extraFee || 0),
       menuType: menuType || EMenuType.fixedMenu,
       foodType: foodType || EFoodType.savoryDish,
       minQuantity: minQuantity || minQuantityFromPartner,

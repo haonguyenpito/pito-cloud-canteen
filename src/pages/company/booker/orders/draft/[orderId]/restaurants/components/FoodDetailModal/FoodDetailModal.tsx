@@ -38,8 +38,9 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
   const intl = useIntl();
 
   const foodGetter = Listing(food!);
-  const { sideDishes = [], notes } = foodGetter.getPublicData();
+  const { sideDishes = [], notes, extraFee = 0 } = foodGetter.getPublicData();
   const { title, price } = foodGetter.getAttributes();
+  const displayPrice = (price?.amount || 0) + extraFee;
   const FOOD_SIDE_DISH_OPTIONS = useFoodSideDishOptionsByLocale();
 
   const renderedSideDishes = sideDishes?.map(
@@ -109,7 +110,7 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
           <div className={css.topContent}>
             <div className={css.foodTitle}>{title}</div>
             <div className={css.price}>{`${addCommas(
-              price?.amount,
+              displayPrice,
             )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
           </div>
           <p className={css.description}>

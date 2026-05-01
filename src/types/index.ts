@@ -26,6 +26,7 @@ export type FoodListing = ListingBuilder<
     packaging: string;
     sideDishes: string[];
     unit: string;
+    extraFee?: number;
   },
   {
     adminApproval: string;

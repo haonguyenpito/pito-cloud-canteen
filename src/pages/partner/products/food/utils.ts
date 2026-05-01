@@ -222,6 +222,7 @@ export const getImportDataFromCsv = (
     title,
     description,
     price,
+    extraFee,
     allergicIngredients = '',
     foodType,
     numberOfMainDishes = 0,
@@ -281,6 +282,7 @@ export const getImportDataFromCsv = (
         : {}),
       sideDishes,
       ...(notes ? { notes } : {}),
+      extraFee: extraFee ? Number(String(extraFee).replace(/\D/g, '')) : 0,
     },
     metadata: {
       restaurantId,

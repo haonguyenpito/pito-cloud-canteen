@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import RenderWhen from '@components/RenderWhen/RenderWhen';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
+import { addCommas } from '@helpers/format';
 import { useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useDualFoodSelection } from '@hooks/useDualFoodSelection';
@@ -54,12 +55,14 @@ const ListingCard: React.FC<TListCardProps> = ({
   const foodList = planData?.foodList || [];
 
   const mealId = listing?.id?.uuid;
-  const { title, description } = Listing(listing).getAttributes();
+  const { title, description, price } = Listing(listing).getAttributes();
   const {
     allergicIngredients = [],
     foodType,
     numberOfMainDishes,
+    extraFee = 0,
   } = Listing(listing).getPublicData();
+  const displayPrice = (price?.amount || 0) + extraFee;
 
   const listingImages = Listing(listing).getImages() || [];
 
@@ -280,6 +283,9 @@ const ListingCard: React.FC<TListCardProps> = ({
               )}
             </div>
             <p className={css.description}>{description}</p>
+            {displayPrice > 0 && (
+              <p className={css.price}>{addCommas(displayPrice)} ₫ / phần</p>
+            )}
             <div className="flex items-center gap-2 mt-1">
               {isAllowAddSecondaryFood &&
                 dualFoodSelection.isFirstFoodSelected && (

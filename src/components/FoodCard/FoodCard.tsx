@@ -36,7 +36,9 @@ const FoodCard: React.FC<TFoodCardProps> = ({
 }) => {
   const intl = useIntl();
   const classes = classNames(css.root, className);
-  const { foodType } = Listing(food!).getPublicData();
+  const { foodType, extraFee = 0 } = Listing(food!).getPublicData();
+  const { price } = Listing(food!).getAttributes();
+  const displayPrice = (price?.amount || 0) + extraFee;
 
   const handleSelect = () => {
     onSelect(`${Listing(food!).getId()}`);
@@ -106,7 +108,7 @@ const FoodCard: React.FC<TFoodCardProps> = ({
             css.price,
             '!text-sm font-semibold',
           )}>{`${addCommas(
-          Listing(food!).getAttributes().price?.amount,
+          displayPrice,
         )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
       </div>
       {!hideSelection && (
