@@ -6,6 +6,14 @@ Partners manage their food catalog and menus through the partner portal. All new
 
 ---
 
+## Food Item Pricing
+
+Partners set the **base price** (`price.amount`) on each food item. Admin may add an **extra fee** (`publicData.extraFee`) on top as a PITO markup — this value is not visible in the partner portal. Partners always see base price only.
+
+The final price shown to bookers and participants is `base + extraFee`.
+
+---
+
 ## Food Item Lifecycle
 
 ```

@@ -172,6 +172,12 @@ plan.metadata.orderDetail = {
 
 ---
 
+## Food Price Display
+
+Participants see the **final price** (`base + extraFee`) on each food card in `src/components/ListingCard/ListingCard.tsx`. The `extraFee` is read from `food.publicData.extraFee`. If the admin has not set a fee, the display falls back to `price.amount` only (since `extraFee` defaults to 0).
+
+---
+
 ## Known Issues / Watch Points
 
 1. **`maxRetries: 100`** in the Redis lock — noted as potentially too high; reducing it risks failures under load, but it's intentional for now.

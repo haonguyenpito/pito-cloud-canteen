@@ -27,6 +27,32 @@ Menu state: pending
 
 ---
 
+## Bulk Extra Fee — "Thêm phụ phí" (Pending Menu List)
+
+**Screen:** `/admin/partner/pending-menus`
+
+**File:** `src/pages/admin/partner/pending-menus/ManagePartnersMenus.page.tsx`
+
+Admin can select one or more pending menus (checkboxes) and apply a flat extra fee to every food item across all selected menus in one action.
+
+**Flow:**
+1. Admin checks menus → "Thêm phụ phí (N)" button appears in the header
+2. Admin enters fee amount in the modal → presses "Áp dụng"
+3. Thunk `applyExtraFeeToMenus` (slice: `adminManagePartnersMenus`):
+   - Collects all unique food IDs from `publicData.foodsByDate` of each selected menu
+   - Calls `PUT /admin/listings/foods/:foodId` in parallel for every food ID with `{ publicData: { extraFee } }`
+4. Redux state immediately reflects the new fee per menu (no page refresh)
+
+**Displaying current fee in the list:**
+- On page load, `fetchMenuExtraFees` thunk fetches one food per menu (from `metadata.{day}FoodIdList`) and reads its `publicData.extraFee`
+- Displayed in the "Phụ phí" column as `+X,XXXđ` or `—` if 0
+
+**Key files:**
+- `src/pages/admin/partner/pending-menus/ManagePartnersMenus.slice.ts` — `applyExtraFeeToMenus`, `fetchMenuExtraFees` thunks
+- `src/pages/admin/partner/pending-menus/components/ApplyExtraFeeModal/ApplyExtraFeeModal.tsx` — fee input modal
+
+---
+
 ## Food Approval Workflow
 
 Partners submit new food items for review before they appear on menus.
