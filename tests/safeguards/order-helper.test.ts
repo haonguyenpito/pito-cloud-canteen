@@ -173,6 +173,27 @@ describe('getTotalInfo', () => {
   it('returns zeros for empty list', () => {
     expect(getTotalInfo([])).toEqual({ totalDishes: 0, totalPrice: 0 });
   });
+
+  it('includes foodExtraFee in totalPrice when set', () => {
+    const data = [
+      { foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 10_000 },
+      { foodId: 'f2', frequency: 1, foodPrice: 80_000, foodExtraFee: 5_000 },
+    ];
+    const result = getTotalInfo(data as any);
+    // f1: (50,000 + 10,000) × 2 = 120,000; f2: (80,000 + 5,000) × 1 = 85,000
+    expect(result.totalPrice).toBe(120_000 + 85_000);
+    expect(result.totalDishes).toBe(3);
+  });
+
+  it('falls back to base price only when foodExtraFee is 0', () => {
+    const data = [{ foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 0 }];
+    expect(getTotalInfo(data as any).totalPrice).toBe(100_000);
+  });
+
+  it('falls back to base price only when foodExtraFee is undefined', () => {
+    const data = [{ foodId: 'f1', frequency: 2, foodPrice: 50_000 }];
+    expect(getTotalInfo(data as any).totalPrice).toBe(100_000);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -195,6 +216,25 @@ describe('getFoodDataMap', () => {
       const result = getFoodDataMap({ foodListOfDate, memberOrders });
       expect(result.f1.frequency).toBe(2);
       expect(result.f2.frequency).toBe(1);
+    });
+
+    it('propagates foodExtraFee from foodListOfDate into result entries', () => {
+      const foodListWithFee = {
+        f1: { foodName: 'Cơm gà', foodPrice: 50_000, foodExtraFee: 15_000, numberOfMainDishes: 1 },
+      };
+      const memberOrders = {
+        u1: { foodId: 'f1', status: EParticipantOrderStatus.joined },
+      };
+      const result = getFoodDataMap({ foodListOfDate: foodListWithFee, memberOrders });
+      expect(result.f1.foodExtraFee).toBe(15_000);
+    });
+
+    it('defaults foodExtraFee to 0 when not present in foodListOfDate', () => {
+      const memberOrders = {
+        u1: { foodId: 'f1', status: EParticipantOrderStatus.joined },
+      };
+      const result = getFoodDataMap({ foodListOfDate, memberOrders });
+      expect(result.f1.foodExtraFee).toBe(0);
     });
 
     it('excludes members who have not joined', () => {
