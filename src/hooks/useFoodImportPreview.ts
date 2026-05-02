@@ -146,7 +146,7 @@ export const useFoodImportPreview = ({
         const mappedRecord: Partial<FoodImportRecord> = {};
 
         Object.keys(sheetRecord).forEach((key) => {
-          const adapterKey = NAME_TO_KEY_ADAPTER[key];
+          const adapterKey = NAME_TO_KEY_ADAPTER[key.normalize('NFC')];
 
           if (adapterKey) {
             (mappedRecord as Record<string, string | undefined>)[adapterKey] =
@@ -225,7 +225,9 @@ export const useFoodImportPreview = ({
     return () => {
       isCancelled = true;
     };
-  }, [previewRecords, shouldFetchImages]);
+    // previewRecords intentionally omitted: including it causes an infinite loop
+  // because setPreviewRecords(imageBase64Loading:true) would re-trigger this effect.
+}, [shouldFetchImages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onImportFoodFromCsv = useCallback(async () => {
     if (!normalizedRestaurantId) {
