@@ -102,6 +102,20 @@ const TABLE_COLUMN: TColumn[] = [
     },
   },
   {
+    key: 'extraFee',
+    label: 'Phụ phí',
+    render: (data: any) =>
+      data.isDeleted ? (
+        <div />
+      ) : data?.extraFee > 0 ? (
+        <div className={css.descriptionRow} style={{ color: '#d97706', fontWeight: 600 }}>
+          +{(data.extraFee as number).toLocaleString('vi-VN')}đ
+        </div>
+      ) : (
+        <div className={css.descriptionRow} style={{ color: '#9ca3af' }}>—</div>
+      ),
+  },
+  {
     key: 'action',
     label: '',
     render: (data: any) => {
@@ -180,6 +194,7 @@ const parseEntitiesToTableData = (
           FOOD_TYPE_OPTIONS,
           food.attributes.publicData.foodType,
         ),
+        extraFee: food.attributes.publicData.extraFee || 0,
         ...restExtraData,
       },
     };

@@ -45,7 +45,7 @@ const adminChecker =
 | ---------------- | ------------------------------ | --------------------------------- |
 | Order management | `/admin/orders/*`              | View and drive all orders         |
 | Plan transit     | `/admin/plan/*`                | Sub-order state transitions       |
-| Partner menus    | `/admin/partner/pending-menus` | Approve/reject pending menus      |
+| Partner menus    | `/admin/partner/pending-menus` | Approve/reject pending menus; bulk-apply extra fee |
 | Client payments  | `/admin/payment-client/*`      | Confirm client payments           |
 | Partner payments | `/admin/payment-partner/*`     | Confirm partner payments          |
 | Personalization  | `/admin/pcc-personalization`   | Algolia participant segmentation  |
@@ -63,6 +63,20 @@ const adminChecker =
 | `PaymentPartner`            | `src/pages/admin/payment-partner/PaymentPartner.slice.ts`  | Partner payment confirmation             |
 | `AdminAttributes`           | `src/pages/admin/AdminAttributes.slice.ts`                 | Admin attribute management               |
 | `OrderManagement`           | `src/redux/slices/OrderManagement.slice.ts`                | Shared order list slice                  |
+
+---
+
+## Food Item Extra Fee
+
+Admin can set a per-food `extraFee` (phụ phí) on any food listing. This fee is invisible to partners but added on top of the base price for booker, participant, and billing purposes.
+
+- **Edit per food:** Admin food edit form (`src/pages/admin/partner/[restaurantId]/settings/food/`) — extra fee input below the base price field, with a computed "Giá hiển thị" preview
+- **Bulk apply via menu list:** Select pending menus → "Thêm phụ phí" button → applies to all food items in selected menus
+- **Import:** Excel import supports `Phí phụ thu (Vnđ)` column — admin imports only; partner imports ignore this column
+- **Visibility:** Admin sees both fields; booker and participant see `base + extraFee`; partner sees base price only
+- **Billing:** Company is billed at `base + extraFee`; partner is paid at base price
+
+**Storage:** `food.publicData.extraFee` (number, VND)
 
 ---
 

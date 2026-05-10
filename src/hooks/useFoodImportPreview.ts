@@ -16,6 +16,7 @@ export type FoodImportRecord = {
   description?: string;
   packaging?: string;
   price?: string;
+  extraFee?: string;
   numberOfMainDishes?: string;
   stirFriedMeal?: string;
   soup?: string;
@@ -36,19 +37,20 @@ type FoodImportRecordStringKey = {
 
 const NAME_TO_KEY_ADAPTER: Record<string, FoodImportRecordStringKey> = {
   'Hình ảnh': 'image',
-  'Tên món ăn': 'name',
+  'Tên món ăn': 'name',
   'Loại menu': 'menuType',
   'Phân loại': 'category',
-  'Mô tả chi tiết': 'description',
-  'Chất liệu bao bì': 'packaging',
-  'Đơn giá (Vnđ)': 'price',
-  'Số món chính (món)': 'numberOfMainDishes',
-  'Món xào': 'stirFriedMeal',
-  'Món canh': 'soup',
-  'Tráng miệng': 'dessert',
-  'Nước uống': 'drink',
-  'Thành phần dị ứng': 'allergicIngredients',
-  'Ghi chú': 'note',
+  'Mô tả chi tiết': 'description',
+  'Chất liệu bao bì': 'packaging',
+  'Đơn giá (Vnđ)': 'price',
+  'Phí phụ thu (Vnđ)': 'extraFee',
+  'Số món chính (món)': 'numberOfMainDishes',
+  'Món xào': 'stirFriedMeal',
+  'Món canh': 'soup',
+  'Tráng miệng': 'dessert',
+  'Nước uống': 'drink',
+  'Thành phần dị ứng': 'allergicIngredients',
+  'Ghi chú': 'note',
 };
 
 type UseFoodImportPreviewOptions = {
@@ -144,7 +146,7 @@ export const useFoodImportPreview = ({
         const mappedRecord: Partial<FoodImportRecord> = {};
 
         Object.keys(sheetRecord).forEach((key) => {
-          const adapterKey = NAME_TO_KEY_ADAPTER[key];
+          const adapterKey = NAME_TO_KEY_ADAPTER[key.normalize('NFC')];
 
           if (adapterKey) {
             (mappedRecord as Record<string, string | undefined>)[adapterKey] =
@@ -223,7 +225,9 @@ export const useFoodImportPreview = ({
     return () => {
       isCancelled = true;
     };
-  }, [previewRecords, shouldFetchImages]);
+    // previewRecords intentionally omitted: including it causes an infinite loop
+  // because setPreviewRecords(imageBase64Loading:true) would re-trigger this effect.
+}, [shouldFetchImages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onImportFoodFromCsv = useCallback(async () => {
     if (!normalizedRestaurantId) {
@@ -303,6 +307,7 @@ export const useFoodImportPreview = ({
             soup: dataParamsInput.soup,
             dessert: dataParamsInput.dessert,
             drink: dataParamsInput.drink,
+            ...(!isPartner && dataParamsInput.extraFee ? { extraFee: dataParamsInput.extraFee } : {}),
           },
         );
 

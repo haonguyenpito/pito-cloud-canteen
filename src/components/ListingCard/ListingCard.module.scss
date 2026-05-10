@@ -165,6 +165,15 @@
       @include lineClamp(2, 20px);
     }
   }
+  .price {
+    @include textTemplate(12px, 600, 18px);
+    color: $neutralGray8;
+    margin: 2px 0 0;
+
+    @include viewportMedium {
+      @include textTemplate(13px, 600, 20px);
+    }
+  }
 
   .addDish {
     cursor: pointer;

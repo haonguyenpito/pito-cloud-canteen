@@ -53,6 +53,16 @@ Restaurant search is powered by Sharetribe listing queries with filters defined 
 
 ---
 
+## Restaurant Browsing — Food Price Display
+
+When a booker browses restaurants (Step 4 of the quiz wizard), the food items shown in each restaurant card ("Lựa chọn phù hợp" / "Menu tham khảo") display the **final price** (`base + extraFee`).
+
+The budget filter (`packagePerMember`) also compares against the final price — a food with base 75,000 + extra fee 25,000 matches a 100,000 VND/person budget.
+
+**Source:** `src/helpers/searchRestaurantHelper.ts` → `parseFoodsFromMenu`
+
+---
+
 ## Step 2: Order Setup
 
 Booker or admin fills in:

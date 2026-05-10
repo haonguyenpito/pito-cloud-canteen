@@ -621,6 +621,8 @@
   "EditPartnerFoodForm.priceMinLength": "Unit price must be greater than or equal to 1000đ",
   "EditPartnerFoodForm.pricePlaceholder": "Enter unit price",
   "EditPartnerFoodForm.priceRequired": "Please enter unit price",
+  "EditPartnerFoodForm.extraFeeLabel": "Extra fee (Admin)",
+  "EditPartnerFoodForm.displayPriceHint": "Display price for customers: {price} đ",
   "EditPartnerFoodForm.sideDishLabel": "Side dish",
   "EditPartnerFoodForm.sideDishPlaceholder": "Select side dish",
   "EditPartnerFoodForm.specialDietsLabel": "Special nutrition regimes",

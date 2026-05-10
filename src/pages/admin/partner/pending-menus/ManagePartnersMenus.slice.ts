@@ -6,8 +6,10 @@ import {
   getPartnerPendingMenuDetailApi,
   rejectPartnerMenuApi,
 } from '@apis/admin';
+import { partnerFoodApi } from '@apis/foodApi';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { MenuListing, TQueryParams } from '@src/types';
+import { denormalisedResponseEntities } from '@utils/data';
 import type { EListingStates } from '@src/utils/enums';
 import { storableError } from '@src/utils/errors';
 import type { TError, TPagination } from '@src/utils/types';
@@ -29,6 +31,12 @@ type TManagePartnersMenusState = {
   // Reject
   rejectMenuInProgress: boolean;
   rejectMenuError: TError | null;
+  // Apply extra fee
+  applyExtraFeeInProgress: boolean;
+  applyExtraFeeError: TError | null;
+  // Extra fee per menu (fetched from food items)
+  menuExtraFees: Record<string, number | undefined>;
+  fetchMenuExtraFeesInProgress: boolean;
 };
 
 const initialState: TManagePartnersMenusState = {
@@ -52,6 +60,12 @@ const initialState: TManagePartnersMenusState = {
   // Reject
   rejectMenuInProgress: false,
   rejectMenuError: null,
+  // Apply extra fee
+  applyExtraFeeInProgress: false,
+  applyExtraFeeError: null,
+  // Extra fee per menu
+  menuExtraFees: {},
+  fetchMenuExtraFeesInProgress: false,
 };
 
 // ================ Async Thunks ================ //
@@ -168,11 +182,94 @@ const rejectMenu = createAsyncThunk<
   },
 );
 
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const getFirstFoodId = (menu: MenuListing): string | null => {
+  const meta = menu.attributes?.metadata as any;
+  for (const day of DAY_KEYS) {
+    const ids: string[] = meta?.[`${day}FoodIdList`] || [];
+    if (ids.length > 0) return ids[0];
+  }
+  return null;
+};
+
+const fetchMenuExtraFees = createAsyncThunk<
+  Record<string, number | undefined>,
+  (MenuListing & { restaurantName: string })[]
+>(
+  'admin/ManagePartnersMenus/FETCH_MENU_EXTRA_FEES',
+  async (menus, { rejectWithValue }) => {
+    try {
+      const entries = menus
+        .map((menu) => ({ menuId: menu.id?.uuid ?? '', foodId: getFirstFoodId(menu) }))
+        .filter((e) => e.menuId && e.foodId);
+
+      const results = await Promise.all(
+        entries.map(async ({ menuId, foodId }) => {
+          try {
+            const res = await partnerFoodApi.showFood(foodId as string, { expand: true });
+            const [food] = denormalisedResponseEntities(res.data);
+            const extraFee: number = food?.attributes?.publicData?.extraFee ?? 0;
+            return { menuId, extraFee };
+          } catch {
+            return { menuId, extraFee: 0 };
+          }
+        }),
+      );
+
+      return results.reduce<Record<string, number | undefined>>(
+        (acc, { menuId, extraFee }) => ({ ...acc, [menuId]: extraFee }),
+        {},
+      );
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  },
+);
+
+const applyExtraFeeToMenus = createAsyncThunk<
+  { menuIds: string[]; extraFee: number },
+  { selectedMenuIds: string[]; menus: (MenuListing & { restaurantName: string })[]; extraFee: number }
+>(
+  'admin/ManagePartnersMenus/APPLY_EXTRA_FEE',
+  async ({ selectedMenuIds, menus, extraFee }, { rejectWithValue }) => {
+    try {
+      const selectedMenus = menus.filter((m) =>
+        selectedMenuIds.includes(m.id?.uuid ?? ''),
+      );
+
+      const foodIdSet = new Set<string>();
+      selectedMenus.forEach((menu) => {
+        const foodsByDate = menu.attributes?.publicData?.foodsByDate || {};
+        Object.values(foodsByDate).forEach((foodsOnDay: any) => {
+          Object.values(foodsOnDay).forEach((foodItem: any) => {
+            if (foodItem?.id) foodIdSet.add(foodItem.id);
+          });
+        });
+      });
+
+      await Promise.all(
+        Array.from(foodIdSet).map((foodId) =>
+          partnerFoodApi.updateFood(foodId, {
+            dataParams: { id: foodId, publicData: { extraFee } },
+            queryParams: {},
+          }),
+        ),
+      );
+
+      return { menuIds: selectedMenuIds, extraFee };
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  },
+);
+
 export const ManagePartnersMenusThunks = {
   fetchPendingMenus,
   fetchMenuDetail,
   approveMenu,
   rejectMenu,
+  applyExtraFeeToMenus,
+  fetchMenuExtraFees,
 };
 
 // ================ Slice ================ //
@@ -262,6 +359,32 @@ const ManagePartnersMenusSlice = createSlice({
       .addCase(rejectMenu.rejected, (state, { payload }) => {
         state.rejectMenuInProgress = false;
         state.rejectMenuError = payload as any;
+      })
+      // =============== applyExtraFeeToMenus ===============
+      .addCase(applyExtraFeeToMenus.pending, (state) => {
+        state.applyExtraFeeInProgress = true;
+        state.applyExtraFeeError = null;
+      })
+      .addCase(applyExtraFeeToMenus.fulfilled, (state, { payload }) => {
+        state.applyExtraFeeInProgress = false;
+        payload.menuIds.forEach((menuId) => {
+          state.menuExtraFees[menuId] = payload.extraFee;
+        });
+      })
+      .addCase(applyExtraFeeToMenus.rejected, (state, { payload }) => {
+        state.applyExtraFeeInProgress = false;
+        state.applyExtraFeeError = payload as TError;
+      })
+      // =============== fetchMenuExtraFees ===============
+      .addCase(fetchMenuExtraFees.pending, (state) => {
+        state.fetchMenuExtraFeesInProgress = true;
+      })
+      .addCase(fetchMenuExtraFees.fulfilled, (state, { payload }) => {
+        state.fetchMenuExtraFeesInProgress = false;
+        state.menuExtraFees = { ...state.menuExtraFees, ...payload };
+      })
+      .addCase(fetchMenuExtraFees.rejected, (state) => {
+        state.fetchMenuExtraFeesInProgress = false;
       });
   },
 });

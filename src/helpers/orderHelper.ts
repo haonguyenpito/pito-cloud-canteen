@@ -267,6 +267,7 @@ export const getFoodDataMap = ({
           const {
             foodName,
             foodPrice,
+            foodExtraFee,
             numberOfMainDishes,
             requirement = '',
           } = foodListOfDate[id] || {};
@@ -284,6 +285,7 @@ export const getFoodDataMap = ({
               foodId: id,
               foodName,
               foodPrice,
+              foodExtraFee: foodExtraFee || 0,
               numberOfMainDishes,
               notes,
               frequency: nextFrequency,
@@ -322,12 +324,12 @@ export const getTotalInfo = (foodDataList: TFoodDataValue[]) => {
   }>(
     (previousResult, current: TObject) => {
       const { totalPrice, totalDishes } = previousResult;
-      const { frequency, foodPrice } = current;
+      const { frequency, foodPrice, foodExtraFee = 0 } = current;
 
       return {
         ...previousResult,
         totalDishes: totalDishes + frequency,
-        totalPrice: totalPrice + foodPrice * frequency,
+        totalPrice: totalPrice + (foodPrice + foodExtraFee) * frequency,
       };
     },
     {
@@ -484,6 +486,7 @@ export const getSelectedRestaurantAndFoodList = ({
           [id?.uuid]: {
             foodName: title,
             foodPrice: price?.amount || 0,
+            foodExtraFee: attributes?.publicData?.extraFee || 0,
             foodUnit,
             numberOfMainDishes,
           },
@@ -531,6 +534,7 @@ export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
       acc[foodId] = {
         foodName: foodListingGetter.title,
         foodPrice: foodListingGetter.price?.amount || 0,
+        foodExtraFee: foodListingGetter.publicData?.extraFee || 0,
         foodUnit: foodListingGetter.publicData?.unit || '',
       };
     }

@@ -35,6 +35,7 @@ export type TEditPartnerFoodFormValues = {
   foodType: string;
   categoryOther: string;
   price: string;
+  extraFee?: string;
   ingredients: string;
   sideDishes: string[];
   description: string;
@@ -52,6 +53,7 @@ export const getSubmitFoodData = (values: TEditPartnerFoodFormValues) => {
     title,
     description,
     price,
+    extraFee,
     addImages,
     tempValue,
     restaurantId,
@@ -62,6 +64,7 @@ export const getSubmitFoodData = (values: TEditPartnerFoodFormValues) => {
   const priceRemoveComma = price.toString().split('.');
   const mergeWithoutComma = priceRemoveComma.join('');
   const parsePrice = Number(mergeWithoutComma);
+  const parsedExtraFee = Number(getNumberOnly(String(extraFee || '0')));
 
   return {
     images: getUniqueImages([...getSubmitImageId(images)]),
@@ -70,6 +73,7 @@ export const getSubmitFoodData = (values: TEditPartnerFoodFormValues) => {
     price: new Money(Number(parsePrice), 'VND'),
     publicData: {
       ...rest,
+      extraFee: parsedExtraFee,
     },
     metadata: {
       restaurantId,
@@ -88,10 +92,12 @@ export const getUpdateFoodData = (values: TEditPartnerFoodFormValues) => {
     title,
     description,
     price,
+    extraFee,
     addImages,
     tempValue,
     ...rest
   } = values;
+  const parsedExtraFee = Number(getNumberOnly(String(extraFee || '0')));
 
   return {
     ...(id ? { id } : {}),
@@ -101,6 +107,7 @@ export const getUpdateFoodData = (values: TEditPartnerFoodFormValues) => {
     price: parsePriceToMoneyFormat(price),
     publicData: {
       ...rest,
+      extraFee: parsedExtraFee,
     },
   };
 };
@@ -111,11 +118,13 @@ export const getDuplicateData = (values: TEditPartnerFoodFormValues) => {
     title,
     description,
     price,
+    extraFee,
     addImages,
     tempValue,
     restaurantId,
     ...rest
   } = values;
+  const parsedExtraFee = Number(getNumberOnly(String(extraFee || '0')));
 
   return {
     ...(images ? { images: images.filter((i: TImage) => !!i) } : {}),
@@ -124,6 +133,7 @@ export const getDuplicateData = (values: TEditPartnerFoodFormValues) => {
     price: parsePriceToMoneyFormat(price),
     publicData: {
       ...rest,
+      extraFee: parsedExtraFee,
     },
     metadata: {
       restaurantId,

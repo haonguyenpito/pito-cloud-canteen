@@ -117,31 +117,35 @@ export const getFoodImportPreviewColumns = (
       accessor: 'price',
     },
     {
+      label: 'Phí phụ thu (Vnđ)',
+      accessor: 'extraFee',
+    },
+    {
       label: 'Số món chính (món)',
       accessor: 'numberOfMainDishes',
     },
     {
-      label: 'Món xào',
+      label: 'Món xào',
       accessor: 'stirFriedMeal',
     },
     {
-      label: 'Món canh',
+      label: 'Món canh',
       accessor: 'soup',
     },
     {
-      label: 'Tráng miệng',
+      label: 'Tráng miệng',
       accessor: 'dessert',
     },
     {
-      label: 'Nước uống',
+      label: 'Nước uống',
       accessor: 'drink',
     },
     {
-      label: 'Thành phần dị ứng',
+      label: 'Thành phần dị ứng',
       accessor: 'allergicIngredients',
     },
     {
-      label: 'Ghi chú',
+      label: 'Ghi chú',
       accessor: 'note',
     },
   ];

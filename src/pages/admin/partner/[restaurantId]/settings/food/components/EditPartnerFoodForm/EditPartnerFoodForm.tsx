@@ -377,6 +377,31 @@ const EditPartnerFoodFormComponent: React.FC<
             )}
             parse={parsePrice}
           />
+          <div className={css.field}>
+            <FieldTextInput
+              className={css.priceField}
+              name="extraFee"
+              id="extraFee"
+              label={intl.formatMessage({ id: 'EditPartnerFoodForm.extraFeeLabel' })}
+              placeholder="0"
+              inputClassName={css.inputWithSuffix}
+              rightIcon={<div className={css.inputSuffixed}>đ</div>}
+              parse={parsePrice}
+            />
+            {(() => {
+              const basePrice = Number(String(values.price || '0').replace(/\D/g, ''));
+              const extraFeeVal = Number(String(values.extraFee || '0').replace(/\D/g, ''));
+              const displayPrice = basePrice + extraFeeVal;
+              return displayPrice > 0 ? (
+                <div className={css.displayPriceHint}>
+                  {intl.formatMessage(
+                    { id: 'EditPartnerFoodForm.displayPriceHint' },
+                    { price: parsePrice(String(displayPrice)) },
+                  )}
+                </div>
+              ) : null;
+            })()}
+          </div>
           <FieldDropdownSelect
             className={css.field}
             name="packaging"

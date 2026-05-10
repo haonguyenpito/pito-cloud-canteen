@@ -98,6 +98,7 @@ const CreatePartnerFoodPage = () => {
       title,
       description,
       price: price?.amount,
+      extraFee: '0',
       menuType: menuType || EMenuType.cycleMenu,
       foodType: foodType || EFoodType.savoryDish,
       minOrderHourInAdvance: 24,

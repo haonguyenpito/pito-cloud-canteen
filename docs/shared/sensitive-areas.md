@@ -17,6 +17,31 @@ This document lists every area of the codebase that touches money, order state, 
 
 ---
 
+### Extra Fee (`extraFee`) — Admin-Only Markup
+
+**Storage:** `food.publicData.extraFee` (VND integer, default 0) on each Sharetribe food listing.
+
+**Price visibility by role:**
+
+| Role | Price shown |
+|---|---|
+| Admin | Base price field + extra fee field + computed display price |
+| Booker | `base + extraFee` (final price) |
+| Participant | `base + extraFee` (final price) |
+| Partner | Base price only |
+
+**Billing pipeline** (`src/helpers/orderHelper.ts`):
+- `getSelectedRestaurantAndFoodList` and `getUpdateLineItems` store both `foodPrice` (base) and `foodExtraFee` in the order's `foodList`
+- `getTotalInfo` computes company billing as `(foodPrice + foodExtraFee) × frequency`
+- `calculatePriceQuotationPartner` reads from the quotation listing (separate from `plan.orderDetail`) — **unaffected by extraFee**, so partner payment stays at base price
+
+**Restaurant search** (`src/helpers/searchRestaurantHelper.ts` → `parseFoodsFromMenu`):
+- `TFoodInRestaurant.price` = `base + extraFee` — the budget filter and display both use the final price
+
+**Risk:** If `foodExtraFee` is inadvertently removed from the `getTotalInfo` calculation, companies will be under-billed. If it leaks into `calculatePriceQuotationPartner`, partners will be over-paid.
+
+---
+
 ### Payment Initialization
 
 **File:** `src/pages/api/orders/[orderId]/plan/[planId]/initialize-payment.service.ts`
