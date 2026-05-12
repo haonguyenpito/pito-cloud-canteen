@@ -167,7 +167,7 @@
   }
   .price {
     @include textTemplate(12px, 600, 18px);
-    color: $neutralGray8;
+    color: $neutralGray7;
     margin: 2px 0 0;
 
     @include viewportMedium {
