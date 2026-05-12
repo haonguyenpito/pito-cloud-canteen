@@ -29,8 +29,9 @@ const ApplyExtraFeeModal = ({
 
   const handleSubmit = () => {
     const amount = Number(inputValue.replace(/\D/g, ''));
-    if (isNaN(amount) || amount < 0) {
+    if (Number.isNaN(amount) || amount < 0) {
       setError('Vui lòng nhập số tiền hợp lệ (≥ 0đ)');
+
       return;
     }
     onApply(amount);
@@ -74,8 +75,8 @@ const ApplyExtraFeeModal = ({
           </h3>
           <p className="text-sm text-gray-500 text-center mb-6">
             Áp dụng cho{' '}
-            <strong className="text-amber-600">{selectedCount} menu</strong>{' '}
-            đã chọn
+            <strong className="text-amber-600">{selectedCount} menu</strong> đã
+            chọn
           </p>
 
           {/* Input */}
@@ -108,8 +109,8 @@ const ApplyExtraFeeModal = ({
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6">
             <p className="text-sm text-amber-700">
               Phí phụ thu sẽ được áp dụng cho <strong>tất cả món ăn</strong>{' '}
-              trong các menu đã chọn. Giá hiển thị với khách sẽ là đơn giá gốc
-              + phụ phí.
+              trong các menu đã chọn. Giá hiển thị với khách sẽ là đơn giá gốc +
+              phụ phí.
             </p>
           </div>
         </div>
