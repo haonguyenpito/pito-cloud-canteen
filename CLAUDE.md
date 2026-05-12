@@ -43,7 +43,8 @@ When working in a role's source directory, the role-specific CLAUDE.md is auto-l
 - `docs/shared/notification-flow.md` — All 4 channels: Firebase, OneSignal, Slack, SES (full enum tables)
 - `docs/shared/transaction-flow.md` — Sharetribe transaction state machine (`sub-order-transaction-process/release-2`)
 - `docs/shared/services.md` — All external service integrations + Lambda ARN map
-- `docs/shared/redux-store.md` — All 54 Redux slices inventory
+- `docs/shared/redux-store.md` — Redux slice inventory (~55 `*.slice.ts` files)
+- `docs/shared/visual-workflow-maps.md` — Mermaid diagrams: order lifecycle, sub-order state machine, food selection, payment, schedulers
 - `docs/shared/sensitive-areas.md` — **Read before touching money, order state, auth, or food selection**
 
 ---
@@ -53,7 +54,7 @@ When working in a role's source directory, the role-specific CLAUDE.md is auto-l
 @docs/shared/sensitive-areas.md
 
 Quick summary — never do these:
-- Write directly to `plan.metadata.orderDetail` outside BullMQ + Redis lock
+- Bypass the BullMQ + Redis lock for **participant self-pick** writes to `plan.metadata.orderDetail` (admin/booker editing on someone's behalf via `PUT /api/orders/:orderId/member-order` does write directly — that path is intentional, but do not add new high-concurrency writers there)
 - Call `initiate-transaction` more than once per sub-order date
 - Expose `ENCRYPT_PASSWORD_SECRET_KEY` in logs or client code
 - Change VAT logic without verifying all 3 modes (`vat`, `noExportVat`, `direct`)

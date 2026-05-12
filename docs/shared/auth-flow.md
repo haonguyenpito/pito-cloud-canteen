@@ -21,28 +21,32 @@ Company membership and permissions are stored separately in company listings (Sh
 
 ## Sign-Up Flow
 
+Sign-up runs **client-side via the Sharetribe SDK** — there is no PITO `/api/users/sign-up` endpoint. Only the post-creation hook is a PITO API.
+
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant Next.js API
+    participant Redux as Redux (auth.slice — signUp thunk)
     participant Sharetribe SDK
-    participant Firebase
+    participant PITO API as PITO API
 
-    Browser->>Next.js API: POST /api/users/sign-up (form data)
-    Next.js API->>Sharetribe SDK: sdk.currentUser.create({ firstName, lastName, email, password, protectedData: { gender, phone }, privateData: { verifyEmail: { send: true } } })
-    Sharetribe SDK-->>Next.js API: User created
-    Next.js API->>Sharetribe SDK: sdk.login({ username, password })
-    Sharetribe SDK-->>Next.js API: Token set in cookie
-    Next.js API->>Next.js API: POST /api/users/post-sign-up (server-side post-processing)
-    Next.js API-->>Browser: Redirect to role dashboard
+    Browser->>Redux: dispatch(signUp({ ... }))
+    Redux->>Sharetribe SDK: sdk.currentUser.create({ firstName, lastName, email, password, protectedData, privateData: { verifyEmail: { send: true } } })
+    Sharetribe SDK-->>Redux: User created
+    Redux->>Sharetribe SDK: sdk.login({ username, password })
+    Sharetribe SDK-->>Redux: Token set in cookie
+    Redux->>PITO API: PUT /api/users/post-sign-up (postSignUpApi)
+    PITO API-->>Redux: Server-side post-processing complete
+    Redux-->>Browser: Redirect to role dashboard
 ```
 
 **Key details:**
 
-- `protectedData` in Sharetribe stores gender and phone — visible to other users with SDK
-- `privateData` is only visible to the user themselves and admins
-- Email verification flag is set at account creation (`verifyEmail.send = true`)
-- After sign-up, `postSignUpApi()` performs any server-side setup (e.g., company association)
+- The signup thunk lives at `src/redux/slices/auth.slice.ts` (`signUp`, ~line 102) and calls `sdk.currentUser.create` directly through the browser SDK.
+- `PUT /api/users/post-sign-up` (`src/pages/api/users/post-sign-up.api.ts`, called via `postSignUpApi` in `src/apis/userApi.ts`) handles server-side setup that requires the integration SDK (company invitations, default flags, etc.).
+- `protectedData` in Sharetribe stores gender and phone — visible to other users with SDK.
+- `privateData` is only visible to the user themselves and admins.
+- Email verification flag is set at account creation (`verifyEmail.send = true`).
 
 ---
 

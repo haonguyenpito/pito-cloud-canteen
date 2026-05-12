@@ -213,7 +213,9 @@ const ManagePartnersMenusPage = () => {
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
   useEffect(() => {
-    dispatch(ManagePartnersMenusThunks.fetchPendingMenus({ page: 1, perPage: 20 }))
+    dispatch(
+      ManagePartnersMenusThunks.fetchPendingMenus({ page: 1, perPage: 20 }),
+    )
       .unwrap()
       .then(({ menus }) => {
         dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
@@ -226,7 +228,12 @@ const ManagePartnersMenusPage = () => {
   };
 
   const handlePageChange = (page: number, pageSize?: number) => {
-    dispatch(ManagePartnersMenusThunks.fetchPendingMenus({ page, perPage: pageSize || 20 }))
+    dispatch(
+      ManagePartnersMenusThunks.fetchPendingMenus({
+        page,
+        perPage: pageSize || 20,
+      }),
+    )
       .unwrap()
       .then(({ menus }) => {
         dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
@@ -248,7 +255,9 @@ const ManagePartnersMenusPage = () => {
     );
     setIsExtraFeeModalOpen(false);
     toast.success(
-      `Đã áp dụng phụ phí ${extraFee.toLocaleString('vi-VN')}đ cho ${selectedMenuIds.length} menu`,
+      `Đã áp dụng phụ phí ${extraFee.toLocaleString('vi-VN')}đ cho ${
+        selectedMenuIds.length
+      } menu`,
     );
   };
 

@@ -100,11 +100,13 @@ If the order was created as `bookerDraft`, the booker must submit it for admin a
 
 ## Cancel Flow (Pre-inProgress)
 
-Orders can be canceled before they reach `inProgress`:
+Orders can be canceled before they reach `inProgress`. The exact destination state depends on which endpoint is used (enforced by `ORDER_STATE_TRANSIT_FLOW` in `src/utils/constants.ts`):
 
-| Cancel Type             | State                             | API                                                      |
-| ----------------------- | --------------------------------- | -------------------------------------------------------- |
-| Booker cancel           | `draft` or `picking`              | `PUT /api/orders/:orderId/cancel-order-by-booker`        |
-| Cancel picking          | `picking` → `draft` or `canceled` | `PUT /api/orders/:orderId/cancel-picking-order`          |
-| Cancel pending approval | `pendingApproval` → `draft`       | `PUT /api/orders/:orderId/cancel-pending-approval-order` |
-| Admin cancel            | Any pre-`inProgress` state        | `PUT /api/admin/listings/order/:orderId/update-state`    |
+| Cancel Type             | Transition                         | API                                                      |
+| ----------------------- | ---------------------------------- | -------------------------------------------------------- |
+| Booker cancel pending   | `pendingApproval` → `canceledByBooker` | `PUT /api/orders/:orderId/cancel-pending-approval-order` |
+| Cancel picking          | `picking` → `canceled`             | `PUT /api/orders/:orderId/cancel-picking-order`          |
+| Booker delete draft     | (deletes own `bookerDraft` order)  | `DELETE /api/company/:companyId/orders/:orderId`         |
+| Admin cancel (generic)  | Any state allowed by `ORDER_STATE_TRANSIT_FLOW` | `PUT /api/admin/listings/order/:orderId/update-state` (with `orderState: 'canceled'`) |
+
+There is no `cancel-order-by-booker` endpoint.

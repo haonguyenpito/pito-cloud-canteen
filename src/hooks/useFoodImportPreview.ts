@@ -226,8 +226,8 @@ export const useFoodImportPreview = ({
       isCancelled = true;
     };
     // previewRecords intentionally omitted: including it causes an infinite loop
-  // because setPreviewRecords(imageBase64Loading:true) would re-trigger this effect.
-}, [shouldFetchImages]); // eslint-disable-line react-hooks/exhaustive-deps
+    // because setPreviewRecords(imageBase64Loading:true) would re-trigger this effect.
+  }, [shouldFetchImages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onImportFoodFromCsv = useCallback(async () => {
     if (!normalizedRestaurantId) {
@@ -307,7 +307,9 @@ export const useFoodImportPreview = ({
             soup: dataParamsInput.soup,
             dessert: dataParamsInput.dessert,
             drink: dataParamsInput.drink,
-            ...(!isPartner && dataParamsInput.extraFee ? { extraFee: dataParamsInput.extraFee } : {}),
+            ...(!isPartner && dataParamsInput.extraFee
+              ? { extraFee: dataParamsInput.extraFee }
+              : {}),
           },
         );
 

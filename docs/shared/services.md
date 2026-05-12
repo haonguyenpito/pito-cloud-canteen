@@ -147,7 +147,7 @@ All schedules use `Asia/Ho_Chi_Minh` timezone.
 
 **Config key:** `REDIS_URL`
 
-See `docs/flows/food-selection-flow.md` for full details.
+> Live caller: `POST /api/participants/orders/:orderId` (participant self-pick) calls `addToProcessOrderQueue` → `processOrder.job.ts`. `processMemberOrder.job.ts` is a newer implementation that currently has **no call sites**. See `docs/roles/participant/food-selection.md` for the full flow.
 
 ---
 

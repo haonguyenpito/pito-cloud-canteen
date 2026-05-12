@@ -186,7 +186,9 @@ describe('getTotalInfo', () => {
   });
 
   it('falls back to base price only when foodExtraFee is 0', () => {
-    const data = [{ foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 0 }];
+    const data = [
+      { foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 0 },
+    ];
     expect(getTotalInfo(data as any).totalPrice).toBe(100_000);
   });
 
@@ -220,12 +222,20 @@ describe('getFoodDataMap', () => {
 
     it('propagates foodExtraFee from foodListOfDate into result entries', () => {
       const foodListWithFee = {
-        f1: { foodName: 'Cơm gà', foodPrice: 50_000, foodExtraFee: 15_000, numberOfMainDishes: 1 },
+        f1: {
+          foodName: 'Cơm gà',
+          foodPrice: 50_000,
+          foodExtraFee: 15_000,
+          numberOfMainDishes: 1,
+        },
       };
       const memberOrders = {
         u1: { foodId: 'f1', status: EParticipantOrderStatus.joined },
       };
-      const result = getFoodDataMap({ foodListOfDate: foodListWithFee, memberOrders });
+      const result = getFoodDataMap({
+        foodListOfDate: foodListWithFee,
+        memberOrders,
+      });
       expect(result.f1.foodExtraFee).toBe(15_000);
     });
 

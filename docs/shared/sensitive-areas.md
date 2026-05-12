@@ -10,8 +10,16 @@ This document lists every area of the codebase that touches money, order state, 
 
 **File:** `src/helpers/order/cartInfoHelper.ts`
 
-- `calculatePriceQuotationInfoFromOrder` — total price from quotation
-- `calculatePriceQuotationPartner` — per-partner price with VAT
+All exported helpers (every one is load-bearing for billing):
+
+| Function                                  | Purpose                                                                                               |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `calculateVATFee`                         | Applies VAT % when `vatSetting === 'vat'`; returns 0 for `noExportVat`/`direct`                       |
+| `calculateTotalPriceAndDishes`            | Sums `(foodPrice + foodExtraFee) × frequency` across `plan.orderDetail` — booker-side billing total   |
+| `calculatePCCFeeByDate`                   | Computes per-date PITO service fee (uses `specificPCCFee` override if `hasSpecificPCCFee`)            |
+| `calculatePriceQuotationInfoFromOrder`    | Full client-side total from order + plan (food + PCC fee + VAT)                                       |
+| `calculatePriceQuotationPartner`          | Per-partner payout from the quotation listing — base food price only, never sees `extraFee`           |
+| `calculatePriceQuotationInfoFromQuotation`| Recomputes totals from a finalised quotation listing (used after quotation is locked)                 |
 
 **Risk:** Incorrect price calculation results in wrong payment amounts charged to companies or paid to restaurants. VAT logic has 3 modes (`vat`, `noExportVat`, `direct`) and PCC service fee overrides per company.
 
@@ -160,9 +168,13 @@ This document lists every area of the codebase that touches money, order state, 
 
 - `order.ts` — `CompanyPermissions` role check for order operations
 - `admin.ts` — Admin-only endpoint guards
-- `company.ts` — Company portal guards
+- `company.ts` — Company portal guards (booker)
 - `partner.ts` — Partner portal guards
 - `participant.ts` — Participant portal guards
+- `validOrderParams.ts` — validates `orderId`/`planId` query params before downstream order endpoints
+- `external/onwheel.ts` — validates the `EXTERNAL_API_KEY_SALT`-hashed key for the OnWheel delivery integration (`/api/external/onwheel/*`)
+
+Composition: Most API handlers wrap multiple checkers via `composeApiCheckers(...)` from `@apis/configs`. Removing or reordering checkers can silently expose endpoints — always inspect the wrapper at the bottom of an API file before changing it.
 
 **Risk:** Removing or loosening permission checks exposes admin and financial operations to wrong user roles.
 

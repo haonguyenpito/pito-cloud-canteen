@@ -22,14 +22,16 @@ Mermaid diagrams for every major workflow in PITO Cloud Canteen, verified agains
 
 ---
 
-## Code-vs-Doc Discrepancies (found during audit)
+## Code-vs-Doc Notes (cross-doc invariants)
 
-| # | What the docs say | What the code actually does |
-|---|-------------------|-----------------------------|
-| 1 | Auth docs list 4 SDK modes | Code has 5: `getTrustedSdkWithSubAccountToken` (`src/services/sdk.ts:116`) is distinct from `getTrustedSdk` |
-| 2 | Food selection routes through BullMQ directly | `place-order.api.ts` writes to **Firebase first**; a listener then enqueues the BullMQ job |
-| 3 | `transit.api.ts` handles delivery transitions | It also handles `review-restaurant` and `review-restaurant-after-expire-time` (undocumented in transit doc) |
-| 4 | One BullMQ worker for food selection | Two parallel worker files: `processOrder.job.ts` (legacy, verbose) + `processMemberOrder.job.ts` (clean), both on the same queue |
+| # | Topic | Reality |
+|---|-------|---------|
+| 1 | SDK modes | 4 mainline modes (`getSdk`, `getTrustedSdk`, `getIntegrationSdk`, `getSubAccountTrustedSdk`) plus `getTrustedSdkWithSubAccountToken` (`src/services/sdk.ts:116`) — used when the user token is already known and a fresh `req` is not available. |
+| 2 | Food selection | Participant self-pick (`POST /api/participants/orders/:orderId`) calls `addToProcessOrderQueue` **directly** — no Firebase indirection. There is no `place-order.api.ts`. Admin/booker edits (`PUT /api/orders/:orderId/member-order`) bypass the queue and write straight to Sharetribe. |
+| 3 | Transit endpoints | Admin's `transit.api.ts` handles `START_DELIVERY`, `COMPLETE_DELIVERY`, and the 3 `OPERATOR_CANCEL_*` cases. Partner's `transit.api.ts` (`src/pages/api/partner/[partnerId]/orders/[orderId]/transit.api.ts`) handles `PARTNER_CONFIRM_SUB_ORDER` and `PARTNER_REJECT_SUB_ORDER`. `REVIEW_RESTAURANT` / `REVIEW_RESTAURANT_AFTER_EXPIRE_TIME` are fired from `participants/plans/summarize-reviews.service.ts`. |
+| 4 | BullMQ workers | Two files exist (`processOrder.job.ts`, `processMemberOrder.job.ts`) both bound to queue `processOrder`. **Only `processOrder.job.ts` has callers** — `processMemberOrder.job.ts` is unused as of the last audit. |
+| 5 | Expired transitions | In `process.edn`, **only** `expired-review-time` has an `:at` clause (auto-fires 14 days after `state/completed`). `expired-start-delivery` and `expired-delivery` are operator-triggered despite their names. |
+| 6 | `transitionOrderStatus` cadence | Admin `transit.api.ts` calls `transitionOrderStatus` **only after `COMPLETE_DELIVERY`** — not after every transition. |
 
 ---
 
@@ -136,30 +138,30 @@ State stored in `plan.metadata.orderDetail[timestamp].lastTransition`.
 stateDiagram-v2
     [*] --> initiated : initiate-transaction\ncustomer privileged token\nsubAccountTrustedSdk\ninitiate-transaction.service.ts
 
-    initiated --> partner_confirmed : partner-confirm-sub-order\noperator triggered by partner UI action\nsrc/pages/api/partner/[id]/orders/[id]/transit.api.ts
+    initiated --> partner_confirmed : partner-confirm-sub-order\noperator (PITO server) on partner UI action\nsrc/pages/api/partner/[partnerId]/orders/[orderId]/transit.api.ts
     initiated --> partner_rejected : partner-reject-sub-order\nsame file
     initiated --> canceled : operator-cancel-plan\nsrc/pages/api/admin/plan/transit.api.ts
-    initiated --> failed_delivery : expired-start-delivery\ntime-based Sharetribe trigger
+    initiated --> failed_delivery : expired-start-delivery\noperator (no :at clause in process.edn)
 
     partner_confirmed --> delivering : start-delivery\nadmin/plan/transit.api.ts\nfires ORDER_DELIVERING to participants
     partner_confirmed --> canceled : operator-cancel-after-partner-confirmed\nadmin/plan/transit.api.ts
 
     partner_rejected --> canceled : operator-cancel-after-partner-rejected\nadmin/plan/transit.api.ts
 
-    delivering --> completed : complete-delivery\nadmin/plan/transit.api.ts\nfires ORDER_SUCCESS\ncreates food rating EventBridge scheduler
-    delivering --> failed_delivery : expired-delivery time-based\nor cancel-delivery operator
+    delivering --> completed : complete-delivery\nadmin/plan/transit.api.ts\nfires ORDER_SUCCESS\ncreates food rating EventBridge scheduler\ncalls transitionOrderStatus()
+    delivering --> failed_delivery : expired-delivery (operator)\nor cancel-delivery (operator)
 
-    completed --> reviewed : review-restaurant\nadmin/plan/transit.api.ts\ntriggered when last participant rates\nparticipants/plans/review-restaurant.api.ts
-    completed --> expired_review : expired-review-time\ntime-based 14 days after completed
+    completed --> reviewed : review-restaurant\nfired from participants/plans/summarize-reviews.service.ts\nwhen the last participant submits a rating
+    completed --> expired_review : expired-review-time\nSharetribe-managed (:at = completed + P14D)
 
-    expired_review --> reviewed : review-restaurant-after-expire-time\nadmin/plan/transit.api.ts
+    expired_review --> reviewed : review-restaurant-after-expire-time\nfired from participants/plans/summarize-reviews.service.ts
 
     canceled --> [*]
     failed_delivery --> [*]
     reviewed --> [*]
 ```
 
-> After **every** transition, `transit.api.ts` calls `transitionOrderStatus()` to check if the parent order should advance state.
+> Only `COMPLETE_DELIVERY` in admin `transit.api.ts` calls `transitionOrderStatus()` (line 320). Other transitions persist `lastTransition` to `plan.metadata.orderDetail` but do not re-evaluate the parent order state.
 
 ---
 
@@ -220,52 +222,48 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant UI as Participant Portal\nParticipantPlan.page.tsx
+    participant UI as Participant Portal
     participant Redux as Redux shoppingCart.slice
-    participant PlaceAPI as place-order.api.ts
-    participant FBColl as Firebase\nmember-orders collection
-    participant BullMQ as BullMQ Worker\nprocessMemberOrder.job.ts
+    participant API as POST /api/participants/orders/:orderId
+    participant BullMQ as BullMQ (processOrder.job.ts)\nworker concurrency 5
     participant Redis as Redis\nlock:plan:{planId}
     participant ST as Sharetribe\nplan.metadata.orderDetail
+    participant Slack
 
     UI->>Redux: addToCart(memberId, planId, dayId, foodId)
     Note over Redux: In-memory only, no API call yet
 
-    UI->>PlaceAPI: POST /api/participants/orders/:orderId/place-order\nbody: planId, planData, orderDays
-    PlaceAPI->>PlaceAPI: Validate secondary food rules\n(allowed count, multi-dish requirements)
-    PlaceAPI->>FBColl: Write member-order document\norderId, planId, participantId\nplanData, orderDays, status:pending
-    PlaceAPI-->>UI: 200 OK + orderMemberDocumentId
-
-    Note over FBColl,BullMQ: Firebase trigger detects new document
-
-    FBColl->>BullMQ: addToProcessMemberOrderQueue\njobId = orderId-planId-userId\ndeduplication: new job replaces pending job for same user
+    UI->>API: POST /api/participants/orders/:orderId\nbody: planId, planData, orderDay(s), memberOrders
+    API->>BullMQ: addToProcessOrderQueue({ orderId, planId, currentUserId, ... })
+    API-->>UI: 200 { jobId } — fire-and-forget
 
     BullMQ->>Redis: ACQUIRE lock:plan:{planId}\nLua CAS script, TTL 30s, up to 100 retries
 
     loop Contended — retry with backoff
-        Redis-->>BullMQ: 0 locked by another worker
+        Redis-->>BullMQ: 0 (locked by another worker)
         BullMQ->>Redis: retry after exponential backoff
     end
 
-    Redis-->>BullMQ: 1 lock acquired
+    Redis-->>BullMQ: 1 (lock acquired)
 
-    BullMQ->>ST: integrationSdk.listings.show(planId)\nfetch FRESH orderDetail to avoid stale base
-    BullMQ->>BullMQ: upsertMemberOrders()\nmerge new selections into orderDetail[dayId].memberOrders
-    BullMQ->>Redis: EXTEND lock TTL before network call
-    BullMQ->>ST: integrationSdk.listings.update(planId)\nmetadata.orderDetail with merged selections
-    BullMQ->>Redis: RELEASE lock\nLua check-and-delete ensures only owner can release
+    BullMQ->>ST: integrationSdk.listings.show(planId)\nfetch FRESH orderDetail
+    BullMQ->>BullMQ: merge new selections into orderDetail[dayId].memberOrders
+    BullMQ->>ST: integrationSdk.listings.update(planId)\nmetadata.orderDetail = merged
+    BullMQ->>Redis: RELEASE lock (Lua token-check-and-delete)
 
-    BullMQ->>ST: listings.show(planId) — fetch fresh copy
-    Note over BullMQ: buildExpectedUserPlan() vs buildActualUserPlan()\nverifyOrderPersistence()
+    BullMQ->>ST: listings.show(planId) — post-release verification
+    Note over BullMQ: expected vs. actual diff
 
-    alt Persistence verification FAILS
+    alt Persistence verification FAILS / job exhausts 3 retries
         BullMQ->>Slack: PARTICIPANT_ORDER_PERSISTENCE_FAILED\nto SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL
     end
 ```
 
-**Lock invariant:** The lock key is `lock:plan:{planId}` — per plan, not per user. Every participant writing to the same plan serializes through this single lock, preventing concurrent overwrites of `plan.metadata.orderDetail`.
+**No Firebase indirection.** The participant API enqueues the BullMQ job directly. There is no `/place-order` endpoint and no Firebase listener step.
 
-**Deduplication:** `jobId = {orderId}-{planId}-{userId}`. If a user submits twice before the first job runs, the old job is replaced — only the latest selection is persisted (last-write-wins per user).
+**Two entry points** — admin/booker edits go through `PUT /api/orders/:orderId/member-order` and write **directly** to Sharetribe (no queue, no lock). Only the participant self-pick path uses the queue. See `docs/roles/participant/food-selection.md`.
+
+**Lock invariant:** The lock key is `lock:plan:{planId}` — per plan, not per user. Every participant writing to the same plan serializes through this single lock, preventing concurrent overwrites of `plan.metadata.orderDetail`.
 
 ---
 

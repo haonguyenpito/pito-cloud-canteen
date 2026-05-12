@@ -6,13 +6,28 @@ During the `picking` phase, participants log in to choose their food for each de
 
 ---
 
-## Flow Diagram
+## Two Entry Points — Read This First
+
+There are **two distinct food-selection write paths**, and they are not interchangeable:
+
+| Caller                | Endpoint                                | Goes through BullMQ? | File                                                            |
+| --------------------- | --------------------------------------- | -------------------- | --------------------------------------------------------------- |
+| Participant (own pick) | `POST /api/participants/orders/:orderId` | **Yes** (`processOrder.job.ts`) | `src/pages/api/participants/orders/[orderId]/index.api.ts`     |
+| Admin or booker (editing on someone's behalf) | `PUT /api/orders/:orderId/member-order` | **No — direct Sharetribe write** | `src/pages/api/orders/[orderId]/member-order/index.api.ts` |
+
+The BullMQ + Redis lock protection only applies to participant self-pick. Admin/booker edits write straight to `plan.metadata.orderDetail` (no queue, no lock) and rely on the fact that admin/booker traffic is single-threaded per session. If you ever move bulk admin edits to a higher-concurrency path, route them through the queue.
+
+> **Heads up:** `processMemberOrder.job.ts` exists as a newer implementation (uses `QueueEvents.waitUntilFinished` for synchronous results) but **has no callers** in the current code. `processOrder.job.ts` is the live path. Do not pick `processMemberOrder` in new code without wiring it in deliberately.
+
+---
+
+## Flow Diagram (Participant Self-Pick)
 
 ```mermaid
 sequenceDiagram
     participant Browser as Browser (Participant)
     participant Redux as Redux (shoppingCart.slice)
-    participant API as PUT /api/orders/:orderId/member-order
+    participant API as POST /api/participants/orders/:orderId
     participant Queue as BullMQ Queue (processOrder)
     participant Lock as Redis Lock
     participant Sharetribe as Sharetribe (Plan Listing)
@@ -21,20 +36,20 @@ sequenceDiagram
     Browser->>Redux: User selects food item
     Redux->>Redux: Update local shoppingCart state
     Browser->>API: Submit food selection
-    API->>Queue: Add job { orderId, planId, userId, cartData }
-    Note over API: Job ID = "{orderId}-{planId}-{userId}"<br/>(deduplication: replaces existing job for same user)
+    API->>Queue: addToProcessOrderQueue({ orderId, planId, currentUserId, memberOrders, orderDay, orderDays, planData })
+    Note over API: Job ID built per request<br/>(fire-and-forget — API returns immediately with jobId)
     Queue->>Lock: Acquire lock:plan:{planId} (TTL: 30s, maxRetries: 100)
     Lock-->>Queue: Lock acquired
     Queue->>Sharetribe: Read current plan.metadata.orderDetail
-    Queue->>Sharetribe: Update orderDetail[timestamp].memberOrders[userId] = { foodId, requirement }
+    Queue->>Sharetribe: Update orderDetail[timestamp].memberOrders[userId]
     Queue->>Lock: Release lock
-    Queue-->>API: Job complete
-    API-->>Browser: Success
 
     alt Job fails after 3 retries
         Queue->>Slack: Alert to SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL with diff data
     end
 ```
+
+The API responds as soon as the job is enqueued — it does not wait for Sharetribe to confirm. Failures only surface via the Slack alert; the client sees `200 { jobId }` regardless.
 
 ---
 
@@ -56,28 +71,31 @@ sequenceDiagram
 
 Updated optimistically as the user selects food. On submission, `updateMemberOrderApi` is called.
 
-### 2. API Route
+### 2. API Routes
 
-**File:** `src/pages/api/orders/[orderId]/member-order/index.api.ts`
+**Participant self-pick (queued):** `POST /api/participants/orders/:orderId`
+- File: `src/pages/api/participants/orders/[orderId]/index.api.ts`
+- Calls `addToProcessOrderQueue(...)` — fire-and-forget, returns `{ jobId }` immediately
+- Rule: **never** bypass the queue for participant-initiated writes
 
-- Validates the request
-- Enqueues a BullMQ job with `jobId = {orderId}-{planId}-{userId}`
-- The `jobId` deduplicates — if the user submits again before the previous job completes, the old job is replaced
+**Admin/booker edit (direct):** `PUT /api/orders/:orderId/member-order`
+- File: `src/pages/api/orders/[orderId]/member-order/index.api.ts`
+- Writes `plan.metadata.orderDetail` via `integrationSdk.listings.update` directly
+- Triggers `mappingOrderDetailsToOrderAndTransaction` to sync transaction metadata
+- When order is `inProgress` and `newMembersOrderValues` was passed, fires a `PARTICIPANT_GROUP_ORDER_FOOD_CHANGED` Slack notification
 
-**Rule:** Never write directly to Sharetribe from this endpoint. Always route through BullMQ.
-
-### 3. BullMQ Queue
+### 3. BullMQ Queue (`processOrder.job.ts`)
 
 **Queue name:** `processOrder`
 **Worker concurrency:** 5
-**Retry:** 3 attempts, exponential backoff (2s, 4s, 8s)
-**Stall threshold:** 30s; `maxStalledCount: 1`
-**Job retention:** Last 10 completed, last 5 failed
+**Retry:** 3 attempts, exponential backoff (base delay 2 000 ms)
+**Stall threshold:** `stalledInterval: 30 000 ms`; `maxStalledCount: 1`
+**Job retention:** `removeOnComplete: 10`, `removeOnFail: 5`
 
-Two near-identical job files:
+Two job files exist:
 
-- `src/services/jobs/processOrder.job.ts` — original async (fire-and-forget)
-- `src/services/jobs/processMemberOrder.job.ts` — uses `QueueEvents.waitUntilFinished` for synchronous API response (newer, preferred)
+- `src/services/jobs/processOrder.job.ts` — **live** path; used by the participant self-pick endpoint
+- `src/services/jobs/processMemberOrder.job.ts` — newer implementation (synchronous via `QueueEvents.waitUntilFinished`); **currently unused** — `addToProcessMemberOrderQueue` has zero call sites in the repo
 
 ### 4. Redis Distributed Lock
 
@@ -180,8 +198,10 @@ Participants see the **final price** (`base + extraFee`) on each food card in `s
 
 ## Known Issues / Watch Points
 
-1. **`maxRetries: 100`** in the Redis lock — noted as potentially too high; reducing it risks failures under load, but it's intentional for now.
+1. **`maxRetries: 100`** in the Redis lock — marked `// Maybe bug here` in `processOrder.job.ts`. Reducing it risks failures under load, but the current value can stall the queue for ~minutes if a single plan is contended.
 
-2. **Two job files** — `processOrder.job.ts` and `processMemberOrder.job.ts` are nearly identical. Check which is actually wired in `member-order/index.api.ts` before modifying either.
+2. **`processMemberOrder.job.ts` is unused** — keep it in mind if you're picking a "newer/better" path; verify call sites before assuming it's wired.
 
 3. **Job deduplication timing** — BullMQ job ID deduplication only works for jobs not yet started. If two submissions race and the first is already running, both may execute. The Redis lock handles write serialization in this case.
+
+4. **Admin/booker edits bypass the queue** — see "Two Entry Points". Bulk edits or high-concurrency callers added later must be routed through `addToProcessOrderQueue` explicitly.

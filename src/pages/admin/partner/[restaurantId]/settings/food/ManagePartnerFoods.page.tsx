@@ -108,11 +108,15 @@ const TABLE_COLUMN: TColumn[] = [
       data.isDeleted ? (
         <div />
       ) : data?.extraFee > 0 ? (
-        <div className={css.descriptionRow} style={{ color: '#d97706', fontWeight: 600 }}>
+        <div
+          className={css.descriptionRow}
+          style={{ color: '#d97706', fontWeight: 600 }}>
           +{(data.extraFee as number).toLocaleString('vi-VN')}đ
         </div>
       ) : (
-        <div className={css.descriptionRow} style={{ color: '#9ca3af' }}>—</div>
+        <div className={css.descriptionRow} style={{ color: '#9ca3af' }}>
+          —
+        </div>
       ),
   },
   {

@@ -28,7 +28,9 @@ const makeMenu = (
   attributes: {
     publicData: {
       foodsByDate: {
-        [dayOfWeek]: Object.fromEntries(foodIds.map((id) => [id, { id, title: '' }])),
+        [dayOfWeek]: Object.fromEntries(
+          foodIds.map((id) => [id, { id, title: '' }]),
+        ),
       },
     },
     metadata: { restaurantId },
@@ -137,7 +139,12 @@ describe('parseFoodsFromMenu — findExactPackagePerMember uses final price', ()
     const menu = makeMenu('r1', 'mon', ['f1']);
     const mapFoods = new Map([['f1', makeFood('f1', 75_000, 25_000)]]);
 
-    const result = parseFoodsFromMenu(menu as any, 'mon', mapFoods as any, options(100_000));
+    const result = parseFoodsFromMenu(
+      menu as any,
+      'mon',
+      mapFoods as any,
+      options(100_000),
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0].price).toBe(100_000);
@@ -148,7 +155,12 @@ describe('parseFoodsFromMenu — findExactPackagePerMember uses final price', ()
     const menu = makeMenu('r1', 'mon', ['f1']);
     const mapFoods = new Map([['f1', makeFood('f1', 75_000, 25_000)]]);
 
-    const result = parseFoodsFromMenu(menu as any, 'mon', mapFoods as any, options(80_000));
+    const result = parseFoodsFromMenu(
+      menu as any,
+      'mon',
+      mapFoods as any,
+      options(80_000),
+    );
 
     expect(result).toHaveLength(0);
   });
@@ -158,7 +170,12 @@ describe('parseFoodsFromMenu — findExactPackagePerMember uses final price', ()
     const menu = makeMenu('r1', 'mon', ['f1']);
     const mapFoods = new Map([['f1', makeFood('f1', 100_000, 20_000)]]);
 
-    const result = parseFoodsFromMenu(menu as any, 'mon', mapFoods as any, options(100_000));
+    const result = parseFoodsFromMenu(
+      menu as any,
+      'mon',
+      mapFoods as any,
+      options(100_000),
+    );
 
     expect(result).toHaveLength(0);
   });

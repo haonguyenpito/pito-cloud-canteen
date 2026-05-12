@@ -107,9 +107,9 @@ const FoodCard: React.FC<TFoodCardProps> = ({
           className={classNames(
             css.price,
             '!text-sm font-semibold',
-          )}>{`${addCommas(
-          displayPrice,
-        )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
+          )}>{`${addCommas(displayPrice)} ₫ / ${intl.formatMessage({
+          id: 'phan',
+        })}`}</div>
       </div>
       {!hideSelection && (
         <div onClick={(e) => e.stopPropagation()}>{selection}</div>

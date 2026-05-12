@@ -12,11 +12,20 @@
  * Source file: src/pages/admin/partner/[restaurantId]/settings/food/utils.ts
  */
 
+import {
+  getDuplicateData,
+  getSubmitFoodData,
+  getUpdateFoodData,
+} from '@pages/admin/partner/[restaurantId]/settings/food/utils';
+import { EListingType } from '@utils/enums';
+
 jest.mock('@helpers/sdkLoader', () => ({
   types: {
     Money: class Money {
       amount: number;
+
       currency: string;
+
       constructor(amount: number, currency: string) {
         this.amount = amount;
         this.currency = currency;
@@ -29,13 +38,6 @@ jest.mock('@utils/images', () => ({
   getSubmitImageId: jest.fn(() => []),
   getUniqueImages: jest.fn((ids: string[]) => ids),
 }));
-
-import {
-  getDuplicateData,
-  getSubmitFoodData,
-  getUpdateFoodData,
-} from '@pages/admin/partner/[restaurantId]/settings/food/utils';
-import { EListingType } from '@utils/enums';
 
 // ---------------------------------------------------------------------------
 // Shared base values
@@ -107,17 +109,29 @@ describe('getSubmitFoodData — extraFee', () => {
 
 describe('getUpdateFoodData — extraFee', () => {
   it('stores extraFee as a number in publicData', () => {
-    const result = getUpdateFoodData({ ...BASE_VALUES, id: 'food-1', extraFee: '20,000' });
+    const result = getUpdateFoodData({
+      ...BASE_VALUES,
+      id: 'food-1',
+      extraFee: '20,000',
+    });
     expect(result.publicData.extraFee).toBe(20_000);
   });
 
   it('stores 0 when extraFee is omitted', () => {
-    const result = getUpdateFoodData({ ...BASE_VALUES, id: 'food-1', extraFee: undefined });
+    const result = getUpdateFoodData({
+      ...BASE_VALUES,
+      id: 'food-1',
+      extraFee: undefined,
+    });
     expect(result.publicData.extraFee).toBe(0);
   });
 
   it('includes the food id in the result', () => {
-    const result = getUpdateFoodData({ ...BASE_VALUES, id: 'food-1', extraFee: '5,000' });
+    const result = getUpdateFoodData({
+      ...BASE_VALUES,
+      id: 'food-1',
+      extraFee: '5,000',
+    });
     expect(result.id).toBe('food-1');
   });
 });

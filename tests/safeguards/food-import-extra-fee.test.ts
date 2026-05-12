@@ -20,11 +20,15 @@
  * Gate file:   src/hooks/useFoodImportPreview.ts (onImportFoodFromCsv callback)
  */
 
+import { getImportDataFromCsv } from '@pages/partner/products/food/utils';
+
 jest.mock('@helpers/sdkLoader', () => ({
   types: {
     Money: class Money {
       amount: number;
+
       currency: string;
+
       constructor(amount: number, currency: string) {
         this.amount = amount;
         this.currency = currency;
@@ -32,8 +36,6 @@ jest.mock('@helpers/sdkLoader', () => ({
     },
   },
 }));
-
-import { getImportDataFromCsv } from '@pages/partner/products/food/utils';
 
 // ---------------------------------------------------------------------------
 // Shared base __altValuesInEnglish (what the hook builds per row)

@@ -46,36 +46,54 @@ Order moves to completed (when both partner + client confirmed)
 
 **File:** `src/pages/api/orders/[orderId]/plan/[planId]/initialize-payment.service.ts`
 
-**Partner payment records** (one per restaurant per delivery date):
+**Partner payment records** (one per restaurant per active sub-order date):
 
 ```typescript
 {
+  SKU: string;            // generateSKU('PARTNER', orderId)
+  amount: 0;              // actual cash collected — admin fills this in later
+  paymentNote: '';
   orderId: string;
-  planId: string;
   partnerId: string;
+  partnerName: string;
   subOrderDate: string;
-  amount: number;
-  totalWithVAT: number;
+  companyName: string;
+  orderTitle: string;
+  totalPrice: number;     // VAT-inclusive total from calculatePriceQuotationPartner
+  deliveryHour: string;
   isHideFromHistory: true;
   isAdminConfirmed: false;
-  vatSetting: EPartnerVATSetting;
 }
 ```
+
+> Sub-orders with `lastTransition ∈ {OPERATOR_CANCEL_PLAN, OPERATOR_CANCEL_AFTER_PARTNER_CONFIRMED, OPERATOR_CANCEL_AFTER_PARTNER_REJECTED}` are **excluded** — no record is created for cancelled dates.
+> Partner record writes are **fire-and-forget** (no await) — failures are silent. See behavioral contract at the top of `initialize-payment.service.ts`.
 
 **Client payment record** (one per order):
 
 ```typescript
 {
+  SKU: string;            // generateSKU('CUSTOMER', orderId)
+  amount: 0;              // filled in later by admin
   orderId: string;
-  companyId: string;
-  totalAmount: number;
-  totalWithVAT: number;
+  paymentNote: '';
+  companyName: string;
+  orderTitle: string;
+  totalPrice: number;     // VAT-inclusive total from calculatePriceQuotationInfoFromOrder
+  deliveryHour: string;
+  startDate: number;
+  endDate: number;
   isHideFromHistory: true;
   isAdminConfirmed: false;
+  restaurants?: { restaurantId: string; restaurantName: string }[];
+  company?: { companyId: string; companyName: string };
+  booker?: { bookerId: string; bookerDisplayName: string; bookerPhoneNumber: string };
 }
 ```
 
-Firebase collection: `FIREBASE_PAYMENT_RECORD_COLLECTION_NAME` (env var)
+For in-progress edited orders (re-running `initialize-payment`), the existing client record is **updated** in place via `updatePaymentRecordOnFirebase` — not duplicated.
+
+Firebase collection: `FIREBASE_PAYMENT_RECORD_COLLECTION_NAME` (env var, set per environment in `src/process.d.ts`).
 
 ---
 
@@ -105,29 +123,36 @@ totalWithVAT   = baseAmount × (1 + vatPercentage/100)  [only for `vat` mode]
 
 ## Admin Payment Confirmation
 
+All confirm/disapprove endpoints use **HTTP PUT** (verified in `src/apis/admin.ts`).
+
 ### Confirm Partner Payment
 
-**API:** `POST /api/admin/payment/confirm-partner-payment`
+**API:** `PUT /api/admin/payment/confirm-partner-payment`
 
-Sets `isAdminConfirmed: true` and `isHideFromHistory: false`. **Irreversible.**
+Sets `isAdminConfirmed: true` on the partner record and updates the order's `isAdminConfirmedPartnerPayment` metadata flag. Once **all** partner sub-order payments are confirmed, the partner-side is considered settled.
 
 ### Confirm Client Payment
 
-**API:** `POST /api/admin/payment/confirm-client-payment`
+**API:** `PUT /api/admin/payment/confirm-client-payment`
 
-Same as above. Once both partner and client payments are confirmed, `transitionOrderStatus` moves order to `completed`.
+Sets `isAdminConfirmed: true` on the client record and the order's `isAdminConfirmedClientPayment` metadata flag.
 
-### Disapprove Payment
+When both partner and client are confirmed, `transitionOrderPaymentStatus` (`/api/admin/payment/transition-order-payment-status`) advances the order from `pendingPayment` → `completed`.
 
-**API:** `POST /api/admin/payment/disapprove-payment`
+### Disapprove Payment (split into two endpoints)
 
-Sets payment to disapproved with a reason. Admin can re-approve later.
+| Side    | API                                                  |
+| ------- | ---------------------------------------------------- |
+| Client  | `PUT /api/admin/payment/disapprove-client-payment`   |
+| Partner | `PUT /api/admin/payment/disapprove-partner-payment`  |
+
+Disapprove only succeeds if the corresponding `isAdminConfirmed*Payment` flag is currently `true` (otherwise returns 400). Sets `isAdminConfirmed: false` so the admin can re-confirm later.
 
 ### Modify Payment Amount
 
 **API:** `PUT /api/orders/:orderId/plan/:planId/update-payment`
 
-Manual amount adjustment (partial cancellations, price corrections).
+Manual amount adjustment (partial cancellations, price corrections). Implementation in `update-payment.service.ts`.
 
 ---
 
