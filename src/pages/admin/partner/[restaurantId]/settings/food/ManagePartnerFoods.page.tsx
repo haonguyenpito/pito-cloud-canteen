@@ -592,7 +592,7 @@ const ManagePartnerFoods = () => {
                 link: (
                   <NamedLink
                     target="_blank"
-                    path="/static/12032025-PCC-TẠO MÓN ĂN TEMPLATE.xlsx">
+                    path="/static/17052026-PCC-TẠO MÓN ĂN TEMPLATE ADMIN.xlsx">
                     <FormattedMessage id="ManagePartnerFoods.templateLink" />
                   </NamedLink>
                 ),
