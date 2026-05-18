@@ -20,6 +20,7 @@ import {
 import { Listing } from '@src/utils/data';
 import { successToastOptions } from '@src/utils/toastify';
 import type { TListing, TObject } from '@src/utils/types';
+import { normalizeInviteEmailList } from '@utils/validators';
 
 import { BookerDraftOrderPageThunks } from '../../BookerDraftOrderPage.slice';
 
@@ -57,9 +58,15 @@ const ParticipantManagement: React.FC<TParticipantManagementProps> = () => {
   const intl = useIntl();
 
   const handleInviteMemberViaEmailList = async (emailList: string[]) => {
+    const normalizedEmailList = normalizeInviteEmailList(emailList);
+    const normalizedRestrictEmailList =
+      normalizeInviteEmailList(restrictEmailList);
+    const normalizedNonAccountEmails =
+      normalizeInviteEmailList(nonAccountEmails);
+
     const needInviteEmailList = difference(
-      emailList,
-      restrictEmailList.concat(nonAccountEmails),
+      normalizedEmailList,
+      normalizedRestrictEmailList.concat(normalizedNonAccountEmails),
     );
 
     if (!isEmpty(needInviteEmailList)) {
@@ -81,16 +88,16 @@ const ParticipantManagement: React.FC<TParticipantManagementProps> = () => {
       const needHandleItems = newUserIds.concat(newNonAccountEmails);
 
       if (!isEmpty(needHandleItems)) {
+        const updatedNonAccountEmails = normalizeInviteEmailList(
+          nonAccountEmails.concat(newNonAccountEmails),
+        );
         const nonAccountEmailsParamMaybe = isEmpty(newNonAccountEmails)
-          ? {}
-          : {
-              nonAccountEmails: nonAccountEmails.concat(newNonAccountEmails),
-            };
+          ? { nonAccountEmails: normalizeInviteEmailList(nonAccountEmails) }
+          : { nonAccountEmails: updatedNonAccountEmails };
 
         await dispatch(
           BookerDraftOrderPageThunks.addOrderParticipants({
             orderId,
-            nonAccountEmails,
             newUsers,
             newUserIds: newHasCompanyUserIds,
             ...nonAccountEmailsParamMaybe,
@@ -123,7 +130,9 @@ const ParticipantManagement: React.FC<TParticipantManagementProps> = () => {
   const handleSubmitAddParticipant = async ({
     emails,
   }: TAddParticipantFormValues) => {
-    const parseEmailList = uniq(emails.trim().replace(/\s+/g, ' ').split(' '));
+    const parseEmailList = normalizeInviteEmailList(
+      uniq(emails.trim().replace(/\s+/g, ' ').split(' ')),
+    );
     Tracker.track('booker:order:add-emails', {
       emails: parseEmailList,
       orderId: order?.id?.uuid,

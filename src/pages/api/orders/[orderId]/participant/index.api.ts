@@ -13,6 +13,7 @@ import type { TObject } from '@src/utils/types';
 import { denormalisedResponseEntities, Listing } from '@utils/data';
 import { EParticipantOrderStatus } from '@utils/enums';
 import { removeParticipantFromOrderDetail } from '@utils/order';
+import { normalizeInviteEmailList } from '@utils/validators';
 
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   const integrationSdk = getIntegrationSdk();
@@ -44,6 +45,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
         const needUpdateNoAccountEmails =
           typeof nonAccountEmails !== 'undefined';
+        const normalizedNonAccountEmails = needUpdateNoAccountEmails
+          ? normalizeInviteEmailList(nonAccountEmails)
+          : nonAccountEmails;
 
         let userIds: string[] = [];
 
@@ -69,7 +73,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
               await integrationSdk.listings.update({
                 id: orderId,
                 metadata: {
-                  nonAccountEmails,
+                  nonAccountEmails: normalizedNonAccountEmails,
                 },
               });
             }
@@ -109,7 +113,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
                       : { anonymous: difference(anonymous, userIds) }),
                   }
                 : {}),
-              ...(needUpdateNoAccountEmails ? { nonAccountEmails } : {}),
+              ...(needUpdateNoAccountEmails
+                ? { nonAccountEmails: normalizedNonAccountEmails }
+                : {}),
               ...(removedParticipants.length > 0
                 ? {
                     removedParticipants: difference(

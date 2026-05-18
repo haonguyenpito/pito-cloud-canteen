@@ -19,6 +19,7 @@ import {
 } from '@src/utils/enums';
 import type { TListing } from '@src/utils/types';
 import { denormalisedResponseEntities, Listing, User } from '@utils/data';
+import { normalizeInviteEmail } from '@utils/validators';
 
 const PROMOTABLE_ORDER_STATES = [
   EBookerOrderDraftStates.bookerDraft,
@@ -33,10 +34,8 @@ const PLAN_UPDATE_ORDER_STATES = [
   EOrderStates.inProgress,
 ];
 
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
-
 const emailMatches = (storedEmail: string, normalizedEmail: string) =>
-  storedEmail.trim().toLowerCase() === normalizedEmail;
+  normalizeInviteEmail(storedEmail) === normalizedEmail;
 
 const removeEmailFromNonAccountList = (
   nonAccountEmails: string[],
@@ -196,7 +195,7 @@ const promoteNonAccountEmailToOrders = async ({
   userId: string;
   email: string;
 }) => {
-  const normalizedEmail = normalizeEmail(email);
+  const normalizedEmail = normalizeInviteEmail(email);
 
   if (isEmpty(normalizedEmail)) {
     return { promotedOrderIds: [] as string[] };
