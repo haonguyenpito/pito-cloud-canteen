@@ -11,6 +11,10 @@ import {
 } from '@redux/slices/companyMember.slice';
 import { User } from '@src/utils/data';
 import type { TUser } from '@src/utils/types';
+import {
+  normalizeInviteEmail,
+  normalizeInviteEmailList,
+} from '@utils/validators';
 
 const isSuccessResponse = (_result: any) => _result.response.status === 200;
 const isNotFoundResponse = (_result: any) => _result.response.status === 404;
@@ -53,9 +57,9 @@ export const filterHasAccountUserIds = (
   );
 
 export const filterNoAccountUserEmail = (loadedResult: any[]) => {
-  return loadedResult
-    .filter(isNotFoundResponse)
-    .map((_result) => _result.email);
+  return normalizeInviteEmailList(
+    loadedResult.filter(isNotFoundResponse).map((_result) => _result.email),
+  );
 };
 
 export const useAddMemberEmail = (options?: { orderId?: string }) => {
@@ -84,9 +88,12 @@ export const useAddMemberEmail = (options?: { orderId?: string }) => {
   }, [checkedEmailInputChunk]);
 
   const removeEmailValue = (email: string) => {
-    const newEmailList = emailList.filter((_email) => _email !== email);
+    const normalizedEmail = normalizeInviteEmail(email);
+    const newEmailList = emailList.filter(
+      (_email) => normalizeInviteEmail(_email) !== normalizedEmail,
+    );
     const newLoadResult = loadedResult.filter(
-      (_result) => _result.email !== email,
+      (_result) => normalizeInviteEmail(_result.email) !== normalizedEmail,
     );
     setEmailList(newEmailList);
     setLoadedResult(newLoadResult);
@@ -131,7 +138,7 @@ export const useAddMemberEmail = (options?: { orderId?: string }) => {
 
   const checkEmailList = async (value: string[]) => {
     const { payload } = await dispatch(
-      companyMemberThunks.checkEmailExisted(value),
+      companyMemberThunks.checkEmailExisted(normalizeInviteEmailList(value)),
     );
 
     return payload;
@@ -139,7 +146,9 @@ export const useAddMemberEmail = (options?: { orderId?: string }) => {
 
   const checkEmailsList = async (value: string[]) => {
     const { payload } = await dispatch(
-      companyMemberThunks.checkMultipleEmailExisted(value),
+      companyMemberThunks.checkMultipleEmailExisted(
+        normalizeInviteEmailList(value),
+      ),
     );
 
     return payload;
