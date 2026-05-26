@@ -5,6 +5,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import { convertDateToVNTimezone } from '@helpers/dateHelpers';
 import logger from '@helpers/logger';
+import { persistMemberOrderHistoryAfterDeadline } from '@helpers/order/subOrderHistoryHelper';
+import orderServices from '@pages/api/apiServices/order/index.service';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
 import { fetchListing, fetchUserListing } from '@services/integrationHelper';
@@ -248,6 +250,19 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             id: currentPlan.attributes?.metadata?.orderId,
           });
 
+        const orderListing = orderListingResponse.data.data;
+        const { deadlineDate } = Listing(
+          orderListing as TListing,
+        ).getMetadata();
+        const authorRole = currentUser.data.data.attributes?.profile?.metadata
+          ?.isAdmin
+          ? 'admin'
+          : 'booker';
+        const oldMemberOrdersForDate =
+          orderDetail[currentViewDate]?.memberOrders || {};
+        const foodList =
+          orderDetail[currentViewDate]?.restaurant?.foodList || {};
+
         const newOrderDetail = {
           ...orderDetail,
           [currentViewDate]: {
@@ -276,19 +291,43 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
 
         const [planListing] = denormalisedResponseEntities(response);
 
+        const newMemberOrdersForDate =
+          newOrderDetail[currentViewDate]?.memberOrders || {};
+
+        const affectedMemberIds = [
+          ...(participantId ? [participantId] : []),
+          ...Object.keys(newMembersOrderValues || {}),
+        ];
+
+        if (affectedMemberIds.length > 0) {
+          await persistMemberOrderHistoryAfterDeadline({
+            deadlineDate,
+            planId,
+            planOrderDate: currentViewDate,
+            authorRole,
+            oldMemberOrders: oldMemberOrdersForDate,
+            newMemberOrders: newMemberOrdersForDate,
+            foodList,
+            memberIdsFilter: affectedMemberIds,
+            createRecord: (entry) =>
+              orderServices.createSubOrderHistoryRecordToFirestore({
+                ...entry,
+                planId,
+              }),
+          });
+        }
+
         if (
-          orderListingResponse.data.data.attributes?.metadata?.orderState ===
+          orderListing.attributes?.metadata?.orderState ===
             EOrderStates.inProgress &&
           newMembersOrderValues
         ) {
           sendParticipantFoodChangeSlackNotification(
-            orderListingResponse.data.data,
+            orderListing,
             planListing,
             newMembersOrderValues,
             currentViewDate,
-            currentUser.data.data.attributes?.profile?.metadata?.isAdmin
-              ? 'admin'
-              : 'booker',
+            authorRole,
           );
         }
 
