@@ -37,10 +37,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
             await orderServices.createSubOrderHistoryRecordToFirestore({
               planId,
               authorId: CurrentUser(currentUser as any).getId(),
+              ...createData,
               authorRole: currentUser.attributes?.profile?.metadata?.isAdmin
                 ? 'admin'
                 : 'booker',
-              ...createData,
               createdAt,
             });
 

@@ -14,7 +14,15 @@ module.exports = {
 
   // TypeScript transform via ts-jest
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react', rootDir: '.' } }],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          jsx: 'react',
+          rootDir: '.',
+        },
+      },
+    ],
   },
 
   // Coverage thresholds — enforced when running `yarn test --coverage`.

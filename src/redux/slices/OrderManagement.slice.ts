@@ -1055,6 +1055,7 @@ const updateOrderFromDraftEdit = createAsyncThunk(
                   oldValue,
                   newValue,
                   createdAt,
+                  authorRole,
                 } = item;
 
                 const subOrderChangesHistoryParams = {
@@ -1065,6 +1066,7 @@ const updateOrderFromDraftEdit = createAsyncThunk(
                   oldValue,
                   newValue,
                   createdAt: new Date(Number(createdAt?.seconds) * 1000),
+                  ...(authorRole ? { authorRole } : {}),
                 };
                 createSubOrderChangesHistoryDocumentApi(
                   orderId,
@@ -1391,6 +1393,7 @@ const OrderManagementSlice = createSlice({
                 secondaryFoodPrice: newSecondaryFoodPrice,
               }),
             },
+            authorRole: isAdminFlow ? 'admin' : 'booker',
           },
           ...(draftSubOrderChangesHistory[currentViewDate] || []),
         ],

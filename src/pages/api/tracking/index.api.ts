@@ -5,6 +5,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import { EHttpStatusCode } from '@apis/errors';
+import { getHighlightedMembersAfterDeadline } from '@helpers/order/subOrderHighlightHelper';
+import orderServices from '@pages/api/apiServices/order/index.service';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk, handleError } from '@services/sdk';
 import type { PlanListing } from '@src/types';
@@ -37,6 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           anonymous: anonymousIds = [],
           orderType = EOrderType.group,
           bookerId,
+          deadlineDate,
         } = Listing(order).getMetadata();
         const planId = plans[0];
         const isGroupOrder = EOrderType.group === orderType;
@@ -138,6 +141,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
             deliveryInfoOfDate,
             deliveryAgentsMealsOfDate,
             restaurant,
+          };
+
+          const planOrderDate = Number(date);
+          const historyItems =
+            await orderServices.querySubOrderHistoryFromFirebase({
+              planId,
+              planOrderDate,
+              limitRecords: 200,
+            });
+
+          orderWithOtherDataMaybe = {
+            ...orderWithOtherDataMaybe,
+            highlightedMembers: getHighlightedMembersAfterDeadline({
+              historyItems,
+              deadlineDate,
+            }),
           };
         }
 

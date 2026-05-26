@@ -276,6 +276,7 @@ export const groupPickingOrderByFood = ({
             const newNote = {
               note: foodRequirement,
               name: participantName,
+              memberId,
               ...(planId && {
                 barcode: generateScannerBarCode(planId, memberId, `${date}`),
               }),
@@ -429,6 +430,7 @@ export const groupPickingOrderByFoodLevels = ({
               const newNote = {
                 note: foodRequirement,
                 name: participantName,
+                memberId,
                 ...(planId && {
                   barcode: generateScannerBarCode(planId, memberId, `${date}`),
                 }),
@@ -553,6 +555,7 @@ export const groupPickingOrderByFoodLevels = ({
               const newNote = {
                 note: foodRequirement,
                 name: participantName,
+                memberId,
               };
 
               const updatedNotes = [...notes];
