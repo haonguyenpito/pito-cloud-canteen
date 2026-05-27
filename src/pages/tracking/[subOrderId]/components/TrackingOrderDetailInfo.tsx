@@ -43,9 +43,9 @@ const ChevronDownIcon: React.FC<{ isRotated: boolean }> = ({ isRotated }) => (
   </svg>
 );
 
-const HIGHLIGHT_NAME_CLASS = {
-  added: 'text-emerald-700 font-medium',
-  changed: 'text-orange-700 font-medium',
+const HIGHLIGHT_ROW_CLASS = {
+  added: 'bg-emerald-200/90 border-l-4 border-emerald-700',
+  changed: 'bg-orange-200/90 border-l-4 border-orange-700',
 } as const;
 
 const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
@@ -209,7 +209,7 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
           {highlightCounts.added > 0 && (
             <div className="flex items-center gap-2">
               <span
-                className="inline-block w-4 h-4 rounded-sm bg-emerald-500 shrink-0"
+                className="inline-block w-4 h-4 rounded-sm bg-emerald-700 shrink-0"
                 aria-hidden
               />
               <span>
@@ -220,7 +220,7 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
           {highlightCounts.changed > 0 && (
             <div className="flex items-center gap-2">
               <span
-                className="inline-block w-4 h-4 rounded-sm bg-orange-500 shrink-0"
+                className="inline-block w-4 h-4 rounded-sm bg-orange-700 shrink-0"
                 aria-hidden
               />
               <span>
@@ -244,20 +244,21 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
           ? highlightedMembersMap[memberId as string]
           : undefined;
 
-        const nameHighlightClass = highlight
-          ? HIGHLIGHT_NAME_CLASS[highlight.changeType]
-          : undefined;
+        const rowHighlightClass = highlight
+          ? HIGHLIGHT_ROW_CLASS[highlight.changeType]
+          : '';
 
         return (
           <TableRow
-            className={classNames(isCollapsedFood ? 'hidden' : '')}
+            className={classNames(
+              isCollapsedFood ? 'hidden' : '',
+              rowHighlightClass,
+            )}
             key={`note-${foodIndex}-${noteIndex}`}>
             <TableCell className="text-xs">
               {foodIndex + 1}.{noteIndex + 1}
             </TableCell>
-            <TableCell className="text-xs">
-              <span className={nameHighlightClass}>{noteName || '-'}</span>
-            </TableCell>
+            <TableCell className="text-xs">{noteName || '-'}</TableCell>
             <TableCell className="text-xs">{note || '-'}</TableCell>
             <TableCell></TableCell>
           </TableRow>
