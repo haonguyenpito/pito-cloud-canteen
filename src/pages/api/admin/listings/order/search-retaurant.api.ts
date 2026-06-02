@@ -5,12 +5,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import { queryAllFoodIdList, queryAllPages } from '@helpers/apiHelpers';
 import { getMenuQuery, getRestaurantQuery } from '@helpers/listingSearchQuery';
-import {
-  filterRestaurant,
-  findFoodTitleInMenus,
-  parseFoodsFromMenu,
-  searchTitle,
-} from '@helpers/searchRestaurantHelper';
+import { pickBookerRestaurantMenu } from '@helpers/pickBookerRestaurantMenu';
+import { filterRestaurant, searchTitle } from '@helpers/searchRestaurantHelper';
 import cookies from '@services/cookie';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
@@ -171,49 +167,35 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
             deliveryAddress,
           );
 
-          const menus = groupedRestaurantIdInMenuDatas.get(restaurantId);
-          if (!isValidKeyWords || !menus || !menus.length) {
+          const menusForRestaurant =
+            groupedRestaurantIdInMenuDatas.get(restaurantId);
+          if (!isValidKeyWords || !menusForRestaurant?.length) {
             return;
           }
 
-          if (!keywords || searchTitle(title, keywords)) {
-            for (let i = 0; i < menus.length; i++) {
-              const combinedFoodsMenuData = parseFoodsFromMenu(
-                menus[i],
-                dayOfWeek,
-                mapFoodId,
-              );
-
-              if (combinedFoodsMenuData && combinedFoodsMenuData.length) {
-                combinedRestaurantMenuData.push({
-                  restaurantId,
-                  menuId: menus[i].id.uuid as string,
-                });
-                searchResult.push(restaurant);
-                combinedRestaurantInFoods.push(...combinedFoodsMenuData);
-                restaurantIdList.push(restaurantId);
-                break;
-              }
-            }
-
-            return;
-          }
-
-          const { menu: menuFound, foods: foodsFound } = findFoodTitleInMenus(
-            menus,
+          const pickMenuParams = {
+            menus: menusForRestaurant,
             dayOfWeek,
-            keywords,
             mapFoodId,
-          );
-          if (menuFound) {
+            packagePerMember,
+          };
+
+          const { menu: menuPicked, foods: foodsPicked } =
+            !keywords || searchTitle(title, keywords)
+              ? pickBookerRestaurantMenu(pickMenuParams)
+              : pickBookerRestaurantMenu({
+                  ...pickMenuParams,
+                  foodNameKeywords: keywords,
+                });
+
+          if (menuPicked && foodsPicked.length) {
             combinedRestaurantMenuData.push({
               restaurantId,
-              menuId: menuFound.id.uuid as string,
+              menuId: menuPicked.id.uuid as string,
             });
-
             searchResult.push(restaurant);
+            combinedRestaurantInFoods.push(...foodsPicked);
             restaurantIdList.push(restaurantId);
-            combinedRestaurantInFoods.push(...foodsFound);
           }
         });
 
