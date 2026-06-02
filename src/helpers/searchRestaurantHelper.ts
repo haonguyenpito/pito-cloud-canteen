@@ -105,41 +105,46 @@ export function parseFoodsFromMenu(
   return result;
 }
 
-export function findFoodTitleInMenus(
+/** Min food price for the delivery weekday (e.g. monMinFoodPrice). */
+export function getMenuMinFoodPriceForDay(
+  menu: TListing,
+  dayOfWeek: string,
+): number {
+  const minFoodPrice =
+    Listing(menu).getPublicData()[`${dayOfWeek}MinFoodPrice`] ?? 0;
+
+  return Number(minFoodPrice) || 0;
+}
+
+/**
+ * Menus with min price closest to packagePerMember are tried first in search-restaurant.
+ */
+export function sortMenusByPackagePerMemberProximity(
   menus: TListing[],
-  dayOfWeek: any | undefined | null,
-  keywords: string | undefined,
-  mapFoodId: Map<string, TListing>,
-) {
-  let menu: TListing | undefined;
-  const foods: TFoodInRestaurant[] = [];
-
-  for (let i = 0; i < menus.length; i++) {
-    const menuListing = Listing(menus[i]);
-    const foodIdList: string[] | null | undefined =
-      menuListing.getMetadata()[`${dayOfWeek}FoodIdList`];
-    if (foodIdList) {
-      const combinedFoodsMenuData = parseFoodsFromMenu(
-        menus[i],
-        dayOfWeek,
-        mapFoodId,
-      );
-      if (
-        combinedFoodsMenuData.findIndex((food) => {
-          const { foodName } = food;
-
-          return foodName && searchTitle(foodName, keywords);
-        }) >= 0
-      ) {
-        menu = menus[i];
-        foods.push(...combinedFoodsMenuData);
-        break;
-      }
-    }
+  dayOfWeek: string,
+  packagePerMember: number,
+): TListing[] {
+  if (!menus.length || !packagePerMember) {
+    return [...menus];
   }
 
-  return {
-    menu,
-    foods,
-  };
+  return [...menus].sort((first, second) => {
+    const firstMin = getMenuMinFoodPriceForDay(first, dayOfWeek);
+    const secondMin = getMenuMinFoodPriceForDay(second, dayOfWeek);
+    const firstDistance = Math.abs(firstMin - packagePerMember);
+    const secondDistance = Math.abs(secondMin - packagePerMember);
+
+    if (firstDistance !== secondDistance) {
+      return firstDistance - secondDistance;
+    }
+
+    // Same distance: prefer menu whose min is at or below package (not above).
+    const firstAbovePackage = firstMin > packagePerMember;
+    const secondAbovePackage = secondMin > packagePerMember;
+    if (firstAbovePackage !== secondAbovePackage) {
+      return firstAbovePackage ? 1 : -1;
+    }
+
+    return 0;
+  });
 }
