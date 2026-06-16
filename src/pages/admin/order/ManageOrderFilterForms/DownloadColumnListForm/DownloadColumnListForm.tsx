@@ -68,6 +68,10 @@ const DOWNLOAD_COLUMN_LIST_OPTIONS = [
     label: 'Số lượng từng món',
   },
   {
+    key: 'pccFee',
+    label: 'Phí dịch vụ',
+  },
+  {
     key: 'price',
     label: 'Thành tiền',
   },
