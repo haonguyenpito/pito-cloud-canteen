@@ -31,6 +31,7 @@ export const parseEntitiesToExportCsv = (
   const hasFoodList = exportColumns.includes('foodList');
   const hasNumberPerFood = exportColumns.includes('numberPerFood');
   const hasPrice = exportColumns.includes('price');
+  const hasPccFee = exportColumns.includes('pccFee');
   const hasBookerName = exportColumns.includes('bookerName');
   const hasBillingOfLading = exportColumns.includes('billingOfLading');
 
@@ -54,6 +55,7 @@ export const parseEntitiesToExportCsv = (
       state,
       foodList,
       price,
+      pccFee = 0,
       bookerName,
       id,
       totalParticipantOrdered = 0,
@@ -88,6 +90,9 @@ export const parseEntitiesToExportCsv = (
           .map((item: any) => item?.frequency)
           .join('\n'),
       }),
+      ...(hasPccFee && {
+        'Phí dịch vụ': parseThousandNumber(pccFee),
+      }),
       ...(hasPrice && {
         'Thành tiền ': parseThousandNumber(price),
       }),
@@ -110,6 +115,7 @@ export const parseEntitiesToExportCsv = (
       ? children.map((child: any) => {
           const {
             price,
+            pccFee: childPccFee = 0,
             title,
             // totalDishes,
             foodList = [],
@@ -150,6 +156,9 @@ export const parseEntitiesToExportCsv = (
               'Số lượng từng món': foodList
                 .map((item: any) => item.frequency)
                 .join('\n'),
+            }),
+            ...(hasPccFee && {
+              'Phí dịch vụ': parseThousandNumber(childPccFee),
             }),
             ...(hasPrice && {
               'Thành tiền ': parseThousandNumber(price),

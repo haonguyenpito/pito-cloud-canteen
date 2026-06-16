@@ -375,6 +375,7 @@ const parseEntitiesToTableData = (
             isPaid: orderDetail[key]?.isPaid,
             foodList: rest[key],
             price: childPrice,
+            pccFee: PCCFeeByDate,
             bookerName,
           },
         };
@@ -385,6 +386,10 @@ const parseEntitiesToTableData = (
     }
     const orderPrice = subOrderDates.reduce(
       (prev: number, item: any) => prev + item.data.price,
+      0,
+    );
+    const totalPccFee = subOrderDates.reduce(
+      (prev: number, item: any) => prev + (item.data.pccFee || 0),
       0,
     );
 
@@ -428,6 +433,7 @@ const parseEntitiesToTableData = (
         ),
         foodList: flatten(subOrderDates.map((item) => item.data.foodList)),
         price: orderPrice,
+        pccFee: totalPccFee,
         bookerName,
       },
     };
