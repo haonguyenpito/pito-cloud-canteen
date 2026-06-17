@@ -275,7 +275,12 @@ export const createNewPlanFromOldPlans = async ({
         authorId: subAccountId,
         state: EListingStates.published,
         metadata: {
-          ...oldPlanMetadata,
+          ...omit(oldPlanMetadata, [
+            'deliveryAgentsMeals',
+            'deliveryInfo',
+            'planStarted',
+            'slackThreadTs',
+          ]),
           viewed: false,
           orderId: newOrderId,
           orderDetail: newOrderDetail,
