@@ -239,7 +239,12 @@
   .thankYouLogoRow {
     display: flex;
     justify-content: flex-end;
+    padding-top: 12px;
     margin-bottom: 30px;
+
+    @include viewportMedium {
+      padding-top: 0;
+    }
   }
 
   .thankYouFooterLogo {

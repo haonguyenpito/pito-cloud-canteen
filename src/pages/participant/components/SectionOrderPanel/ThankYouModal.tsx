@@ -41,10 +41,10 @@ const ThankYouModal: React.FC<TThankYouModal> = ({ isOpen, handleClose }) => {
         <div className={css.thankYouHeader}>
           <div className={css.thankYouHeaderImageWrapper}>
             <Image
-              src="/static/employee.png"
+              src="/static/employee.jpg"
               alt="PITO Cloud Canteen team"
-              width={800}
-              height={363}
+              width={1200}
+              height={545}
               className={css.thankYouHeaderImage}
             />
           </div>
