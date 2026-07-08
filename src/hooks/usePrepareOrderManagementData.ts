@@ -71,9 +71,11 @@ export const usePrepareOrderDetailPageData = ({
   ).getAttributes();
   const { orderDetail = {} } = Listing(planData as TListing).getMetadata();
   const { companyName = '' } = User(companyData as TUser).getPublicData();
-  const { hasSpecificPCCFee = false, specificPCCFee = 0 } = User(
-    companyData as TUser,
-  ).getMetadata();
+  const {
+    hasSpecificPCCFee = false,
+    specificPCCFee = 0,
+    specificPCCFeeTiers,
+  } = User(companyData as TUser).getMetadata();
 
   const {
     email: bookerEmail,
@@ -104,6 +106,7 @@ export const usePrepareOrderDetailPageData = ({
     orderNote = '',
     hasSpecificPCCFee: orderHasSpecificPCCFee,
     specificPCCFee: orderPCCFee = 0,
+    specificPCCFeeTiers: orderSpecificPCCFeeTiers,
     contactPeopleName: contactPeopleNameFromOrder,
     contactPhoneNumber: contactPhoneNumberFromOrder,
   } = Listing(orderData as TListing).getMetadata();
@@ -213,6 +216,10 @@ export const usePrepareOrderDetailPageData = ({
             : hasSpecificPCCFee,
         specificPCCFee:
           orderHasSpecificPCCFee !== undefined ? orderPCCFee : specificPCCFee,
+        specificPCCFeeTiers:
+          orderHasSpecificPCCFee !== undefined
+            ? orderSpecificPCCFeeTiers
+            : specificPCCFeeTiers,
         isPartner,
         vatSetting,
       }),
@@ -226,6 +233,8 @@ export const usePrepareOrderDetailPageData = ({
       orderHasSpecificPCCFee,
       specificPCCFee,
       orderPCCFee,
+      JSON.stringify(specificPCCFeeTiers),
+      JSON.stringify(orderSpecificPCCFeeTiers),
       isPartner,
       vatSetting,
     ],
@@ -241,6 +250,7 @@ export const usePrepareOrderDetailPageData = ({
         shouldIncludePITOFee: isEmpty(date),
         hasSpecificPCCFee: orderHasSpecificPCCFee,
         specificPCCFee: orderPCCFee,
+        specificPCCFeeTiers: orderSpecificPCCFeeTiers,
         vatSetting,
       }),
     [
@@ -250,6 +260,7 @@ export const usePrepareOrderDetailPageData = ({
       orderPCCFee,
       currentOrderVATPercentage,
       orderHasSpecificPCCFee,
+      JSON.stringify(orderSpecificPCCFeeTiers),
       serviceFeePercentage,
       initVatPercentage,
       vatSetting,
@@ -266,6 +277,7 @@ export const usePrepareOrderDetailPageData = ({
         partnerId,
         hasSpecificPCCFee: orderHasSpecificPCCFee,
         specificPCCFee: orderPCCFee,
+        specificPCCFeeTiers: orderSpecificPCCFeeTiers,
         isPartner,
         vatSetting,
       }),
@@ -274,6 +286,7 @@ export const usePrepareOrderDetailPageData = ({
       JSON.stringify(quotation),
       orderHasSpecificPCCFee,
       orderPCCFee,
+      JSON.stringify(orderSpecificPCCFeeTiers),
       initVatPercentage,
       serviceFeePercentage,
       isPartner,

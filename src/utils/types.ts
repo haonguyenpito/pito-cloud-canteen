@@ -604,6 +604,11 @@ export type TCreateCompanyApiParams = {
   tax: string;
 };
 
+export type TPccFeeTier = {
+  maxQuantity: number | null;
+  price: number;
+};
+
 export type TUpdateCompanyApiParams = {
   id: string;
   firstName: string;
@@ -616,6 +621,7 @@ export type TUpdateCompanyApiParams = {
   note: string;
   tax: string;
   specificPCCFee: string;
+  specificPCCFeeTiers?: TPccFeeTier[];
   profileImageId: string;
   nutritions: string[];
   bankAccounts: TObject[];

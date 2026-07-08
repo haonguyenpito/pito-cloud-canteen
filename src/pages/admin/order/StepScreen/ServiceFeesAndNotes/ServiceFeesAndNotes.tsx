@@ -7,7 +7,10 @@ import isEmpty from 'lodash/isEmpty';
 
 import RenderWhen from '@components/RenderWhen/RenderWhen';
 import { addCommas } from '@helpers/format';
-import { getPCCFeeByMemberAmount } from '@helpers/orderHelper';
+import {
+  getPCCFeeByMemberAmount,
+  getPCCFeeByTiers,
+} from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import {
   orderAsyncActions,
@@ -104,13 +107,17 @@ const ServiceFeesAndNotes: React.FC<ServiceFeesAndNotesProps> = (props) => {
     plans = [],
     hasSpecificPCCFee: orderHasSpecificPCCFee = false,
     specificPCCFee: orderSpecificPCCFee,
+    specificPCCFeeTiers: orderSpecificPCCFeeTiers,
   } = orderListing.getMetadata();
 
   const isEditFlow = flowType === EFlowType.edit;
   const isLoading = fetchOrderInProgress || fetchOrderRestaurantListInProgress;
 
-  const { hasSpecificPCCFee = false, specificPCCFee = 0 } =
-    User(currentClient).getMetadata();
+  const {
+    hasSpecificPCCFee = false,
+    specificPCCFee = 0,
+    specificPCCFeeTiers,
+  } = User(currentClient).getMetadata();
 
   const numberOfOrderDays = Object.keys(
     isEditFlow
@@ -123,14 +130,31 @@ const ServiceFeesAndNotes: React.FC<ServiceFeesAndNotesProps> = (props) => {
     typeof draftSpecificPCCFee !== 'undefined'
       ? addCommas(draftSpecificPCCFee)
       : undefined;
+  const headcount = draftMemberAmount || memberAmount;
   const PITOFee = isEditFlow
-    ? (orderHasSpecificPCCFee
-        ? draftSpecificPCCFee || orderSpecificPCCFee
-        : getPCCFeeByMemberAmount(draftMemberAmount || memberAmount)) *
-      numberOfOrderDays
-    : (hasSpecificPCCFee
-        ? specificPCCFee
-        : getPCCFeeByMemberAmount(memberAmount)) * numberOfOrderDays;
+    ? (() => {
+        if (!orderHasSpecificPCCFee) {
+          return getPCCFeeByMemberAmount(headcount);
+        }
+        if (typeof draftSpecificPCCFee !== 'undefined') {
+          return draftSpecificPCCFee;
+        }
+        if (orderSpecificPCCFeeTiers?.length) {
+          return getPCCFeeByTiers(headcount, orderSpecificPCCFeeTiers);
+        }
+
+        return orderSpecificPCCFee ?? 0;
+      })() * numberOfOrderDays
+    : (() => {
+        if (!hasSpecificPCCFee) {
+          return getPCCFeeByMemberAmount(memberAmount);
+        }
+        if (specificPCCFeeTiers?.length) {
+          return getPCCFeeByTiers(memberAmount, specificPCCFeeTiers);
+        }
+
+        return specificPCCFee;
+      })() * numberOfOrderDays;
   const formattedPCCFee = addCommas(PITOFee.toString());
 
   const restaurantOptions = restaurantList.map((restaurant: TListing) => ({

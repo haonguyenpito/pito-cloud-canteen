@@ -107,6 +107,7 @@ export const initiateTransaction = async ({
     serviceFees = {},
     hasSpecificPCCFee = false,
     specificPCCFee = 0,
+    specificPCCFeeTiers,
     orderStateHistory = [],
     partnerIds: orderPartnerIds = [],
   } = orderData.getMetadata();
@@ -200,6 +201,7 @@ export const initiateTransaction = async ({
             serviceFees,
             hasSpecificPCCFee,
             specificPCCFee,
+            specificPCCFeeTiers,
             subOrderName: `${companyName}_${formatTimestamp(
               bookingDisplayStart.getTime(),
             )}`,

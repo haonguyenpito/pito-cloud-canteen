@@ -27,6 +27,7 @@ import type {
   TListing,
   TObject,
   TOrderStateHistoryItem,
+  TPccFeeTier,
 } from '@utils/types';
 
 import { isJoinedPlan } from './order/orderPickingHelper';
@@ -450,6 +451,24 @@ export const getPCCFeeByMemberAmount = (memberAmount: number) => {
   }
 
   return 540000;
+};
+
+export const getPCCFeeByTiers = (
+  memberAmount: number,
+  tiers: TPccFeeTier[],
+): number => {
+  if (!memberAmount || !tiers?.length) return 0;
+  const sorted = [...tiers].sort((a, b) => {
+    if (a.maxQuantity === null) return 1;
+    if (b.maxQuantity === null) return -1;
+
+    return a.maxQuantity - b.maxQuantity;
+  });
+  const matched = sorted.find(
+    (t) => t.maxQuantity === null || memberAmount <= t.maxQuantity,
+  );
+
+  return matched?.price ?? 0;
 };
 
 export const markColorForOrder = (orderNumber: number) => {

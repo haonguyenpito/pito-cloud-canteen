@@ -23,6 +23,7 @@ export const parseEntitiesToTableData = (
       orderType = EOrderType.group,
       hasSpecificPCCFee = false,
       specificPCCFee = 0,
+      specificPCCFeeTiers,
     } = Listing(entity as TListing).getMetadata();
 
     const plan =
@@ -50,6 +51,7 @@ export const parseEntitiesToTableData = (
       orderVATPercentage,
       hasSpecificPCCFee,
       specificPCCFee,
+      specificPCCFeeTiers,
     });
 
     const isCreatedByPitoAdmin = orderStateHistory.some(

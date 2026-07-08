@@ -276,6 +276,7 @@ const parseEntitiesToTableData = (
       orderType = EOrderType.group,
       hasSpecificPCCFee = false,
       specificPCCFee = 0,
+      specificPCCFeeTiers,
       orderVATPercentage = 0,
     } = entity?.attributes?.metadata || {};
 
@@ -336,6 +337,7 @@ const parseEntitiesToTableData = (
           lineItems,
           hasSpecificPCCFee,
           specificPCCFee,
+          specificPCCFeeTiers,
         });
         const childPrice =
           childTotalPrice +

@@ -24,6 +24,7 @@ const updateCompany = async (
     bankAccounts,
     paymentDueDays,
     specificPCCFee,
+    specificPCCFeeTiers,
   } = dataParams;
 
   const { selectedPlace } = location || {};
@@ -87,6 +88,18 @@ const updateCompany = async (
       specificPCCFee !== undefined
         ? {
             specificPCCFee: Number(removeNonNumeric(specificPCCFee)),
+            hasSpecificPCCFee: true,
+          }
+        : {}),
+      ...(specificPCCFeeTiers?.length
+        ? {
+            specificPCCFeeTiers: specificPCCFeeTiers.map((tier, idx) => ({
+              maxQuantity:
+                idx === specificPCCFeeTiers.length - 1
+                  ? null
+                  : Number(removeNonNumeric(String(tier.maxQuantity ?? ''))),
+              price: Number(removeNonNumeric(String(tier.price ?? ''))),
+            })),
             hasSpecificPCCFee: true,
           }
         : {}),

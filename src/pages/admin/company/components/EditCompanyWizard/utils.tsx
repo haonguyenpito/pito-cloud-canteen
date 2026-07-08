@@ -93,6 +93,7 @@ export const createSubmitUpdateCompanyValues = (
         bankAccounts = [],
         paymentDueDays,
         specificPCCFee,
+        specificPCCFeeTiers,
       } = values;
 
       switch (tabValue) {
@@ -115,7 +116,7 @@ export const createSubmitUpdateCompanyValues = (
           return {};
         }
         case COMPANY_SETTING_OTHER_TAB_ID: {
-          return { specificPCCFee };
+          return { specificPCCFee, specificPCCFeeTiers };
         }
         default:
           return {};

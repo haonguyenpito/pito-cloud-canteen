@@ -91,7 +91,12 @@ Firebase collection: `FIREBASE_PAYMENT_RECORD_COLLECTION_NAME` (env var)
 | `noExportVat` | Restaurant does not issue VAT invoice                                 |
 | `direct`      | Direct billing — special pricing arrangement                          |
 
-**PCC Service Fee:** Added on top of base food price. Some companies have a custom `specificPccFee` override — check `order.metadata.specificPccFee`.
+**PCC Service Fee:** Added on top of base food price per delivery day. Fee lookup follows this precedence (all read from `order.metadata` snapshot at start time):
+1. `hasSpecificPCCFee = false` → use `getPCCFeeByMemberAmount(headcount)` (system-wide hardcoded tiers, never editable via UI)
+2. `hasSpecificPCCFee = true` + `specificPCCFeeTiers` non-empty → range lookup: find the tier whose `maxQuantity >= headcount` (last tier with `maxQuantity: null` catches everything above the last threshold)
+3. `hasSpecificPCCFee = true` + no tiers (legacy) → flat `specificPCCFee` per day
+
+Admin configures tiers per company in **Company → Settings → Other** tab (the "Bảng phí theo số lượng" table). The tier config is snapshotted into `order.metadata` at `start-order` time and never changes for that order after that point.
 
 ### Price Formula (simplified)
 
@@ -170,4 +175,4 @@ When a sub-order is canceled mid-delivery:
 1. **No real payment processing** — money moves outside PITO; this is a reconciliation system only.
 2. **Payment confirmation is irreversible** — once `isAdminConfirmed: true`, there is no undo.
 3. **VAT is per-partner** — never apply a blanket VAT rate; each restaurant has its own `EPartnerVATSetting`.
-4. **PCC fee override** — always check `order.metadata.specificPccFee` before assuming default rates.
+4. **PCC fee lookup** — always read `order.metadata.specificPCCFeeTiers` first (range-based); fall back to `order.metadata.specificPCCFee` (legacy flat); fall back to `getPCCFeeByMemberAmount` only when `hasSpecificPCCFee` is `false`. Never assume the default schedule applies to any company without checking `hasSpecificPCCFee`.
