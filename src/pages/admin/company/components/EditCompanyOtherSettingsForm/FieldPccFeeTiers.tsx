@@ -22,6 +22,7 @@ const positiveInteger =
     if (!value && value !== '0') return message;
     const n = Number(removeNonNumeric(String(value)));
     if (!Number.isInteger(n) || n <= 0) return message;
+
     return undefined;
   };
 
@@ -30,7 +31,8 @@ const positiveNumber =
   (value: string): string | undefined => {
     if (!value && value !== '0') return message;
     const n = Number(removeNonNumeric(String(value)));
-    if (isNaN(n) || n <= 0) return message;
+    if (Number.isNaN(n) || n <= 0) return message;
+
     return undefined;
   };
 
@@ -43,7 +45,8 @@ const quantityIncreasing =
     if (!prev) return undefined;
     const prevQty = Number(removeNonNumeric(String(prev.maxQuantity ?? '')));
     const currQty = Number(removeNonNumeric(String(value ?? '')));
-    if (isNaN(prevQty) || isNaN(currQty)) return undefined;
+    if (Number.isNaN(prevQty) || Number.isNaN(currQty)) return undefined;
+
     return currQty <= prevQty ? message : undefined;
   };
 
@@ -82,9 +85,7 @@ const FieldPccFeeTiers: React.FC<TFieldPccFeeTiers> = ({ id, name }) => {
             {fields.map((fieldName: string, index: number) => {
               const isLast = index === total - 1;
               const prevMaxQty =
-                index > 0
-                  ? fields.value?.[index - 1]?.maxQuantity ?? 0
-                  : 0;
+                index > 0 ? fields.value?.[index - 1]?.maxQuantity ?? 0 : 0;
 
               return (
                 <Fragment key={fieldName}>

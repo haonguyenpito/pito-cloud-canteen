@@ -95,7 +95,9 @@ const updateCompany = async (
         ? {
             specificPCCFeeTiers: specificPCCFeeTiers.map((tier, idx) => ({
               maxQuantity:
-                idx === specificPCCFeeTiers.length - 1 ? null : tier.maxQuantity,
+                idx === specificPCCFeeTiers.length - 1
+                  ? null
+                  : tier.maxQuantity,
               price: Number(tier.price),
             })),
             hasSpecificPCCFee: true,

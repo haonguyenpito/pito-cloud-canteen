@@ -50,6 +50,7 @@ export const preparePickingOrderChangeNotificationData = ({
     if (!hasSpecificPCCFee) return PCCFeeByMemberAmount;
     if (specificPCCFeeTiers?.length)
       return getPCCFeeByTiers(memberAmount, specificPCCFeeTiers);
+
     return specificPCCFee;
   })();
 

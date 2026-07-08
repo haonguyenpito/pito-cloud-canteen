@@ -8,7 +8,6 @@ import type { TPccFeeTier } from '@utils/types';
 
 import { COMPANY_SETTING_OTHER_TAB_ID } from '../EditCompanyWizard/utils';
 
-import css from './EditCompanyOtherSettingsForm.module.scss';
 import FieldPccFeeTiers from './FieldPccFeeTiers';
 
 export type TEditCompanyOtherSettingsFormValues = {

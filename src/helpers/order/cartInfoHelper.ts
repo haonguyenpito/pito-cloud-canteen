@@ -234,6 +234,7 @@ export const calculatePCCFeeByDate = ({
       ? getPCCFeeByTiers(memberAmountOfDate, specificPCCFeeTiers)
       : 0;
   }
+
   return memberAmountOfDate > 0 ? specificPCCFee : 0;
 };
 

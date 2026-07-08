@@ -5,7 +5,6 @@ import { DateTime } from 'luxon';
 
 import type { FoodListing } from '@src/types';
 import type { TMemberOrders, TOrderDetail } from '@src/types/order';
-import type { TPccFeeTier } from '@utils/types';
 import { SECONDARY_FOOD_ALLOWED_COMPANIES } from '@src/utils/constants';
 import { ETransition } from '@src/utils/transaction';
 import { Listing } from '@utils/data';
@@ -28,6 +27,7 @@ import type {
   TListing,
   TObject,
   TOrderStateHistoryItem,
+  TPccFeeTier,
 } from '@utils/types';
 
 import { isJoinedPlan } from './order/orderPickingHelper';
@@ -463,11 +463,13 @@ export const getPCCFeeByTiers = (
   const sorted = [...tiers].sort((a, b) => {
     if (a.maxQuantity === null) return 1;
     if (b.maxQuantity === null) return -1;
+
     return a.maxQuantity - b.maxQuantity;
   });
   const matched = sorted.find(
     (t) => t.maxQuantity === null || memberAmount <= t.maxQuantity,
   );
+
   return matched?.price ?? 0;
 };
 

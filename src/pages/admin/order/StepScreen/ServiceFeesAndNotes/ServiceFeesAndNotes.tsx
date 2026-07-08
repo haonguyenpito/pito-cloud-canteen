@@ -142,6 +142,7 @@ const ServiceFeesAndNotes: React.FC<ServiceFeesAndNotesProps> = (props) => {
         if (orderSpecificPCCFeeTiers?.length) {
           return getPCCFeeByTiers(headcount, orderSpecificPCCFeeTiers);
         }
+
         return orderSpecificPCCFee ?? 0;
       })() * numberOfOrderDays
     : (() => {
@@ -151,6 +152,7 @@ const ServiceFeesAndNotes: React.FC<ServiceFeesAndNotesProps> = (props) => {
         if (specificPCCFeeTiers?.length) {
           return getPCCFeeByTiers(memberAmount, specificPCCFeeTiers);
         }
+
         return specificPCCFee;
       })() * numberOfOrderDays;
   const formattedPCCFee = addCommas(PITOFee.toString());
