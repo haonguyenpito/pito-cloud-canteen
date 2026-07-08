@@ -1798,6 +1798,8 @@
   "SectionOrderPanel.successModal.description": "You can still reselect dishes",
   "SectionOrderPanel.successModal.goToHomePage": "Go to my calendar",
   "SectionOrderPanel.successModal.title": "Order placed successfully",
+  "SectionOrderPanel.thankYouModal.description": "This week's meal has been confirmed. <br></br>This is the final week after <b>255 days</b> of PITO Cloud Canteen serving lunch at Nexon. <br></br>Thank you for being with us along the way.",
+  "SectionOrderPanel.thankYouModal.title": "THANK YOU",
   "SectionRestaurantHero.orderDayMessage": "Thursday {weekDay}, {fullDay}",
   "SelectFoodForm.findFoodByName": "Search for dishes",
   "SelectFoodForm.noFoodOption": "No results",

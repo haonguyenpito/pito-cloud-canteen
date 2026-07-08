@@ -1799,6 +1799,8 @@
   "SectionOrderPanel.successModal.description": "Bạn vẫn có thể chọn lại món trước",
   "SectionOrderPanel.successModal.goToHomePage": "Về lịch của tôi",
   "SectionOrderPanel.successModal.title": "Đặt món thành công",
+  "SectionOrderPanel.thankYouModal.description": "Món ăn tuần này đã được ghi nhận. <br></br>Đây là tuần cuối sau <b>255 ngày</b> PITO Cloud Canteen phục vụ bữa trưa tại Nexon. <br></br>Cảm ơn vì bạn đã đồng hành suốt thời gian qua.",
+  "SectionOrderPanel.thankYouModal.title": "CẢM ƠN BẠN",
   "SectionRestaurantHero.orderDayMessage": "Thứ {weekDay}, {fullDay}",
   "SelectFoodForm.findFoodByName": "Tìm kiếm món ăn",
   "SelectFoodForm.noFoodOption": "Không có kết quả",
