@@ -97,8 +97,8 @@ const updateCompany = async (
               maxQuantity:
                 idx === specificPCCFeeTiers.length - 1
                   ? null
-                  : tier.maxQuantity,
-              price: Number(tier.price),
+                  : Number(removeNonNumeric(String(tier.maxQuantity ?? ''))),
+              price: Number(removeNonNumeric(String(tier.price ?? ''))),
             })),
             hasSpecificPCCFee: true,
           }
