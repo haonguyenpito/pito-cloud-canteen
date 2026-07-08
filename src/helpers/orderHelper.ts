@@ -5,6 +5,7 @@ import { DateTime } from 'luxon';
 
 import type { FoodListing } from '@src/types';
 import type { TMemberOrders, TOrderDetail } from '@src/types/order';
+import type { TPccFeeTier } from '@utils/types';
 import { SECONDARY_FOOD_ALLOWED_COMPANIES } from '@src/utils/constants';
 import { ETransition } from '@src/utils/transaction';
 import { Listing } from '@utils/data';
@@ -452,6 +453,22 @@ export const getPCCFeeByMemberAmount = (memberAmount: number) => {
   }
 
   return 540000;
+};
+
+export const getPCCFeeByTiers = (
+  memberAmount: number,
+  tiers: TPccFeeTier[],
+): number => {
+  if (!memberAmount || !tiers?.length) return 0;
+  const sorted = [...tiers].sort((a, b) => {
+    if (a.maxQuantity === null) return 1;
+    if (b.maxQuantity === null) return -1;
+    return a.maxQuantity - b.maxQuantity;
+  });
+  const matched = sorted.find(
+    (t) => t.maxQuantity === null || memberAmount <= t.maxQuantity,
+  );
+  return matched?.price ?? 0;
 };
 
 export const markColorForOrder = (orderNumber: number) => {

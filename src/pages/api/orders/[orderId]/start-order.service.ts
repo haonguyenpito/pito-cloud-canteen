@@ -35,6 +35,7 @@ export const startOrder = async (orderId: string, planId: string) => {
     partnerIds = [],
     hasSpecificPCCFee: orderHasSpecificPCCFee,
     specificPCCFee: orderSpecificPCCFee,
+    specificPCCFeeTiers: orderSpecificPCCFeeTiers,
   } = Listing(orderListing as any).getMetadata();
 
   if (orderState !== EOrderStates.picking) {
@@ -54,8 +55,11 @@ export const startOrder = async (orderId: string, planId: string) => {
   ]);
   const { systemVATPercentage = 0 } = await getSystemAttributes();
   const companyUser = await fetchUser(companyId);
-  const { hasSpecificPCCFee = false, specificPCCFee = 0 } =
-    User(companyUser).getMetadata();
+  const {
+    hasSpecificPCCFee = false,
+    specificPCCFee = 0,
+    specificPCCFeeTiers,
+  } = User(companyUser).getMetadata();
 
   const oldPlan: WithFlexSDKData<PlanListing> =
     await integrationSdk.listings.show({
@@ -73,6 +77,8 @@ export const startOrder = async (orderId: string, planId: string) => {
         orderSpecificPCCFee === undefined && {
           hasSpecificPCCFee,
           specificPCCFee,
+          ...(orderSpecificPCCFeeTiers === undefined &&
+            specificPCCFeeTiers && { specificPCCFeeTiers }),
         }),
     },
   });

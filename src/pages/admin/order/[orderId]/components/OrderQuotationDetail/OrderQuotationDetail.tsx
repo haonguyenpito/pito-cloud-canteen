@@ -64,6 +64,7 @@ const OrderQuotationDetail: React.FC<OrderQuotationDetailProps> = (props) => {
     packagePerMember = 0,
     hasSpecificPCCFee = false,
     specificPCCFee = 0,
+    specificPCCFeeTiers,
     orderVATPercentage,
   } = Listing(order).getMetadata();
   const { title: orderTitle = '' } = Listing(order).getAttributes();
@@ -93,12 +94,14 @@ const OrderQuotationDetail: React.FC<OrderQuotationDetailProps> = (props) => {
         vatSetting: partnerVATSetting,
         hasSpecificPCCFee,
         specificPCCFee,
+        specificPCCFeeTiers,
         isPartner,
       }),
     [
       isPartner,
       hasSpecificPCCFee,
       specificPCCFee,
+      JSON.stringify(specificPCCFeeTiers),
       partnerServiceFee,
       partnerVATSetting,
       orderVATPercentage,

@@ -16,12 +16,24 @@ All exported helpers (every one is load-bearing for billing):
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `calculateVATFee`                         | Applies VAT % when `vatSetting === 'vat'`; returns 0 for `noExportVat`/`direct`                       |
 | `calculateTotalPriceAndDishes`            | Sums `(foodPrice + foodExtraFee) × frequency` across `plan.orderDetail` — booker-side billing total   |
-| `calculatePCCFeeByDate`                   | Computes per-date PITO service fee (uses `specificPCCFee` override if `hasSpecificPCCFee`)            |
+| `calculatePCCFeeByDate`                   | Computes per-date PITO service fee. Precedence when `hasSpecificPCCFee=true`: (1) `specificPCCFeeTiers` range lookup → (2) legacy flat `specificPCCFee` → (3) 0. Default (`hasSpecificPCCFee=false`): `getPCCFeeByMemberAmount` hardcoded tiers. |
 | `calculatePriceQuotationInfoFromOrder`    | Full client-side total from order + plan (food + PCC fee + VAT)                                       |
 | `calculatePriceQuotationPartner`          | Per-partner payout from the quotation listing — base food price only, never sees `extraFee`           |
 | `calculatePriceQuotationInfoFromQuotation`| Recomputes totals from a finalised quotation listing (used after quotation is locked)                 |
 
 **Risk:** Incorrect price calculation results in wrong payment amounts charged to companies or paid to restaurants. VAT logic has 3 modes (`vat`, `noExportVat`, `direct`) and PCC service fee overrides per company.
+
+**PCC fee fields on company and order metadata:**
+
+| Field | Where | Meaning |
+|---|---|---|
+| `hasSpecificPCCFee` | `company.metadata`, `order.metadata` (snapshot) | `true` = use custom fee instead of default schedule |
+| `specificPCCFeeTiers` | `company.metadata`, `order.metadata` (snapshot) | Range-based tier array `{ maxQuantity: number\|null, price: number }[]`; last tier has `maxQuantity: null` (unbounded). **Takes priority over `specificPCCFee`** when present and non-empty. |
+| `specificPCCFee` | `company.metadata`, `order.metadata` (snapshot) | Legacy flat fee (VND per day). Used as fallback when `specificPCCFeeTiers` is absent. Do not remove — existing order snapshots and not-yet-migrated companies depend on it. |
+
+**Snapshot invariant:** both `specificPCCFeeTiers` and `specificPCCFee` are snapshotted into `order.metadata` at `start-order` time (see `start-order.service.ts:57-81`). Fee changes to a company **never retroactively affect started orders**.
+
+**Default schedule (never modify without a release):** `getPCCFeeByMemberAmount` in `src/helpers/orderHelper.ts` — hardcoded 8-tier step function. Not configurable via admin UI.
 
 ---
 

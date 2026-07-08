@@ -9,7 +9,7 @@ import { updatePaymentRecordOnFirebase } from '@services/payment';
 import { Listing } from '@src/utils/data';
 import { EPaymentType } from '@src/utils/enums';
 import type { TPlan } from '@src/utils/orderTypes';
-import type { TListing, TObject } from '@src/utils/types';
+import type { TListing, TObject, TPccFeeTier } from '@src/utils/types';
 
 const { FIREBASE_PAYMENT_RECORD_COLLECTION_NAME } = process.env;
 
@@ -74,6 +74,7 @@ const updateClientPaymentRecord = async (
   orderVATPercentage: number,
   hasSpecificPCCFee: boolean,
   specificPCCFee: number,
+  specificPCCFeeTiers?: TPccFeeTier[],
 ) => {
   const { totalWithVAT: clientTotalPrice } =
     calculatePriceQuotationInfoFromOrder({
@@ -82,6 +83,7 @@ const updateClientPaymentRecord = async (
       orderVATPercentage,
       hasSpecificPCCFee,
       specificPCCFee,
+      specificPCCFeeTiers,
     });
 
   const paymentRecords = await queryAllCollectionData({
@@ -122,6 +124,7 @@ const updatePayment = async (orderId: string, planId: string) => {
     serviceFees = {},
     hasSpecificPCCFee,
     specificPCCFee,
+    specificPCCFeeTiers,
     vatSettings,
   } = orderListingGetter.getMetadata();
 
@@ -145,6 +148,7 @@ const updatePayment = async (orderId: string, planId: string) => {
     orderVATPercentage,
     hasSpecificPCCFee,
     specificPCCFee,
+    specificPCCFeeTiers,
   );
 };
 

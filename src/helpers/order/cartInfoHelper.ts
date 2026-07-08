@@ -41,6 +41,7 @@ import {
   getFoodDataMap,
   getOrderParticipantNumber,
   getPCCFeeByMemberAmount,
+  getPCCFeeByTiers,
   getTotalInfo,
 } from '@helpers/orderHelper';
 import {
@@ -51,7 +52,7 @@ import {
 } from '@src/utils/enums';
 import { TRANSITIONS_TO_STATE_CANCELED } from '@src/utils/transaction';
 import { Listing } from '@utils/data';
-import type { TListing, TObject, TQuotation } from '@utils/types';
+import type { TListing, TObject, TPccFeeTier, TQuotation } from '@utils/types';
 
 import { isJoinedPlan } from './orderPickingHelper';
 import { vatPercentageBaseOnVatSetting } from './prepareDataHelper';
@@ -203,12 +204,14 @@ export const calculatePCCFeeByDate = ({
   lineItems = [],
   hasSpecificPCCFee,
   specificPCCFee,
+  specificPCCFeeTiers,
 }: {
   isGroupOrder: boolean;
   memberOrders: TObject;
   lineItems: TObject[];
   hasSpecificPCCFee?: boolean;
   specificPCCFee: number;
+  specificPCCFeeTiers?: TPccFeeTier[];
 }) => {
   const memberAmountOfDate = isGroupOrder
     ? Object.values(memberOrders).reduce(
@@ -223,13 +226,15 @@ export const calculatePCCFeeByDate = ({
         return res + (item?.quantity || 1);
       }, 0);
 
-  const PCCFeeOfDate = hasSpecificPCCFee
-    ? memberAmountOfDate > 0
-      ? specificPCCFee
-      : 0
-    : getPCCFeeByMemberAmount(memberAmountOfDate);
-
-  return PCCFeeOfDate;
+  if (!hasSpecificPCCFee) {
+    return getPCCFeeByMemberAmount(memberAmountOfDate);
+  }
+  if (specificPCCFeeTiers?.length) {
+    return memberAmountOfDate > 0
+      ? getPCCFeeByTiers(memberAmountOfDate, specificPCCFeeTiers)
+      : 0;
+  }
+  return memberAmountOfDate > 0 ? specificPCCFee : 0;
 };
 
 export const calculatePriceQuotationInfoFromOrder = ({
@@ -241,6 +246,7 @@ export const calculatePriceQuotationInfoFromOrder = ({
   shouldIncludePITOFee = true,
   hasSpecificPCCFee = false,
   specificPCCFee = 0,
+  specificPCCFeeTiers,
   isPartner = false,
   vatSetting = EPartnerVATSetting.vat,
 }: {
@@ -252,6 +258,7 @@ export const calculatePriceQuotationInfoFromOrder = ({
   orderServiceFeePercentage?: number;
   hasSpecificPCCFee?: boolean;
   specificPCCFee?: number;
+  specificPCCFeeTiers?: TPccFeeTier[];
   isPartner?: boolean;
   vatSetting?: EPartnerVATSetting;
 }) => {
@@ -294,6 +301,7 @@ export const calculatePriceQuotationInfoFromOrder = ({
         lineItems,
         hasSpecificPCCFee,
         specificPCCFee,
+        specificPCCFeeTiers,
       });
 
       return result + PCCFeeOfDate;
@@ -420,6 +428,7 @@ export const calculatePriceQuotationInfoFromQuotation = ({
   partnerId,
   hasSpecificPCCFee,
   specificPCCFee = 0,
+  specificPCCFeeTiers,
   vatSetting = EPartnerVATSetting.vat,
   isPartner = false,
 }: {
@@ -431,6 +440,7 @@ export const calculatePriceQuotationInfoFromQuotation = ({
   partnerId?: string;
   hasSpecificPCCFee: boolean;
   specificPCCFee?: number;
+  specificPCCFeeTiers?: TPccFeeTier[];
   vatSetting?: EPartnerVATSetting;
   isPartner?: boolean;
 }) => {
@@ -471,11 +481,17 @@ export const calculatePriceQuotationInfoFromQuotation = ({
         },
       );
 
-      const PCCFeeOfDate = hasSpecificPCCFee
-        ? subOrderTotalDished > 0
-          ? specificPCCFee
-          : 0
-        : getPCCFeeByMemberAmount(subOrderTotalDished);
+      let PCCFeeOfDate: number;
+      if (!hasSpecificPCCFee) {
+        PCCFeeOfDate = getPCCFeeByMemberAmount(subOrderTotalDished);
+      } else if (specificPCCFeeTiers?.length) {
+        PCCFeeOfDate =
+          subOrderTotalDished > 0
+            ? getPCCFeeByTiers(subOrderTotalDished, specificPCCFeeTiers)
+            : 0;
+      } else {
+        PCCFeeOfDate = subOrderTotalDished > 0 ? specificPCCFee : 0;
+      }
 
       return {
         totalPrice: result.totalPrice + subOrderTotalPrice,

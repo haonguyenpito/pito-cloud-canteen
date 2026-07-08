@@ -2,7 +2,10 @@ import { difference, isEmpty } from 'lodash';
 import { DateTime } from 'luxon';
 
 import { parseThousandNumber } from '@helpers/format';
-import { getPCCFeeByMemberAmount } from '@helpers/orderHelper';
+import {
+  getPCCFeeByMemberAmount,
+  getPCCFeeByTiers,
+} from '@helpers/orderHelper';
 import { Listing } from '@src/utils/data';
 import { weekDayFormatFromDateTime } from '@src/utils/dates';
 import {
@@ -35,6 +38,7 @@ export const preparePickingOrderChangeNotificationData = ({
     staffName,
     shipperName,
     specificPCCFee = 0,
+    specificPCCFeeTiers,
     hasSpecificPCCFee = false,
     memberAmount = 0,
     deliveryAddress,
@@ -42,9 +46,12 @@ export const preparePickingOrderChangeNotificationData = ({
     deliveryHour,
   } = orderGetter.getMetadata();
   const PCCFeeByMemberAmount = getPCCFeeByMemberAmount(memberAmount);
-  const PCCFeePerDate = hasSpecificPCCFee
-    ? specificPCCFee
-    : PCCFeeByMemberAmount;
+  const PCCFeePerDate = (() => {
+    if (!hasSpecificPCCFee) return PCCFeeByMemberAmount;
+    if (specificPCCFeeTiers?.length)
+      return getPCCFeeByTiers(memberAmount, specificPCCFeeTiers);
+    return specificPCCFee;
+  })();
 
   const changeHistoryToNotifyBooker: TObject[] = [];
   const changeHistoryToNotifyBookerByMeal: TObject = {};

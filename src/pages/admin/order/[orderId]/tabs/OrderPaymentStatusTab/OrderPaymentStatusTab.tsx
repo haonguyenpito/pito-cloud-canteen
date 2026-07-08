@@ -79,6 +79,7 @@ const OrderPaymentStatusTab: React.FC<OrderPaymentStatusTabProps> = (props) => {
     deliveryHour,
     hasSpecificPCCFee = false,
     specificPCCFee = 0,
+    specificPCCFeeTiers,
     vatSettings,
     plans = [],
     isClientSufficientPaid = false,
@@ -192,6 +193,7 @@ const OrderPaymentStatusTab: React.FC<OrderPaymentStatusTabProps> = (props) => {
       orderVATPercentage: currentOrderVATPercentage,
       hasSpecificPCCFee,
       specificPCCFee,
+      specificPCCFeeTiers,
     });
 
   const clientPaidAmount =

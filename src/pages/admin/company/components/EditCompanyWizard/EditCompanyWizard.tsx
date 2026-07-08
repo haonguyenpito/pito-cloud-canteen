@@ -252,6 +252,17 @@ const EditCompanyWizardTab: React.FC<TEditCompanyWizardTab> = (props) => {
                 defaultBankAccounts,
               paymentDueDays: User(company).getPrivateData().paymentDueDays,
               specificPCCFee: User(company).getMetadata().specificPCCFee,
+              specificPCCFeeTiers:
+                User(company).getMetadata().specificPCCFeeTiers ??
+                (User(company).getMetadata().hasSpecificPCCFee &&
+                User(company).getMetadata().specificPCCFee
+                  ? [
+                      {
+                        maxQuantity: null,
+                        price: User(company).getMetadata().specificPCCFee,
+                      },
+                    ]
+                  : []),
             } as TEditCompanySettingsInformationFormValues &
               TEditCompanyBankAccountsFormValues &
               TEditCompanyOtherSettingsFormValues)
