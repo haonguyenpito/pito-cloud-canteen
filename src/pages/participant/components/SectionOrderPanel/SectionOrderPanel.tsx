@@ -11,6 +11,7 @@ import { useViewport } from '@hooks/useViewport';
 import { totalFoodPickedWithParticipant } from '@pages/participant/helpers';
 import { shoppingCartThunks } from '@redux/slices/shoppingCart.slice';
 import type { RootState } from '@redux/store';
+import { SECONDARY_FOOD_ALLOWED_COMPANIES } from '@src/utils/constants';
 import { Listing } from '@src/utils/data';
 
 import { ParticipantPlanThunks } from '../../plans/[planId]/ParticipantPlanPage.slice';
@@ -20,6 +21,7 @@ import OrderPanelBody from './OrderPanelBody';
 import OrderPanelFooter from './OrderPanelFooter';
 import OrderPanelHeader from './OrderPanelHeader';
 import SuccessModal from './SuccessModal';
+import ThankYouModal from './ThankYouModal';
 
 import css from './SectionOrderPanel.module.scss';
 
@@ -57,8 +59,11 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
   );
 
   const isOrderDeadlineOver = isOrderOverDeadline(order);
-  const { deadlineDate = Date.now(), deadlineHour } =
-    Listing(order).getMetadata();
+  const {
+    deadlineDate = Date.now(),
+    deadlineHour,
+    companyId,
+  } = Listing(order).getMetadata();
   const orderDeadline = DateTime.fromMillis(deadlineDate)
     .startOf('day')
     .plus({ ...convertHHmmStringToTimeParts(deadlineHour) })
@@ -128,6 +133,9 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
   const orderDetailIds = Object.keys(plan ?? {});
   const { isMobileLayout } = useViewport();
 
+  const isThankYouCompany =
+    !!companyId && SECONDARY_FOOD_ALLOWED_COMPANIES.includes(companyId);
+
   return (
     <div className={classNames(css.root, isMobileLayout ? 'mb-[180px]' : '')}>
       <OrderPanelHeader
@@ -162,13 +170,19 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
         onCancel={handleCloseConfirmDeleteAll}
         onConfirm={handleConfirmDeleteAll}
       />
-      {deadlineDate && (
-        <SuccessModal
-          isOpen={isSubmitSuccess}
-          orderDeadline={orderDeadline}
-          handleClose={handleCloseSuccessModal}
-        />
-      )}
+      {deadlineDate &&
+        (isThankYouCompany ? (
+          <ThankYouModal
+            isOpen={isSubmitSuccess}
+            handleClose={handleCloseSuccessModal}
+          />
+        ) : (
+          <SuccessModal
+            isOpen={isSubmitSuccess}
+            orderDeadline={orderDeadline}
+            handleClose={handleCloseSuccessModal}
+          />
+        ))}
     </div>
   );
 };
