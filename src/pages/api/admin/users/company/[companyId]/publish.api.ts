@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import publishCompany from '@pages/api/apiServices/company/publishCompany.service';
+import cookies from '@services/cookie';
+import adminChecker from '@services/permissionChecker/admin';
 import { handleError } from '@services/sdk';
 
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
@@ -31,4 +33,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   }
 }
 
-export default handler;
+export default cookies(adminChecker(handler));

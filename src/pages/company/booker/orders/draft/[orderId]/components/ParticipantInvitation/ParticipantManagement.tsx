@@ -130,8 +130,15 @@ const ParticipantManagement: React.FC<TParticipantManagementProps> = () => {
   const handleSubmitAddParticipant = async ({
     emails,
   }: TAddParticipantFormValues) => {
-    const parseEmailList = normalizeInviteEmailList(
-      uniq(emails.trim().replace(/\s+/g, ' ').split(' ')),
+    // Lowercase to match Sharetribe (which stores emails lowercased) and the
+    // Excel-import path, so the same person can't be added twice and always
+    // links to their real account.
+    const parseEmailList = uniq(
+      emails
+        .trim()
+        .replace(/\s+/g, ' ')
+        .split(' ')
+        .map((email) => email.toLowerCase()),
     );
     Tracker.track('booker:order:add-emails', {
       emails: parseEmailList,

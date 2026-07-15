@@ -59,6 +59,15 @@ async function handler(
       });
     }
 
+    // A locked account must not be able to walk back into a company through an
+    // invitation link. Guards both the `check` and the `response` branches.
+    if (currentUser.data.data.attributes?.profile?.metadata?.isDisabled) {
+      return res.status(EHttpStatusCode.Forbidden).json({
+        statusCode: EHttpStatusCode.Forbidden,
+        message: 'Tài khoản của bạn đã bị khóa!',
+      });
+    }
+
     const companyAccount = await fetchUserListing(companyId);
 
     if (!companyAccount) {

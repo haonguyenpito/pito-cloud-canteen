@@ -9,7 +9,17 @@ import { enGeneralPaths } from '@src/paths';
 
 import css from './InActiveUserScreen.module.scss';
 
-const UnActiveUserScreen = () => {
+type TInActiveUserScreenProps = {
+  /**
+   * `inactive` = company still awaiting activation (the pre-existing case).
+   * `disabled` = account locked by an admin.
+   */
+  variant?: 'inactive' | 'disabled';
+};
+
+const UnActiveUserScreen: React.FC<TInActiveUserScreenProps> = ({
+  variant = 'inactive',
+}) => {
   const handleLogoutFn = useLogout();
   const router = useRouter();
   const intl = useIntl();
@@ -19,12 +29,15 @@ const UnActiveUserScreen = () => {
     router.push(enGeneralPaths.Auth);
   };
 
+  const messageId =
+    variant === 'disabled'
+      ? 'tai-khoan-cua-ban-da-bi-khoa'
+      : 'tai-khoan-cua-ban-chua-duoc-kich-hoat';
+
   return (
     <div className={css.root}>
       <PitoLogo />
-      <p className="my-2">
-        {intl.formatMessage({ id: 'tai-khoan-cua-ban-chua-duoc-kich-hoat' })}
-      </p>
+      <p className="my-2">{intl.formatMessage({ id: messageId })}</p>
       <Button type="button" onClick={handleLogout}>
         {intl.formatMessage({ id: 'CompanyHeaderMobile.logout' })}
       </Button>

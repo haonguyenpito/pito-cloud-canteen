@@ -1,6 +1,7 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 import { EHttpStatusCode } from '@apis/errors';
+import { assertAccountEnabled } from '@helpers/userDisabledHelper';
 import { getSdk, handleError } from '@services/sdk';
 import { CurrentUser, denormalisedResponseEntities } from '@src/utils/data';
 
@@ -18,6 +19,8 @@ const partnerChecker =
           message: 'Unauthenticated!',
         });
       }
+
+      if (!assertAccountEnabled(currentUser, res)) return;
 
       const { isPartner = false } = CurrentUser(currentUser).getMetadata();
 

@@ -10,6 +10,7 @@ import {
   prepareNewOrderDetailPlan,
   queryAllListings,
 } from '@helpers/apiHelpers';
+import { isUserDisabled } from '@helpers/userDisabledHelper';
 import { sendIndividualEmail } from '@services/awsSES';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { fetchUser } from '@services/integrationHelper';
@@ -23,6 +24,7 @@ import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking'
 import {
   EBookerOrderDraftStates,
   ECompanyPermission,
+  EErrorCode,
   EListingType,
   ENotificationType,
   EOrderDraftStates,
@@ -100,6 +102,29 @@ const addMembersToCompanyFn = async (params: TAddMembersToCompanyParams) => {
 
   // * Step update data for existed user
   const newParticipantIds = difference(userIdList, membersIdList);
+
+  // A locked account must not be re-added to a company — that would silently
+  // pull them back into orders while their login stays blocked.
+  const disabledAccounts = compact(
+    await Promise.all(
+      newParticipantIds.map(async (userId: string) => {
+        const userAccount = await fetchUser(userId);
+
+        if (!isUserDisabled(userAccount)) return null;
+
+        return User(userAccount).getAttributes().email;
+      }),
+    ),
+  );
+
+  if (!isEmpty(disabledAccounts)) {
+    // Hard block: a locked account must not be pulled back into a company.
+    // Surfaces as a generic error on the client (handleError/addMembers thunk
+    // don't propagate the server message) — the enforcement is what matters.
+    throw new Error(
+      `${EErrorCode.accountDisabled}: ${disabledAccounts.join(', ')}`,
+    );
+  }
 
   // Step 2. Create update function
   const updateOrderAndPlanDataFn = async (order: TListing) => {

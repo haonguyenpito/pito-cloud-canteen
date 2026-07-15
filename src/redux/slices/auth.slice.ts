@@ -3,9 +3,11 @@ import isEmpty from 'lodash/isEmpty';
 
 import { postSignUpApi } from '@apis/userApi';
 import Tracker from '@helpers/tracker';
+import { isUserDisabled } from '@helpers/userDisabledHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { RootState } from '@redux/store';
-import { CurrentUser } from '@src/utils/data';
+import { CurrentUser, denormalisedResponseEntities } from '@src/utils/data';
+import { EErrorCode } from '@src/utils/enums';
 import { storableError } from '@utils/errors';
 import type { TObject } from '@utils/types';
 
@@ -70,6 +72,19 @@ const login = createAsyncThunk(
   async (params: { email: string; password: string }, { extra: sdk }) => {
     const { email: username, password } = params;
     await sdk.login({ username, password });
+
+    const [currentUser] = denormalisedResponseEntities(
+      await sdk.currentUser.show(),
+    );
+
+    if (isUserDisabled(currentUser)) {
+      await sdk.logout();
+
+      const error = new Error('Tài khoản của bạn đã bị khóa!');
+      error.name = EErrorCode.accountDisabled;
+
+      throw error;
+    }
   },
   {
     serializeError: storableError,

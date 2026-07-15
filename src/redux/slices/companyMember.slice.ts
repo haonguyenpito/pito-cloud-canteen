@@ -10,6 +10,7 @@ import {
   deleteMemberApi,
 } from '@apis/companyApi';
 import {
+  adminToggleUserDisabledApi,
   getCompanyMembersDetailsApi,
   queryCompanyMembersApi,
 } from '@apis/index';
@@ -50,6 +51,9 @@ interface TCompanyMemberState {
   companyMembersByCompanyId: TCompanyMembersByCompanyId | null;
   getCompanyMembersByCompanyIdInProgress: boolean;
   getCompanyMembersByCompanyIdError: any;
+
+  togglingDisabledMemberId: string | null;
+  toggleMemberDisabledError: any;
 }
 
 const initialState: TCompanyMemberState = {
@@ -74,6 +78,9 @@ const initialState: TCompanyMemberState = {
   companyMembersByCompanyId: null,
   getCompanyMembersByCompanyIdInProgress: false,
   getCompanyMembersByCompanyIdError: null,
+
+  togglingDisabledMemberId: null,
+  toggleMemberDisabledError: null,
 };
 
 const CHECK_EMAILS_EXISTED = 'app/companyMember/CHECK_EMAILS_EXISTED';
@@ -87,6 +94,9 @@ const ADMIN_DELETE_MEMBER = 'app/companyMember/ADMIN_DELETE_MEMBER';
 const ADMIN_ADD_MEMBERS = 'app/companyMember/ADMIN_ADD_MEMBERS';
 const ADMIN_UPDATE_MEMBER_PERMISSION =
   'app/companyMember/ADMIN_UPDATE_MEMBER_PERMISSION';
+
+const ADMIN_TOGGLE_MEMBER_DISABLED =
+  'app/companyMember/ADMIN_TOGGLE_MEMBER_DISABLED';
 
 const GET_COMPANY_MEMBERS_BY_COMPANY_IDS =
   'app/companyMember/GET_COMPANY_MEMBERS_BY_COMPANY_IDS';
@@ -221,6 +231,24 @@ const adminUpdateMemberPermission = createAsyncThunk(
   { serializeError: storableAxiosError },
 );
 
+const adminToggleMemberDisabled = createAsyncThunk(
+  ADMIN_TOGGLE_MEMBER_DISABLED,
+  async (
+    {
+      companyId,
+      userId,
+      isDisabled,
+    }: { companyId: string; userId: string; isDisabled: boolean },
+    { dispatch },
+  ) => {
+    const { data } = await adminToggleUserDisabledApi(userId, isDisabled);
+    await dispatch(queryCompanyMembers(companyId));
+
+    return data;
+  },
+  { serializeError: storableAxiosError },
+);
+
 const getCompanyMemberByCompanyIds = createAsyncThunk(
   GET_COMPANY_MEMBERS_BY_COMPANY_IDS,
   async (ids: string[], { fulfillWithValue }) => {
@@ -256,6 +284,7 @@ export const companyMemberThunks = {
   adminAddMembers,
   adminDeleteMember,
   adminUpdateMemberPermission,
+  adminToggleMemberDisabled,
   getCompanyMemberByCompanyIds,
 };
 
@@ -273,6 +302,21 @@ export const companyMemberSlice = createSlice({
   },
   extraReducers(builder) {
     builder
+      .addCase(adminToggleMemberDisabled.pending, (state, { meta }) => ({
+        ...state,
+        togglingDisabledMemberId: meta.arg.userId,
+        toggleMemberDisabledError: null,
+      }))
+      .addCase(adminToggleMemberDisabled.fulfilled, (state) => ({
+        ...state,
+        togglingDisabledMemberId: null,
+      }))
+      .addCase(adminToggleMemberDisabled.rejected, (state, { error }) => ({
+        ...state,
+        togglingDisabledMemberId: null,
+        toggleMemberDisabledError: error,
+      }))
+
       .addCase(checkEmailExisted.pending, (state) => ({
         ...state,
         checkEmailExistedInProgress: true,

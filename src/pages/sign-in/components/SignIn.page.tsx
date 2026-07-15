@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import { authenticationInProgress, authThunks } from '@redux/slices/auth.slice';
 import { userThunks } from '@redux/slices/user.slice';
 import { enGeneralPaths } from '@src/paths';
+import { isAccountDisabledError } from '@utils/errors';
 
 import type { TSignInFormValues } from './SignInForm';
 import SignInForm from './SignInForm';
@@ -18,7 +19,13 @@ const SignInPage = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
 
-  const signInErrorMessage = signInError ? (
+  const signInErrorMessage = !signInError ? null : isAccountDisabledError(
+      signInError,
+    ) ? (
+    <div>
+      <FormattedMessage id="SignInPage.accountDisabled" />
+    </div>
+  ) : (
     <>
       <div>
         <FormattedMessage id="SignInPage.loginFailedText1" />
@@ -27,7 +34,7 @@ const SignInPage = () => {
         <FormattedMessage id="SignInPage.loginFailedText2" />
       </div>
     </>
-  ) : null;
+  );
 
   const handleSubmitSignIn = async (values: TSignInFormValues) => {
     await dispatch(authThunks.login(values)).unwrap();

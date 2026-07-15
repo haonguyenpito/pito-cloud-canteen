@@ -331,6 +331,11 @@ export type UserListing = DeepPartial<{
         id: string;
         isCompany: boolean;
         isAdmin: boolean;
+        // App-level account lock. Sharetribe cannot ban via API, so login and
+        // every permission checker gate on this flag instead.
+        isDisabled?: boolean;
+        disabledAt?: number;
+        disabledBy?: string;
         restaurantListingId?: string;
         isOnBoardingEmailSent: boolean;
         members: {

@@ -211,6 +211,16 @@ export const isBookerInOrderProgress = (error: TError) => {
 };
 
 /**
+ * The account lock is an app-level flag (`metadata.isDisabled`), not a
+ * Sharetribe error, so it arrives as an Error whose `name` we set ourselves
+ * rather than in `apiErrors`.
+ */
+export const isAccountDisabledError = (error: TError) =>
+  !!error &&
+  (error.name === EErrorCode.accountDisabled ||
+    hasErrorWithCode(error, EErrorCode.accountDisabled));
+
+/**
  * Check if the given API error (from `sdk.currentUser.changePassword(params)`)
  * is due to giving wrong password.
  */
