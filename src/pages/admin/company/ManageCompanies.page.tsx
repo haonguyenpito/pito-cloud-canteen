@@ -10,11 +10,13 @@ import Badge, { EBadgeType } from '@components/Badge/Badge';
 import Button from '@components/Button/Button';
 import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import IconEdit from '@components/Icons/IconEdit/IconEdit';
+import IconGroup from '@components/Icons/IconGroup/IconGroup';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import NamedLink from '@components/NamedLink/NamedLink';
 import type { TColumn } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
 import ToggleButton from '@components/ToggleButton/ToggleButton';
+import Tooltip from '@components/Tooltip/Tooltip';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { companyThunks } from '@redux/slices/company.slice';
@@ -112,13 +114,30 @@ const TABLE_COLUMN: TColumn[] = [
 
       return (
         <div className={css.tableActions}>
-          <Link href={`/admin/company/${id}/edit`}>
-            <Button
-              variant="inline"
-              className={classNames(css.actionButton, css.editButton)}>
-              <IconEdit className={css.icon} />
-            </Button>
-          </Link>
+          <Tooltip
+            placement="top"
+            tooltipContent={
+              <FormattedMessage id="ManageCompanies.manageParticipantsTooltip" />
+            }>
+            <Link href={`/admin/company/${id}/participants`}>
+              <Button variant="inline" className={css.actionButton}>
+                <IconGroup className={css.icon} />
+              </Button>
+            </Link>
+          </Tooltip>
+          <Tooltip
+            placement="top"
+            tooltipContent={
+              <FormattedMessage id="ManageCompanies.editTooltip" />
+            }>
+            <Link href={`/admin/company/${id}/edit`}>
+              <Button
+                variant="inline"
+                className={classNames(css.actionButton, css.editButton)}>
+                <IconEdit className={css.icon} />
+              </Button>
+            </Link>
+          </Tooltip>
           {!isDraft && (
             <ToggleButton
               name={id}

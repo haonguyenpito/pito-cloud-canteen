@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import omit from 'lodash/omit';
 
 import {
+  adminToggleUserDisabledApi,
   createDraftPartnerApi,
   deletePartnerApi,
   publishDraftPartnerApi,
@@ -29,6 +30,10 @@ type TPartnerStates = {
 
   deletePartnerInProgress: any;
   deletePartnerError: any;
+
+  // Holds the restaurantId of the row whose lock is being toggled.
+  togglePartnerDisabledInProgress: any;
+  togglePartnerDisabledError: any;
 
   // Create or edit partner slice
   createDraftPartnerInProgress: boolean;
@@ -84,6 +89,8 @@ const QUERY_RESTAURANTS = 'app/ManagePartnersPage/QUERY_RESTAURANTS';
 const SET_RESTAURANT_STATUS = 'app/ManagePartnersPage/SET_RESTAURANT_STATUS';
 
 const DELETE_RESTAURANT = 'app/ManagePartnersPage/DELETE_RESTAURANT';
+const TOGGLE_PARTNER_DISABLED =
+  'app/ManagePartnersPage/TOGGLE_PARTNER_DISABLED';
 
 const REQUEST_AVATAR_UPLOAD =
   'app/CreateAndEditPartnerPage/REQUEST_AVATAR_UPLOAD';
@@ -430,6 +437,35 @@ const deleteRestaurant = createAsyncThunk(
   },
 );
 
+type TTogglePartnerDisabledParams = {
+  partnerId: string;
+  // `restaurantId` labels the in-flight row for the spinner; not sent to the API.
+  restaurantId: string;
+  isDisabled: boolean;
+};
+
+const togglePartnerDisabled = createAsyncThunk(
+  TOGGLE_PARTNER_DISABLED,
+  async (
+    { partnerId, isDisabled }: TTogglePartnerDisabledParams,
+    { fulfillWithValue, rejectWithValue },
+  ) => {
+    try {
+      const { data } = await adminToggleUserDisabledApi(partnerId, isDisabled);
+
+      return fulfillWithValue(data);
+    } catch (error) {
+      console.error('Toggle partner disabled error : ', error);
+
+      return rejectWithValue(
+        storableError(
+          (error as { response?: { data?: unknown } })?.response?.data || error,
+        ),
+      );
+    }
+  },
+);
+
 const queryRestaurants = createAsyncThunk(
   QUERY_RESTAURANTS,
   async (params: any, { fulfillWithValue, rejectWithValue }) => {
@@ -478,6 +514,7 @@ export const partnerThunks = {
   queryRestaurants,
   setRestaurantStatus,
   deleteRestaurant,
+  togglePartnerDisabled,
 };
 
 const initialState: TPartnerStates = {
@@ -495,6 +532,9 @@ const initialState: TPartnerStates = {
 
   deletePartnerInProgress: false,
   deletePartnerError: null,
+
+  togglePartnerDisabledInProgress: null,
+  togglePartnerDisabledError: null,
   // handle create partner
   createDraftPartnerInProgress: false,
   createDraftPartnerError: null,
@@ -723,6 +763,20 @@ export const partnerSlice = createSlice({
         ...state,
         deletePartnerInProgress: null,
         deletePartnerError: action.payload,
+      }))
+      .addCase(togglePartnerDisabled.pending, (state, action) => ({
+        ...state,
+        togglePartnerDisabledInProgress: action.meta.arg.restaurantId,
+        togglePartnerDisabledError: null,
+      }))
+      .addCase(togglePartnerDisabled.fulfilled, (state) => ({
+        ...state,
+        togglePartnerDisabledInProgress: null,
+      }))
+      .addCase(togglePartnerDisabled.rejected, (state, action) => ({
+        ...state,
+        togglePartnerDisabledInProgress: null,
+        togglePartnerDisabledError: action.payload,
       }))
       .addCase(requestAvatarUpload.pending, (state, action) => {
         const { id } = action.meta.arg;

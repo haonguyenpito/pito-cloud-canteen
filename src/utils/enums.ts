@@ -116,6 +116,7 @@ export enum EErrorCode {
   missingStripeAccount = 'transaction-missing-stripe-account',
   newOwnerAlreadyACompanyUser = 'new-owner-already-a-company-user',
   bookerInOrderProgress = 'booker-in-order-progress',
+  accountDisabled = 'account-disabled',
 }
 
 export enum ECompanyStatus {

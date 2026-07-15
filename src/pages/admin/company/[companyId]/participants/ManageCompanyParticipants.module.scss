@@ -1,0 +1,52 @@
+@use '/src/styles/vars.scss' as *;
+@use '/src/styles/customMediaQueries.scss' as *;
+@use '/src/styles/mixins.scss' as *;
+
+.root {
+}
+
+.top {
+  margin: 0 0 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  @include pageTitle;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+}
+
+.boldTextRow {
+  font-weight: 600;
+}
+
+.subTextRow {
+  color: $neutralGray5;
+  font-size: 13px;
+}
+
+.actionButton {
+  white-space: nowrap;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+}
+
+.loadingIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.confirmContent {
+  padding: 8px 0;
+}

@@ -25,13 +25,17 @@ const PermissionGuard: React.FC<TPermissionGuardGuardProps> = (props) => {
   const { currentUserInProgress: currentUserIsLoading } = useAppSelector(
     (state) => state.user,
   );
-  const { isInactiveCompany } = useActiveCompany();
+  const { isInactiveCompany, isDisabledUser } = useActiveCompany();
   const { isRoleSelectModalOpen, onCloseRoleSelectModal } =
     useRoleSelectModalController();
 
   const renderComponent = () => {
     if (isIgnoredPermissionCheck) {
       return children;
+    }
+
+    if (isDisabledUser) {
+      return <InActiveUserScreen variant="disabled" />;
     }
 
     if (isInactiveCompany) {

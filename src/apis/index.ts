@@ -54,6 +54,11 @@ export const publishCompanyApi = (companyId: string, queryParams?: TObject) =>
 export const unActiveCompanyApi = (companyId: string, queryParams?: TObject) =>
   postApi(`/admin/users/company/${companyId}/unactive`, { queryParams });
 
+export const adminToggleUserDisabledApi = (
+  userId: string,
+  isDisabled: boolean,
+) => postApi(`/admin/users/${userId}/disable`, { isDisabled });
+
 export const createDraftPartnerApi = (body: TObject) =>
   postApi('/admin/users/partner/create-draft', body);
 
