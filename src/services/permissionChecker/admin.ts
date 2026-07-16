@@ -1,6 +1,7 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 import { EHttpStatusCode } from '@apis/errors';
+import { assertAccountEnabled } from '@helpers/userDisabledHelper';
 import { getSdk, handleError } from '@services/sdk';
 import { CurrentUser, denormalisedResponseEntities } from '@utils/data';
 
@@ -21,6 +22,8 @@ const adminChecker =
           message: 'Unauthenticated!',
         });
       }
+
+      if (!assertAccountEnabled(currentUser, res)) return;
 
       const { isAdmin = false } = CurrentUser(currentUser).getMetadata();
 

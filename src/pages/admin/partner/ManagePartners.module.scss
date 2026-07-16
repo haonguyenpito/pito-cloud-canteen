@@ -40,6 +40,16 @@
   color: $sematicGreen2;
 }
 
+.accountActiveBox {
+  background-color: $sematicGreen1;
+  color: $sematicGreen2;
+}
+
+.accountLockedBox {
+  background-color: $labelOrange1;
+  color: $labelOrange2;
+}
+
 .rowId {
   max-width: 100px;
   -webkit-line-clamp: 1; /* number of lines to show */
@@ -95,6 +105,9 @@
 }
 
 .profileMenuContent {
+  width: 200px;
+  padding: 8px 0;
+  margin-top: 10px;
   border-radius: 10px;
 }
 
@@ -174,12 +187,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-}
-
-.profileMenuContent {
-  width: 200px;
-  padding: 20px 0;
-  margin-top: 10px;
 }
 
 .overlay {

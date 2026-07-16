@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-shadow */
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import classNames from 'classnames';
 import isEmpty from 'lodash/isEmpty';
@@ -39,6 +39,13 @@ import ManagePartnerFilterForm from './components/MaganePartnerFilterForm/Manage
 import css from './ManagePartners.module.scss';
 
 type TManagePartnersPage = {};
+
+type TPartnerToToggle = {
+  partnerId: string;
+  restaurantId: string;
+  title: string;
+  isDisabled: boolean;
+};
 
 const TABLE_COLUMN: TColumn[] = [
   {
@@ -142,6 +149,32 @@ const TABLE_COLUMN: TColumn[] = [
     },
   },
   {
+    key: 'accountStatus',
+    label: 'Tài khoản',
+    render: (data: any) => {
+      if (data?.isDeleted || data?.isDraft) {
+        return <></>;
+      }
+
+      const classes = classNames(css.badge, {
+        [css.accountLockedBox]: data?.isDisabled,
+        [css.accountActiveBox]: !data?.isDisabled,
+      });
+
+      return (
+        <div className={classes}>
+          <FormattedMessage
+            id={
+              data?.isDisabled
+                ? 'ManagePartners.accountLocked'
+                : 'ManagePartners.accountActive'
+            }
+          />
+        </div>
+      );
+    },
+  },
+  {
     key: 'editAndDelete',
     label: '',
     render: (data: any) => {
@@ -198,6 +231,15 @@ const TABLE_COLUMN: TColumn[] = [
         data?.onSetUnsatisfactory(data?.id);
       };
 
+      const toggleDisabledHandle = () => {
+        data?.openTogglePartnerDisabledModal({
+          partnerId: data?.authorId,
+          restaurantId: data?.id,
+          title: data?.title,
+          isDisabled: !!data?.isDisabled,
+        });
+      };
+
       const isUnsatisfactory =
         data?.status === ERestaurantListingStatus.unsatisfactory;
       const isAuthorized = data?.status === ERestaurantListingStatus.authorized;
@@ -207,7 +249,7 @@ const TABLE_COLUMN: TColumn[] = [
       return (
         !data?.isDraft && (
           <div className={css.tableActions}>
-            {data?.setStatusLoading ? (
+            {data?.setStatusLoading || data?.toggleDisabledLoading ? (
               <IconSpinner className={css.loadingIcon} />
             ) : (
               <ProfileMenu>
@@ -239,6 +281,22 @@ const TABLE_COLUMN: TColumn[] = [
                       </InlineTextButton>
                     </ProfileMenuItem>
                   )}
+                  <ProfileMenuItem
+                    key="toggleDisabledBtn"
+                    className={css.profileMenuItem}>
+                    <InlineTextButton
+                      type="button"
+                      onClick={toggleDisabledHandle}
+                      className={css.actionBtn}>
+                      <FormattedMessage
+                        id={
+                          data?.isDisabled
+                            ? 'ManagePartners.enableAccountBtn'
+                            : 'ManagePartners.disableAccountBtn'
+                        }
+                      />
+                    </InlineTextButton>
+                  </ProfileMenuItem>
                 </ProfileMenuContent>
               </ProfileMenu>
             )}
@@ -273,9 +331,14 @@ const parseEntitiesToTableData = (
         address: entity.attributes.publicData?.location?.address,
         status: entity.attributes.metadata?.status,
         authorId: entity.author.id.uuid,
+        // The lock lives on the partner *user*, not the restaurant listing.
+        isDisabled:
+          entity.author.attributes.profile?.metadata?.isDisabled === true,
         ...extraData,
         setStatusLoading,
         deleteLoading,
+        toggleDisabledLoading:
+          entity.id.uuid === extraData?.toggleDisabledLoading,
         isDeleted: entity.attributes.metadata.isDeleted,
       },
     };
@@ -291,9 +354,13 @@ const ManagePartnersPage: React.FC<TManagePartnersPage> = () => {
     restaurantTableActionInProgress,
     deletePartnerInProgress,
     deletePartnerError,
+    togglePartnerDisabledInProgress,
+    togglePartnerDisabledError,
   } = useAppSelector((state) => state.partners);
   const router = useRouter();
   const deletePartnerAlertController = useBoolean();
+  const [partnerToToggle, setPartnerToToggle] =
+    useState<TPartnerToToggle | null>(null);
 
   const { query, pathname } = router;
   // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -341,6 +408,30 @@ const ManagePartnersPage: React.FC<TManagePartnersPage> = () => {
     }
   };
 
+  // `partnerToToggle.isDisabled` is the partner's CURRENT state; confirming
+  // flips it.
+  const closeTogglePartnerDisabledModal = () => {
+    if (togglePartnerDisabledInProgress) return;
+    setPartnerToToggle(null);
+  };
+
+  const onConfirmTogglePartnerDisabled = async () => {
+    if (!partnerToToggle) return;
+
+    const response = (await dispatch(
+      partnerThunks.togglePartnerDisabled({
+        partnerId: partnerToToggle.partnerId,
+        restaurantId: partnerToToggle.restaurantId,
+        isDisabled: !partnerToToggle.isDisabled,
+      }),
+    )) as any;
+
+    if (!response?.error) {
+      setPartnerToToggle(null);
+      dispatch(partnerThunks.queryRestaurants({ page, keywords }));
+    }
+  };
+
   const statusAsString = meta_status as string;
 
   const groupStatus = statusAsString
@@ -372,13 +463,16 @@ const ManagePartnersPage: React.FC<TManagePartnersPage> = () => {
         onSetAuthorized,
         setStatusLoading: restaurantTableActionInProgress,
         deleteLoading: deletePartnerInProgress,
+        toggleDisabledLoading: togglePartnerDisabledInProgress,
         onDeleteRestaurant,
+        openTogglePartnerDisabledModal: setPartnerToToggle,
       }),
     [
       restaurantRefs,
       page,
       restaurantTableActionInProgress,
       deletePartnerInProgress,
+      togglePartnerDisabledInProgress,
     ],
   );
 
@@ -476,6 +570,44 @@ const ManagePartnersPage: React.FC<TManagePartnersPage> = () => {
           {intl.formatMessage({
             id: 'ManagePartnersPage.deletePartnerAlert.message',
           })}
+        </div>
+      </AlertModal>
+
+      <AlertModal
+        isOpen={!!partnerToToggle}
+        handleClose={closeTogglePartnerDisabledModal}
+        onCancel={closeTogglePartnerDisabledModal}
+        onConfirm={onConfirmTogglePartnerDisabled}
+        confirmInProgress={!!togglePartnerDisabledInProgress}
+        confirmDisabled={!!togglePartnerDisabledInProgress}
+        cancelDisabled={!!togglePartnerDisabledInProgress}
+        title={intl.formatMessage({
+          id: partnerToToggle?.isDisabled
+            ? 'ManagePartners.enableAccountBtn'
+            : 'ManagePartners.disableAccountBtn',
+        })}
+        confirmLabel={intl.formatMessage({
+          id: partnerToToggle?.isDisabled
+            ? 'ManagePartners.enableAccountBtn'
+            : 'ManagePartners.disableAccountBtn',
+        })}
+        cancelLabel={intl.formatMessage({
+          id: 'ManagePartners.toggleAccountCancel',
+        })}>
+        <div>
+          {intl.formatMessage(
+            {
+              id: partnerToToggle?.isDisabled
+                ? 'ManagePartners.enableAccountConfirmContent'
+                : 'ManagePartners.disableAccountConfirmContent',
+            },
+            {
+              name: <b>{partnerToToggle?.title}</b>,
+            },
+          )}
+          {togglePartnerDisabledError && (
+            <ErrorMessage message={togglePartnerDisabledError.message} />
+          )}
         </div>
       </AlertModal>
     </div>

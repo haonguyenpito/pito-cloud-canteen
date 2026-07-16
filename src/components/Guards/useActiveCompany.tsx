@@ -1,3 +1,4 @@
+import { isUserDisabled } from '@helpers/userDisabledHelper';
 import { useAppSelector } from '@hooks/reduxHooks';
 import { User } from '@utils/data';
 import { ECompanyStates, EUserSystemPermission } from '@utils/enums';
@@ -11,7 +12,11 @@ const useActiveCompany = () => {
     userPermission === EUserSystemPermission.company &&
     userState === ECompanyStates.unactive;
 
-  return { isInactiveCompany };
+  // Unlike the company activation lifecycle above, the account lock applies to
+  // every role — partner, participant and company alike.
+  const isDisabledUser = isUserDisabled(currentUser as unknown as TUser);
+
+  return { isInactiveCompany, isDisabledUser };
 };
 
 export default useActiveCompany;

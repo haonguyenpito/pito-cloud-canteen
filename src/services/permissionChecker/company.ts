@@ -1,6 +1,7 @@
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 import { EHttpStatusCode } from '@apis/errors';
+import { assertAccountEnabled } from '@helpers/userDisabledHelper';
 import { getSdk, handleError } from '@services/sdk';
 import { CompanyPermissions } from '@src/types/UserPermission';
 import { denormalisedResponseEntities } from '@utils/data';
@@ -18,6 +19,14 @@ const companyChecker =
       const sdk = getSdk(req, res);
       const currentUserResponse = await sdk.currentUser.show();
       const [currentUser] = denormalisedResponseEntities(currentUserResponse);
+
+      if (!currentUser) {
+        return res.status(EHttpStatusCode.Unauthorized).json({
+          message: 'Unauthenticated!',
+        });
+      }
+
+      if (!assertAccountEnabled(currentUser, res)) return;
 
       const { company = {}, companyList = [] } =
         currentUser.attributes.profile.metadata;

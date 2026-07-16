@@ -10,12 +10,14 @@ import {
   deleteMemberApi,
 } from '@apis/companyApi';
 import {
+  adminToggleUserDisabledApi,
   getCompanyMembersDetailsApi,
   queryCompanyMembersApi,
 } from '@apis/index';
 import { checkUserExistedApi, checkUsersExistedApi } from '@apis/userApi';
 import type { POSTAddMembersBody } from '@pages/api/company/members/add-members.api';
 import { createAsyncThunk } from '@redux/redux.helper';
+import type { EMemberAccountStatus } from '@src/utils/enums';
 import { storableAxiosError } from '@utils/errors';
 import type { TObject, TUser } from '@utils/types';
 
@@ -50,6 +52,14 @@ interface TCompanyMemberState {
   companyMembersByCompanyId: TCompanyMembersByCompanyId | null;
   getCompanyMembersByCompanyIdInProgress: boolean;
   getCompanyMembersByCompanyIdError: any;
+
+  togglingDisabledMemberId: string | null;
+  toggleMemberDisabledError: any;
+
+  toggleMembersDisabledInProgress: boolean;
+  toggleMembersDisabledError: any;
+  // Emails the server refused to lock (admins / bookers with a live order).
+  toggleMembersDisabledFailedEmails: string[];
 }
 
 const initialState: TCompanyMemberState = {
@@ -74,6 +84,13 @@ const initialState: TCompanyMemberState = {
   companyMembersByCompanyId: null,
   getCompanyMembersByCompanyIdInProgress: false,
   getCompanyMembersByCompanyIdError: null,
+
+  togglingDisabledMemberId: null,
+  toggleMemberDisabledError: null,
+
+  toggleMembersDisabledInProgress: false,
+  toggleMembersDisabledError: null,
+  toggleMembersDisabledFailedEmails: [],
 };
 
 const CHECK_EMAILS_EXISTED = 'app/companyMember/CHECK_EMAILS_EXISTED';
@@ -88,13 +105,32 @@ const ADMIN_ADD_MEMBERS = 'app/companyMember/ADMIN_ADD_MEMBERS';
 const ADMIN_UPDATE_MEMBER_PERMISSION =
   'app/companyMember/ADMIN_UPDATE_MEMBER_PERMISSION';
 
+const ADMIN_TOGGLE_MEMBER_DISABLED =
+  'app/companyMember/ADMIN_TOGGLE_MEMBER_DISABLED';
+const ADMIN_TOGGLE_MEMBERS_DISABLED =
+  'app/companyMember/ADMIN_TOGGLE_MEMBERS_DISABLED';
+
 const GET_COMPANY_MEMBERS_BY_COMPANY_IDS =
   'app/companyMember/GET_COMPANY_MEMBERS_BY_COMPANY_IDS';
 
+/**
+ * Every existing caller passes a bare companyId and wants the whole list; only
+ * the admin participants page filters by account status. Kept as a union so
+ * those call sites stay untouched.
+ */
+export type TQueryCompanyMembersParams =
+  | string
+  | { companyId: string; status?: EMemberAccountStatus };
+
 const queryCompanyMembers = createAsyncThunk(
   QUERY_COMPANY_MEMBERS,
-  async (id: string) => {
-    const { data } = await queryCompanyMembersApi(id);
+  async (params: TQueryCompanyMembersParams) => {
+    const { companyId, status } =
+      typeof params === 'string'
+        ? { companyId: params, status: undefined }
+        : params;
+
+    const { data } = await queryCompanyMembersApi(companyId, status);
 
     return data;
   },
@@ -221,6 +257,76 @@ const adminUpdateMemberPermission = createAsyncThunk(
   { serializeError: storableAxiosError },
 );
 
+const adminToggleMemberDisabled = createAsyncThunk(
+  ADMIN_TOGGLE_MEMBER_DISABLED,
+  async (
+    {
+      companyId,
+      userId,
+      isDisabled,
+      status,
+    }: {
+      companyId: string;
+      userId: string;
+      isDisabled: boolean;
+      status?: EMemberAccountStatus;
+    },
+    { dispatch },
+  ) => {
+    const { data } = await adminToggleUserDisabledApi(userId, isDisabled);
+    // Refetch under the same filter, otherwise the list silently falls back to
+    // showing every member.
+    await dispatch(queryCompanyMembers({ companyId, status }));
+
+    return data;
+  },
+  { serializeError: storableAxiosError },
+);
+
+/**
+ * Locks/unlocks several members at once. Deliberately calls the single-user
+ * endpoint per user so every server-side guard still runs (admins and bookers
+ * with a live order are refused individually) — a partial success is normal, so
+ * the failed emails are returned rather than swallowed.
+ */
+const adminToggleMembersDisabled = createAsyncThunk(
+  ADMIN_TOGGLE_MEMBERS_DISABLED,
+  async (
+    {
+      companyId,
+      members,
+      isDisabled,
+      status,
+    }: {
+      companyId: string;
+      members: { userId: string; email: string }[];
+      isDisabled: boolean;
+      status?: EMemberAccountStatus;
+    },
+    { dispatch },
+  ) => {
+    const results = await Promise.all(
+      members.map(async ({ userId, email }) => {
+        try {
+          await adminToggleUserDisabledApi(userId, isDisabled);
+
+          return { email, ok: true };
+        } catch (error) {
+          return { email, ok: false };
+        }
+      }),
+    );
+
+    await dispatch(queryCompanyMembers({ companyId, status }));
+
+    return {
+      failedEmails: results.filter((r) => !r.ok).map((r) => r.email),
+      successCount: results.filter((r) => r.ok).length,
+    };
+  },
+  { serializeError: storableAxiosError },
+);
+
 const getCompanyMemberByCompanyIds = createAsyncThunk(
   GET_COMPANY_MEMBERS_BY_COMPANY_IDS,
   async (ids: string[], { fulfillWithValue }) => {
@@ -256,6 +362,8 @@ export const companyMemberThunks = {
   adminAddMembers,
   adminDeleteMember,
   adminUpdateMemberPermission,
+  adminToggleMemberDisabled,
+  adminToggleMembersDisabled,
   getCompanyMemberByCompanyIds,
 };
 
@@ -266,6 +374,10 @@ export const companyMemberSlice = createSlice({
     resetCheckedEmailInputChunk: (state) => {
       state.checkedEmailInputChunk = [];
     },
+    clearToggleMembersDisabledResult: (state) => {
+      state.toggleMembersDisabledFailedEmails = [];
+      state.toggleMembersDisabledError = null;
+    },
     resetError: (state) => {
       state.addMembersError = null;
       state.deleteMemberError = null;
@@ -273,6 +385,38 @@ export const companyMemberSlice = createSlice({
   },
   extraReducers(builder) {
     builder
+      .addCase(adminToggleMemberDisabled.pending, (state, { meta }) => ({
+        ...state,
+        togglingDisabledMemberId: meta.arg.userId,
+        toggleMemberDisabledError: null,
+      }))
+      .addCase(adminToggleMemberDisabled.fulfilled, (state) => ({
+        ...state,
+        togglingDisabledMemberId: null,
+      }))
+      .addCase(adminToggleMemberDisabled.rejected, (state, { error }) => ({
+        ...state,
+        togglingDisabledMemberId: null,
+        toggleMemberDisabledError: error,
+      }))
+
+      .addCase(adminToggleMembersDisabled.pending, (state) => ({
+        ...state,
+        toggleMembersDisabledInProgress: true,
+        toggleMembersDisabledError: null,
+        toggleMembersDisabledFailedEmails: [],
+      }))
+      .addCase(adminToggleMembersDisabled.fulfilled, (state, { payload }) => ({
+        ...state,
+        toggleMembersDisabledInProgress: false,
+        toggleMembersDisabledFailedEmails: payload.failedEmails,
+      }))
+      .addCase(adminToggleMembersDisabled.rejected, (state, { error }) => ({
+        ...state,
+        toggleMembersDisabledInProgress: false,
+        toggleMembersDisabledError: error,
+      }))
+
       .addCase(checkEmailExisted.pending, (state) => ({
         ...state,
         checkEmailExistedInProgress: true,

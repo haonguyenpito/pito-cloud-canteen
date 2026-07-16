@@ -26,14 +26,14 @@ export const adminDeleteMemberApi = ({
 
 export type UpdateCompanyApiBody = {
   companyId: string;
+  // The API only forwards `id`, `publicData` and `profileImageId`. `metadata`
+  // is not settable here — it holds `isAdmin` / `isDisabled` / `userState`.
   dataParams: {
     id: string;
     publicData?: {
       [key: string]: any;
     };
-    metadata?: {
-      [key: string]: any;
-    };
+    profileImageId?: string;
   };
   queryParams: {
     expand: boolean;

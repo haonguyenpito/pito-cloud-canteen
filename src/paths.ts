@@ -169,6 +169,7 @@ export const adminPaths = {
   ManageUsers: '/admin/users',
   ManageCompanies: '/admin/company',
   EditCompany: '/admin/company/[companyId]/edit',
+  ManageCompanyParticipants: '/admin/company/[companyId]/participants',
   CreateCompany: '/admin/company/create',
   ManagePartners: '/admin/partner',
   CreatePartner: '/admin/partner/create',
@@ -203,6 +204,10 @@ export const adminRoutes = {
   CompanyDetails: {
     path: '/admin/company/[companyId]',
     label: 'Thông tin khách hàng',
+  },
+  ManageCompanyParticipants: {
+    path: '/admin/company/[companyId]/participants',
+    label: 'Quản lý người dùng',
   },
   CreateCompany: {
     path: '/admin/company/create',

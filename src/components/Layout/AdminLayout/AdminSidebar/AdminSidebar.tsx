@@ -82,6 +82,7 @@ const LIST_SIDEBAR_MENU: TSidebarMenu[] = [
           adminRoutes.CreateCompany.path,
           adminRoutes.EditCompany.path,
           adminRoutes.CompanyDetails.path,
+          adminRoutes.ManageCompanyParticipants.path,
         ],
       },
       {
