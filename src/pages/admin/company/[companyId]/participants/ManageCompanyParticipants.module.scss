@@ -6,7 +6,7 @@
 }
 
 .top {
-  margin: 0 0 10px 0;
+  margin: 0 0 20px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -14,6 +14,49 @@
 
 .title {
   @include pageTitle;
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  /* FieldSelect stacks its label above the control, so align on the baseline of
+     the control row rather than the centre of the whole field. */
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+/* Lands on FieldSelect's root; the inner select is width:100% of it. */
+.filterField {
+  flex: 0 0 auto;
+  width: 220px;
+}
+
+.resultCount {
+  font-size: 14px;
+  color: $neutralGray5;
+  white-space: nowrap;
+  margin-bottom: 12px;
+}
+
+.bulkActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bulkButton {
+  white-space: nowrap;
+  width: auto;
 }
 
 .tableWrapper {
@@ -22,6 +65,21 @@
 
 .table {
   width: 100%;
+
+  /* The checkbox column: the head cell pads 20px left while body cells pad
+     10px, so without this the header tick sits off-axis from the rows. */
+  thead td:first-child,
+  tbody td:first-child {
+    width: 52px;
+    padding-left: 20px;
+    padding-right: 0;
+  }
+
+  /* `label=" "` still renders the 12px gap meant for real label text. */
+  thead td:first-child label > span,
+  tbody td:first-child label > span {
+    margin-right: 0;
+  }
 }
 
 .boldTextRow {

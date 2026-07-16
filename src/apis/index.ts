@@ -1,5 +1,6 @@
 import type { OrderListing } from '@src/types';
 import type { TPlanData, TUpdateParticipantOrderBody } from '@src/types/order';
+import type { EMemberAccountStatus } from '@src/utils/enums';
 import type {
   TCreateCompanyApiParams,
   TObject,
@@ -38,8 +39,15 @@ export const createCompanyApi = ({
   queryParams: TObject;
 }) => postApi('/admin/users/company/create', { dataParams, queryParams });
 
-export const queryCompanyMembersApi = (companyId: string) => {
-  return getApi(`/admin/users/company/${companyId}/members`);
+export const queryCompanyMembersApi = (
+  companyId: string,
+  status?: EMemberAccountStatus,
+) => {
+  return getApi(
+    `/admin/users/company/${companyId}/members${
+      status ? `?status=${status}` : ''
+    }`,
+  );
 };
 
 export const showCompanyApi = (id: string) =>

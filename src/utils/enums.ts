@@ -130,6 +130,13 @@ export enum ECompanyStates {
   unactive = 'unactive',
 }
 
+export enum EMemberAccountStatus {
+  all = 'all',
+  active = 'active',
+  disabled = 'disabled',
+  noAccount = 'noAccount',
+}
+
 export enum EListingType {
   restaurant = 'restaurant',
   food = 'food',
