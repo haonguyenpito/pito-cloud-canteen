@@ -5,7 +5,6 @@ set -e
 source ./scripts/set_environment.sh
 
 echo -e "${COLOR}:::::::::::::CircleCI Detected::::::::::::::${NC}"
-  echo "npm-debug.log\nyarn-error.log" > .dockerignore
   export AWS_PRIVATE_KEY_PATH='permission.pem'
 
 if [[ "$CIRCLE_BRANCH" == "master" ]] || [[ "$CIRCLE_BRANCH" == "main" ]] || [[ "$CIRCLE_BRANCH" == "production" ]] ; then

@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.vscode
+.idea
+npm-debug.log
+yarn-error.log
+.DS_Store
+serverless
+tests
+docs
