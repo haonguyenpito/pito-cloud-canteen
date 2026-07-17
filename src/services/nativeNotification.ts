@@ -223,6 +223,20 @@ export const createNativeNotification = async (
       }
       break;
 
+    case ENativeNotificationType.Farewell:
+      {
+        const url = `${BASE_URL}/participant/orders?farewell=true`;
+        oneSignalUserIds.forEach((oneSignalUserId: string) => {
+          sendNotification({
+            title: 'PITO Cloud Canteen',
+            content: `Tạm biệt và cảm ơn bạn ${fullName} đã đồng hành cùng PITO [Xem chi tiết]`,
+            url,
+            oneSignalUserId,
+          });
+        });
+      }
+      break;
+
     default:
       break;
   }
