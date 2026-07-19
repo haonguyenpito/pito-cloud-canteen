@@ -86,54 +86,54 @@ const FieldPccFeeTiers: React.FC<TFieldPccFeeTiers> = ({ id, name }) => {
               const isLast = index === total - 1;
               const prevMaxQty =
                 index > 0 ? fields.value?.[index - 1]?.maxQuantity ?? 0 : 0;
+              const lowerBound = index === 0 ? 1 : Number(prevMaxQty) + 1;
 
               return (
                 <Fragment key={fieldName}>
                   <div className={css.row}>
                     <div className={css.quantityCell}>
-                      <span className={css.rangePrefix}>
-                        {index === 0
-                          ? intl.formatMessage({
-                              id: 'FieldPccFeeTiers.firstRowLabel',
-                            })
-                          : `${prevMaxQty} <`}
-                      </span>
                       {isLast ? (
                         <span className={css.unbounded}>
                           {intl.formatMessage(
                             { id: 'FieldPccFeeTiers.unboundedLabel' },
-                            { value: prevMaxQty },
+                            { value: lowerBound },
                           )}
                         </span>
                       ) : (
-                        <FieldTextInput
-                          id={`${fieldName}.maxQuantity`}
-                          name={`${fieldName}.maxQuantity`}
-                          type="number"
-                          placeholder={intl.formatMessage({
-                            id: 'FieldPccFeeTiers.quantityPlaceholder',
-                          })}
-                          className={css.input}
-                          validate={composeValidators(
-                            required(
-                              intl.formatMessage({
-                                id: 'FieldPccFeeTiers.error.quantityRequired',
-                              }),
-                            ),
-                            positiveInteger(
-                              intl.formatMessage({
-                                id: 'FieldPccFeeTiers.error.quantityPositiveInt',
-                              }),
-                            ),
-                            quantityIncreasing(
-                              intl.formatMessage({
-                                id: 'FieldPccFeeTiers.error.quantityIncreasing',
-                              }),
-                              index,
-                              name,
-                            ),
-                          )}
-                        />
+                        <>
+                          <span
+                            className={
+                              css.rangePrefix
+                            }>{`${lowerBound} - `}</span>
+                          <FieldTextInput
+                            id={`${fieldName}.maxQuantity`}
+                            name={`${fieldName}.maxQuantity`}
+                            type="number"
+                            placeholder={intl.formatMessage({
+                              id: 'FieldPccFeeTiers.quantityPlaceholder',
+                            })}
+                            className={css.input}
+                            validate={composeValidators(
+                              required(
+                                intl.formatMessage({
+                                  id: 'FieldPccFeeTiers.error.quantityRequired',
+                                }),
+                              ),
+                              positiveInteger(
+                                intl.formatMessage({
+                                  id: 'FieldPccFeeTiers.error.quantityPositiveInt',
+                                }),
+                              ),
+                              quantityIncreasing(
+                                intl.formatMessage({
+                                  id: 'FieldPccFeeTiers.error.quantityIncreasing',
+                                }),
+                                index,
+                                name,
+                              ),
+                            )}
+                          />
+                        </>
                       )}
                     </div>
 
