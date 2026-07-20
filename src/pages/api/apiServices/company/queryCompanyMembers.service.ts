@@ -4,9 +4,9 @@ import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/sdk';
 import { User } from '@src/utils/data';
 import { EImageVariants, EMemberAccountStatus } from '@src/utils/enums';
-import type { TObject, TUser } from '@src/utils/types';
+import type { TUser } from '@src/utils/types';
 
-const sortByEmail = (list: TObject[]) =>
+const sortByEmail = <T extends { email?: string }>(list: T[]) =>
   [...list].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
 
 const sortByEmail = <T extends { email?: string }>(list: T[]) =>
