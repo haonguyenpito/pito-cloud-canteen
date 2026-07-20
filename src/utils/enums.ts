@@ -443,6 +443,7 @@ export enum ENativeNotificationType {
   AdminRejectPartnerMenu = 'AdminRejectPartnerMenu',
   Events = 'Events',
   Tet2026 = 'Tet2026',
+  Farewell = 'Farewell',
 }
 
 export enum EBookerNativeNotificationType {

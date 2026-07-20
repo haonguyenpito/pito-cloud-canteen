@@ -54,6 +54,7 @@ import ParticipantToolbar from '../components/ParticipantToolbar/ParticipantTool
 import { SubOrdersThunks } from '../sub-orders/SubOrders.slice';
 
 import EmptySubOrder from './components/EmptySubOrder/EmptySubOrder';
+import FarewellModal from './components/FarewellModal/FarewellModal';
 import NotificationModal from './components/NotificationModal/NotificationModal';
 import OnboardingOrderModal from './components/OnboardingOrderModal/OnboardingOrderModal';
 import OnboardingTour from './components/OnboardingTour/OnboardingTour';
@@ -74,6 +75,7 @@ const OrderListPage = () => {
     planId: planIdFromQuery,
     timestamp: timestampFromQuery,
     viewMode,
+    farewell: farewellFromQuery,
   } = router.query;
   const localStorageView = getItem('participant_calendarView');
   const isValidLocalStorageView = ['month', 'week'].includes(
@@ -106,6 +108,7 @@ const OrderListPage = () => {
   const hasFetchedOrders = useRef(false);
 
   const subOrderDetailModalControl = useBoolean();
+  const farewellModalControl = useBoolean();
   const { isMobileLayout } = useViewport();
   const notificationModalControl = useBoolean();
   const currentUser = useAppSelector((state) => state.user.currentUser);
@@ -677,6 +680,20 @@ const OrderListPage = () => {
   }, []);
 
   useEffect(() => {
+    if (farewellFromQuery === 'true') {
+      farewellModalControl.setTrue();
+    }
+  }, [farewellFromQuery, farewellModalControl]);
+
+  const handleCloseFarewellModal = () => {
+    farewellModalControl.setFalse();
+    const { farewell: _farewell, ...restQuery } = router.query;
+    router.replace({ pathname: router.pathname, query: restQuery }, undefined, {
+      shallow: true,
+    });
+  };
+
+  useEffect(() => {
     if (
       ordersNotConfirmFirstTime &&
       ordersNotConfirmFirstTime.length &&
@@ -824,6 +841,10 @@ const OrderListPage = () => {
           onClose={notificationModalControl.setFalse}
         />
       </RenderWhen>
+      <FarewellModal
+        isOpen={farewellModalControl.value}
+        handleClose={handleCloseFarewellModal}
+      />
     </>
   );
 
