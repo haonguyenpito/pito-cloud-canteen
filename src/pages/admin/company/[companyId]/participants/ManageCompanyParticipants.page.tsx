@@ -150,26 +150,23 @@ const TABLE_COLUMN: TColumn[] = [
   },
 ];
 
+const PAGE_SIZE = 10;
+
 const ManageCompanyParticipantsPage = () => {
   const intl = useIntl();
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const { companyId } = router.query;
+  const { companyId, page = 1 } = router.query;
   const [memberToToggle, setMemberToToggle] = useState<TObject | null>(null);
   const [statusFilter, setStatusFilter] = useState<EMemberAccountStatus>(
     EMemberAccountStatus.all,
   );
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
-  // Which bulk action the confirm modal is asking about; null = closed.
   const [bulkAction, setBulkAction] = useState<EBulkAction | null>(null);
-  // The partial-failure modal opens after `bulkAction` is cleared, so it needs
-  // its own memory of which way the last bulk run went.
   const [lastBulkAction, setLastBulkAction] = useState<EBulkAction>(
     EBulkAction.lock,
   );
-  // TableForm keeps the checkbox state in its own FinalForm; bumping this key
-  // remounts it, which is the only way to clear the ticks after a bulk action.
   const [tableResetKey, setTableResetKey] = useState<number>(0);
 
   const {
@@ -306,12 +303,30 @@ const ManageCompanyParticipantsPage = () => {
 
   const isSelectedMemberDisabled = isMemberDisabled(memberToToggle || {});
 
+  const currentPage = Number(page) || 1;
+  const pagedTableData = useMemo(
+    () =>
+      tableData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [tableData, currentPage],
+  );
+
+  const pagination = {
+    page: currentPage,
+    perPage: PAGE_SIZE,
+    totalPages: Math.ceil(tableData.length / PAGE_SIZE),
+    totalItems: tableData.length,
+  };
+
   const handleStatusFilterChange = (value: EMemberAccountStatus) => {
     // Drop the selection: keeping it would let a bulk lock hit rows the admin
     // can no longer see, and the refetch replaces the rows anyway.
     setStatusFilter(value);
     setSelectedEmails([]);
     setTableResetKey((k) => k + 1);
+    router.push({
+      pathname: router.pathname,
+      query: { ...router.query, page: 1 },
+    });
   };
 
   return (
@@ -399,9 +414,15 @@ const ManageCompanyParticipantsPage = () => {
         <TableForm
           key={tableResetKey}
           columns={TABLE_COLUMN}
-          data={tableData}
+          data={pagedTableData}
           hasCheckbox
           exposeValues={getExposeValues}
+          pagination={pagination}
+          pageSearchParams={router.query}
+          paginationPath={router.pathname.replace(
+            '[companyId]',
+            companyId as string,
+          )}
           tableWrapperClassName={css.tableWrapper}
           tableClassName={css.table}
         />

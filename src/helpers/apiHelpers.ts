@@ -25,7 +25,7 @@ export const queryAllPages = async ({
   pagesPerRequest = 100,
   fields = {},
 }: any) => {
-  let result: any = [];
+  const resultsByPage: Record<number, any[]> = {};
   const queryPage = async ({ page }: any) => {
     const response = await sdkModel.query({
       include,
@@ -34,7 +34,7 @@ export const queryAllPages = async ({
       ...query,
       page,
     });
-    result = [...result, ...denormalisedResponseEntities(response)];
+    resultsByPage[page] = denormalisedResponseEntities(response);
 
     return response;
   };
@@ -44,11 +44,9 @@ export const queryAllPages = async ({
   const remainPages = calculateRemainPages(meta);
   if (remainPages.length) {
     await Promise.all(remainPages.map((page) => queryPage({ page })));
-
-    return result;
   }
 
-  return result;
+  return [1, ...remainPages].flatMap((page) => resultsByPage[page]);
 };
 
 export const queryAllUsers = async ({ query, include = [] }: any = {}) => {

@@ -1,9 +1,13 @@
+import { queryAllUsers } from '@helpers/apiHelpers';
 import { isUserDisabled } from '@helpers/userDisabledHelper';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/sdk';
 import { User } from '@src/utils/data';
 import { EImageVariants, EMemberAccountStatus } from '@src/utils/enums';
-import type { TUser } from '@src/utils/types';
+import type { TObject, TUser } from '@src/utils/types';
+
+const sortByEmail = (list: TObject[]) =>
+  [...list].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
 
 const queryCompanyMembers = async (
   companyId: string,
@@ -21,31 +25,24 @@ const queryCompanyMembers = async (
     .filter((key: string) => !members[key].id)
     .map((key: string) => members[key]);
 
-  // Invited-but-never-registered members live only in the company metadata —
-  // there is no Sharetribe user to query for them.
   if (status === EMemberAccountStatus.noAccount) {
-    return nonExistedUsers;
+    return sortByEmail(nonExistedUsers);
   }
 
-  const existedUserQueryResponse = await integrationSdk.users.query({
-    meta_companyList: companyId,
-    // `meta_isDisabled: true` is a real server-side filter. The negative case
-    // is not: a meta_ filter only matches users that actually have the key, and
-    // members who were never locked have no `isDisabled` at all — querying
-    // `meta_isDisabled: false` would silently drop them. So `active` is
-    // computed as the complement below.
-    ...(status === EMemberAccountStatus.disabled
-      ? { meta_isDisabled: true }
-      : {}),
-    include: 'profileImage',
-    'fields.image': [
-      `variants.${EImageVariants.squareSmall}`,
-      `variants.${EImageVariants.squareSmall2x}`,
-      `variants.${EImageVariants.scaledLarge}`,
-    ],
+  const existedUsers = await queryAllUsers({
+    query: {
+      meta_companyList: companyId,
+      ...(status === EMemberAccountStatus.disabled
+        ? { meta_isDisabled: true }
+        : {}),
+      'fields.image': [
+        `variants.${EImageVariants.squareSmall}`,
+        `variants.${EImageVariants.squareSmall2x}`,
+        `variants.${EImageVariants.scaledLarge}`,
+      ],
+    },
+    include: ['profileImage'],
   });
-
-  const existedUsers = denormalisedResponseEntities(existedUserQueryResponse);
 
   const filteredUsers =
     status === EMemberAccountStatus.active
@@ -62,9 +59,12 @@ const queryCompanyMembers = async (
 
   // `active` and `disabled` are both account states, so a member without an
   // account belongs to neither result.
-  return status === EMemberAccountStatus.all
-    ? [...membersWithDetails, ...nonExistedUsers]
-    : membersWithDetails;
+  const result =
+    status === EMemberAccountStatus.all
+      ? [...membersWithDetails, ...nonExistedUsers]
+      : membersWithDetails;
+
+  return sortByEmail(result);
 };
 
 export default queryCompanyMembers;
