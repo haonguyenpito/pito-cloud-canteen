@@ -24,7 +24,7 @@ export const queryAllPages = async ({
   include,
   pagesPerRequest = 100,
   fields = {},
-}: any) => {
+}: any): Promise<any> => {
   const resultsByPage: Record<number, any[]> = {};
   const queryPage = async ({ page }: any) => {
     const response = await sdkModel.query({
