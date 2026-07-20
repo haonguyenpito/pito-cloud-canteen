@@ -150,14 +150,15 @@ const TABLE_COLUMN: TColumn[] = [
   },
 ];
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 const ManageCompanyParticipantsPage = () => {
   const intl = useIntl();
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const { companyId, page = 1 } = router.query;
+  const { companyId, page = 1, perPage = DEFAULT_PAGE_SIZE } = router.query;
   const [memberToToggle, setMemberToToggle] = useState<TObject | null>(null);
   const [statusFilter, setStatusFilter] = useState<EMemberAccountStatus>(
     EMemberAccountStatus.all,
@@ -304,17 +305,32 @@ const ManageCompanyParticipantsPage = () => {
   const isSelectedMemberDisabled = isMemberDisabled(memberToToggle || {});
 
   const currentPage = Number(page) || 1;
+  const currentPageSize = Number(perPage) || DEFAULT_PAGE_SIZE;
   const pagedTableData = useMemo(
     () =>
-      tableData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [tableData, currentPage],
+      tableData.slice(
+        (currentPage - 1) * currentPageSize,
+        currentPage * currentPageSize,
+      ),
+    [tableData, currentPage, currentPageSize],
   );
 
   const pagination = {
     page: currentPage,
-    perPage: PAGE_SIZE,
-    totalPages: Math.ceil(tableData.length / PAGE_SIZE),
+    perPage: currentPageSize,
+    totalPages: Math.ceil(tableData.length / currentPageSize),
     totalItems: tableData.length,
+  };
+
+  const handlePageChange = (nextPage: number, nextPageSize?: number) => {
+    router.push({
+      pathname: router.pathname.replace('[companyId]', companyId as string),
+      query: {
+        ...router.query,
+        page: nextPageSize && nextPageSize !== currentPageSize ? 1 : nextPage,
+        ...(nextPageSize ? { perPage: nextPageSize } : {}),
+      },
+    });
   };
 
   const handleStatusFilterChange = (value: EMemberAccountStatus) => {
@@ -423,6 +439,11 @@ const ManageCompanyParticipantsPage = () => {
             '[companyId]',
             companyId as string,
           )}
+          onCustomPageChange={handlePageChange}
+          paginationProps={{
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS,
+          }}
           tableWrapperClassName={css.tableWrapper}
           tableClassName={css.table}
         />
