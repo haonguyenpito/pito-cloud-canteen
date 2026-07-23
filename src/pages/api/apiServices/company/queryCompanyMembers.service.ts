@@ -9,9 +9,6 @@ import type { TUser } from '@src/utils/types';
 const sortByEmail = <T extends { email?: string }>(list: T[]) =>
   [...list].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
 
-const sortByEmail = <T extends { email?: string }>(list: T[]) =>
-  [...list].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-
 const queryCompanyMembers = async (
   companyId: string,
   status: EMemberAccountStatus = EMemberAccountStatus.all,
