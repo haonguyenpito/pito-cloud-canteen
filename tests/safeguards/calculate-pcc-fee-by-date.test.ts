@@ -107,6 +107,96 @@ describe('calculatePCCFeeByDate', () => {
     });
   });
 
+  describe('group order — specific PCC fee tiers override', () => {
+    it('returns the matching tier price for N joined members', () => {
+      const memberOrders = {
+        user1: { foodId: 'food-1', status: joined },
+        user2: { foodId: 'food-2', status: joined },
+        user3: { foodId: 'food-3', status: joined },
+      };
+      expect(
+        calculatePCCFeeByDate({
+          isGroupOrder: true,
+          memberOrders,
+          lineItems: [],
+          hasSpecificPCCFee: true,
+          specificPCCFee: 0,
+          specificPCCFeeTiers: [
+            { maxQuantity: 5, price: 100_000 },
+            { maxQuantity: null, price: 200_000 },
+          ],
+        }),
+      ).toBe(100_000);
+    });
+
+    it('returns a literal 0 fee for a matched 0-price tier', () => {
+      const memberOrders = {
+        user1: { foodId: 'food-1', status: joined },
+        user2: { foodId: 'food-2', status: joined },
+      };
+      expect(
+        calculatePCCFeeByDate({
+          isGroupOrder: true,
+          memberOrders,
+          lineItems: [],
+          hasSpecificPCCFee: true,
+          specificPCCFee: 0,
+          specificPCCFeeTiers: [{ maxQuantity: null, price: 0 }],
+        }),
+      ).toBe(0);
+    });
+
+    it('returns 0 when specificPCCFeeTiers is set but no members joined', () => {
+      const memberOrders = {
+        user1: { foodId: '', status: empty },
+      };
+      expect(
+        calculatePCCFeeByDate({
+          isGroupOrder: true,
+          memberOrders,
+          lineItems: [],
+          hasSpecificPCCFee: true,
+          specificPCCFee: 0,
+          specificPCCFeeTiers: [{ maxQuantity: null, price: 200_000 }],
+        }),
+      ).toBe(0);
+    });
+
+    it('falls back to specificPCCFee when specificPCCFeeTiers is empty', () => {
+      const memberOrders = {
+        user1: { foodId: 'food-1', status: joined },
+      };
+      expect(
+        calculatePCCFeeByDate({
+          isGroupOrder: true,
+          memberOrders,
+          lineItems: [],
+          hasSpecificPCCFee: true,
+          specificPCCFee: 250_000,
+          specificPCCFeeTiers: [],
+        }),
+      ).toBe(250_000);
+    });
+
+    it('falls back to the default schedule when hasSpecificPCCFee is false, even if stale tiers/fee values are present', () => {
+      const memberOrders = {
+        user1: { foodId: 'food-1', status: joined },
+        user2: { foodId: 'food-2', status: joined },
+        user3: { foodId: 'food-3', status: joined },
+      };
+      expect(
+        calculatePCCFeeByDate({
+          isGroupOrder: true,
+          memberOrders,
+          lineItems: [],
+          hasSpecificPCCFee: false,
+          specificPCCFee: 999_000,
+          specificPCCFeeTiers: [{ maxQuantity: null, price: 999_000 }],
+        }),
+      ).toBe(169_000);
+    });
+  });
+
   describe('normal order (lineItems-based count)', () => {
     it('sums quantities from lineItems to determine the fee tier', () => {
       // 3 items × quantity 1 = 3 total → tier 1 → 169,000

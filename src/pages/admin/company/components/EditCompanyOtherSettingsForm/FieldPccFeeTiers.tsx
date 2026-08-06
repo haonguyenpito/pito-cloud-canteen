@@ -26,12 +26,12 @@ const positiveInteger =
     return undefined;
   };
 
-const positiveNumber =
+const nonNegativeNumber =
   (message: string) =>
   (value: string): string | undefined => {
     if (!value && value !== '0') return message;
     const n = Number(removeNonNumeric(String(value)));
-    if (Number.isNaN(n) || n <= 0) return message;
+    if (Number.isNaN(n) || n < 0) return message;
 
     return undefined;
   };
@@ -153,7 +153,7 @@ const FieldPccFeeTiers: React.FC<TFieldPccFeeTiers> = ({ id, name }) => {
                               id: 'FieldPccFeeTiers.error.priceRequired',
                             }),
                           ),
-                          positiveNumber(
+                          nonNegativeNumber(
                             intl.formatMessage({
                               id: 'FieldPccFeeTiers.error.pricePositive',
                             }),

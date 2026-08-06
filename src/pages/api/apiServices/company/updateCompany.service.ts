@@ -23,7 +23,7 @@ const updateCompany = async (
     nutritions,
     bankAccounts,
     paymentDueDays,
-    specificPCCFee,
+    hasSpecificPCCFee,
     specificPCCFeeTiers,
   } = dataParams;
 
@@ -81,29 +81,35 @@ const updateCompany = async (
       ...(paymentDueDays ? { paymentDueDays } : {}),
     },
 
-    metadata: {
-      ...(specificPCCFee &&
-      specificPCCFee !== '' &&
-      specificPCCFee !== null &&
-      specificPCCFee !== undefined
+    // hasSpecificPCCFee is only present in dataParams when the "Other
+    // Settings" tab was the one submitted (see createSubmitUpdateCompanyValues,
+    // COMPANY_SETTING_OTHER_TAB_ID case). It is `undefined` — not `false` —
+    // when any other tab (info, payment, subscription) is saved, so this must
+    // stay a three-way check: leave PCC fee metadata untouched when the field
+    // wasn't submitted at all, otherwise honor the admin's explicit true/false
+    // choice (true = custom tiers, false = revert to the default schedule).
+    metadata:
+      hasSpecificPCCFee === undefined
+        ? {}
+        : hasSpecificPCCFee
         ? {
-            specificPCCFee: Number(removeNonNumeric(specificPCCFee)),
             hasSpecificPCCFee: true,
+            specificPCCFeeTiers: (specificPCCFeeTiers ?? []).map(
+              (tier, idx, arr) => ({
+                maxQuantity:
+                  idx === arr.length - 1
+                    ? null
+                    : Number(removeNonNumeric(String(tier.maxQuantity ?? ''))),
+                price: Number(removeNonNumeric(String(tier.price ?? ''))),
+              }),
+            ),
+            specificPCCFee: null,
           }
-        : {}),
-      ...(specificPCCFeeTiers?.length
-        ? {
-            specificPCCFeeTiers: specificPCCFeeTiers.map((tier, idx) => ({
-              maxQuantity:
-                idx === specificPCCFeeTiers.length - 1
-                  ? null
-                  : Number(removeNonNumeric(String(tier.maxQuantity ?? ''))),
-              price: Number(removeNonNumeric(String(tier.price ?? ''))),
-            })),
-            hasSpecificPCCFee: true,
-          }
-        : {}),
-    },
+        : {
+            hasSpecificPCCFee: false,
+            specificPCCFeeTiers: null,
+            specificPCCFee: null,
+          },
   };
 
   const response = await integrationSdk.users.updateProfile(

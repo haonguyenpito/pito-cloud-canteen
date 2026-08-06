@@ -620,6 +620,7 @@ export type TUpdateCompanyApiParams = {
   location: TObject;
   note: string;
   tax: string;
+  hasSpecificPCCFee?: boolean;
   specificPCCFee: string;
   specificPCCFeeTiers?: TPccFeeTier[];
   profileImageId: string;

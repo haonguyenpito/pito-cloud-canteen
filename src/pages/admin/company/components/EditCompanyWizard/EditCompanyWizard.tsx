@@ -251,6 +251,8 @@ const EditCompanyWizardTab: React.FC<TEditCompanyWizardTab> = (props) => {
                   User(company).getPrivateData().bankAccounts) ||
                 defaultBankAccounts,
               paymentDueDays: User(company).getPrivateData().paymentDueDays,
+              hasSpecificPCCFee:
+                User(company).getMetadata().hasSpecificPCCFee ?? false,
               specificPCCFee: User(company).getMetadata().specificPCCFee,
               specificPCCFeeTiers:
                 User(company).getMetadata().specificPCCFeeTiers ??
