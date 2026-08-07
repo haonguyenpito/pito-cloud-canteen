@@ -58,8 +58,25 @@ function buildFoodHistoryValue(
 
   return {
     foodId,
-    foodName,
-    foodPrice,
+    ...(foodName !== undefined && { foodName }),
+    ...(foodPrice !== undefined && { foodPrice }),
+  };
+}
+
+function buildSecondaryFoodHistoryValue(
+  secondaryFoodId: string | undefined,
+  foodList: Record<string, FoodListEntry>,
+): Partial<TSubOrderChangeHistoryValue> {
+  if (!secondaryFoodId) {
+    return {};
+  }
+
+  const { foodName, foodPrice } = foodList[secondaryFoodId] || {};
+
+  return {
+    secondaryFoodId,
+    ...(foodName !== undefined && { secondaryFoodName: foodName }),
+    ...(foodPrice !== undefined && { secondaryFoodPrice: foodPrice }),
   };
 }
 
@@ -96,22 +113,14 @@ export function buildSubOrderHistoryEntryFromMemberOrderDiff({
     type === EEditSubOrderHistoryType.MEMBER_FOOD_CHANGED && oldPrimaryValue
       ? {
           ...oldPrimaryValue,
-          ...(oldSecondaryFoodId && {
-            secondaryFoodId: oldSecondaryFoodId,
-            secondaryFoodName: foodList[oldSecondaryFoodId]?.foodName,
-            secondaryFoodPrice: foodList[oldSecondaryFoodId]?.foodPrice,
-          }),
+          ...buildSecondaryFoodHistoryValue(oldSecondaryFoodId, foodList),
         }
       : null;
 
   const newPrimaryValue = buildFoodHistoryValue(newFoodId, foodList);
   const newValue: TSubOrderChangeHistoryValue = {
     ...(newPrimaryValue || { foodId: newFoodId }),
-    ...(newSecondaryFoodId && {
-      secondaryFoodId: newSecondaryFoodId,
-      secondaryFoodName: foodList[newSecondaryFoodId]?.foodName,
-      secondaryFoodPrice: foodList[newSecondaryFoodId]?.foodPrice,
-    }),
+    ...buildSecondaryFoodHistoryValue(newSecondaryFoodId, foodList),
   };
 
   return {
@@ -120,7 +129,7 @@ export function buildSubOrderHistoryEntryFromMemberOrderDiff({
     planOrderDate: planOrderDate as unknown as Date,
     type,
     authorRole,
-    oldValue: oldValue ?? undefined,
+    ...(oldValue ? { oldValue } : {}),
     newValue,
     createdAt: new Date(),
   };
