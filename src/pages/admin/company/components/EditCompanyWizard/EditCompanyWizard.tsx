@@ -59,6 +59,7 @@ import {
   createSubmitAddMembersToCompanyValues,
   createSubmitCreateCompanyValues,
   createSubmitUpdateCompanyValues,
+  EDIT_COMPANY_DRAFT_FLOW_TABS,
   EDIT_COMPANY_WIZARD_TABS,
 } from './utils';
 
@@ -442,7 +443,7 @@ const EditCompanyWizard = () => {
       return redirectAfterDraftUpdate(
         id,
         selectedTab as string,
-        EDIT_COMPANY_WIZARD_TABS,
+        EDIT_COMPANY_DRAFT_FLOW_TABS,
         router,
       );
     }
@@ -634,7 +635,11 @@ const EditCompanyWizard = () => {
   };
 
   useEffect(() => {
-    if (selectedTab === COMPANY_SETTINGS_TAB && companyId) {
+    if (
+      (selectedTab === COMPANY_SETTINGS_TAB ||
+        selectedTab === COMPANY_BOOKER_QUIZ_TAB) &&
+      companyId
+    ) {
       dispatch(companyMemberThunks.queryCompanyMembers(companyId as string));
     }
   }, [selectedTab, companyId, dispatch]);

@@ -61,7 +61,7 @@ type TManageCompanyMembersTable = {
   queryMembersInProgress?: boolean;
   queryMembersError?: any;
   companyId?: string;
-  hiddenColumnNames?: any[];
+  hiddenColumnNames?: string[];
   canRemoveOwner?: boolean;
   resetCompanyMemberSliceError?: () => void;
   resetTransferError?: () => void;
@@ -247,7 +247,7 @@ const parseEntitiesToTableData = ({
   openUpgradeToOwnerModal: (member: TCompanyMemberWithDetails) => void;
   canRemoveOwner?: boolean;
   nutritionOptions: { key: string; label: string }[];
-  openSpecialDemandModal: (member: TCompanyMemberWithDetails) => void;
+  openSpecialDemandModal?: (member: TCompanyMemberWithDetails) => void;
 }) => {
   return companyMembers.map((companyMember) => {
     const groups = companyGroups.filter((group: TCompanyGroup) =>
@@ -324,7 +324,12 @@ const parseEntitiesToTableData = ({
         nutritions:
           companyMember?.attributes?.profile?.publicData?.nutritions || [],
         nutritionOptions,
-        handleToEditSpecialDemand: () => openSpecialDemandModal(companyMember),
+        ...(openSpecialDemandModal
+          ? {
+              handleToEditSpecialDemand: () =>
+                openSpecialDemandModal(companyMember),
+            }
+          : {}),
         handleToRemoveMember: handleToRemove,
         ...(typeof onUpdateMemberPermission !== 'undefined'
           ? { handleToUpdateMemberPermission }
@@ -399,6 +404,9 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
   );
   const updatingSpecialDemandUserId = useAppSelector(
     (state) => state.companyMember.updatingSpecialDemandUserId,
+  );
+  const updateSpecialDemandError = useAppSelector(
+    (state) => state.companyMember.updateSpecialDemandError,
   );
   const dispatch = useAppDispatch();
 
@@ -501,6 +509,8 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
   const tableColumn = TABLE_COLUMN.filter(
     (col) => !hiddenColumnNames?.includes(col.key),
   );
+  // Screens that hide the special-demand columns must not offer editing them.
+  const canEditSpecialDemand = !hiddenColumnNames?.includes('allergy');
 
   const members = useMemo(
     () => sliceMembers(companyMembers, page, MEMBER_PAGE_SIZE),
@@ -518,7 +528,9 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     canRemoveOwner,
     openUpgradeToOwnerModal,
     nutritionOptions,
-    openSpecialDemandModal,
+    openSpecialDemandModal: canEditSpecialDemand
+      ? openSpecialDemandModal
+      : undefined,
   });
 
   const pagination = useMemo(
@@ -730,6 +742,11 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
         inProgress={
           !!memberToEditSpecialDemand?.id?.uuid &&
           updatingSpecialDemandUserId === memberToEditSpecialDemand.id.uuid
+        }
+        errorMessage={
+          updateSpecialDemandError
+            ? 'Cập nhật dị ứng & chế độ dinh dưỡng thất bại. Vui lòng thử lại.'
+            : null
         }
       />
     </div>

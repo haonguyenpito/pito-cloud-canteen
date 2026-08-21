@@ -6,6 +6,7 @@ import {
   adminGetUserQuizDataApi,
   adminUpdateUserQuizDataApi,
 } from '@apis/userApi';
+import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
 import { ECompanyPermission } from '@src/utils/enums';
@@ -62,15 +63,21 @@ const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
   const [quizData, setQuizData] = useState<TBookerQuizData | null>(null);
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedBookerId) return undefined;
 
     let cancelled = false;
     setFetching(true);
+    setErrorMessage(null);
     adminGetUserQuizDataApi(selectedBookerId)
       .then(({ data }) => {
         if (!cancelled) setQuizData(data?.quizData || {});
+      })
+      .catch(() => {
+        if (!cancelled)
+          setErrorMessage('Không tải được thông tin quiz của booker này.');
       })
       .finally(() => {
         if (!cancelled) setFetching(false);
@@ -85,12 +92,15 @@ const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
     if (!selectedBookerId) return;
 
     setSubmitting(true);
+    setErrorMessage(null);
     try {
       const { data } = await adminUpdateUserQuizDataApi(
         selectedBookerId,
         toPatch(values),
       );
       setQuizData(data?.quizData || {});
+    } catch (error) {
+      setErrorMessage('Lưu thông tin quiz thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }
@@ -131,6 +141,8 @@ const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
       {!selectedBookerId && (
         <div className={css.empty}>Chọn một booker để xem thông tin quiz.</div>
       )}
+
+      {errorMessage && <ErrorMessage message={errorMessage} />}
 
       {selectedBookerId && fetching && <LoadingContainer />}
 

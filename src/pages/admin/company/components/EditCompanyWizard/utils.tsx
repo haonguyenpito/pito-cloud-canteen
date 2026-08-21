@@ -15,6 +15,13 @@ export const EDIT_COMPANY_WIZARD_TABS = [
   COMPANY_BOOKER_QUIZ_TAB,
 ];
 
+// Tabs of the create/update draft flow, in order. The quiz tab is edited on its
+// own and must never be the "next step" after saving a company form.
+export const EDIT_COMPANY_DRAFT_FLOW_TABS = [
+  COMPANY_INFORMATION_TAB,
+  COMPANY_SETTINGS_TAB,
+];
+
 export const COMPANY_SETTING_INFORMATION_TAB_ID = 'companySettingsInformation';
 export const COMPANY_SETTING_PAYMENT_TAB_ID = 'companySettingsPayment';
 export const COMPANY_SETTING_SUBSCRIPTION_TAB_ID =

@@ -1,9 +1,9 @@
 /**
  * SPECIAL DEMAND LABEL SAFEGUARDS
  *
- * Bảo vệ helper map key dị ứng / chế độ dinh dưỡng sang label hiển thị.
- * Helper này dùng chung cho phiếu tracking public và bảng member phía admin,
- * nên một key lạ (option bị xoá khỏi system attributes) không được làm vỡ UI.
+ * Guards the helper mapping allergy / nutrition keys to display labels.
+ * It is shared by the public tracking sheet and the admin member table, so an
+ * unknown key (an option removed from system attributes) must not break the UI.
  *
  * Source: src/helpers/specialDemandHelper.ts
  */

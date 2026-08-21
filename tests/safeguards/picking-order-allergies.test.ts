@@ -1,9 +1,10 @@
 /**
  * PICKING ORDER ALLERGY SAFEGUARDS
  *
- * Phiếu vận đơn (trang tracking public) hiện dị ứng của từng người ăn ngay
- * cạnh ghi chú món. Dữ liệu đó đi kèm trong `notes` do hai helper dưới dựng.
- * Mất field này là bếp mất cảnh báo an toàn thực phẩm mà không có lỗi nào nổi lên.
+ * The delivery sheet (public tracking page) shows each eater's allergies next
+ * to their food note. That data rides along in `notes`, built by the two
+ * helpers below. Losing the field silently strips the kitchen's food-safety
+ * warning without raising any error.
  *
  * Source: src/helpers/order/orderDetailHelper.ts
  */
