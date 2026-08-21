@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TBookerQuizData } from '@apiServices/user/quizData.service';
 import classNames from 'classnames';
 
@@ -8,6 +8,7 @@ import {
 } from '@apis/userApi';
 import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
+import { getCompanyMemberUserId } from '@helpers/companyMemberHelper';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
 import { ECompanyPermission } from '@src/utils/enums';
 import type { TCompanyMemberWithDetails } from '@utils/types';
@@ -19,6 +20,11 @@ import css from './EditBookerQuizTab.module.scss';
 
 type TEditBookerQuizTabProps = {
   companyMembers: TCompanyMemberWithDetails[];
+};
+
+type TBookerOption = {
+  userId: string;
+  label: string;
 };
 
 const toFormValues = (quizData: TBookerQuizData): TBookerQuizFormValues => ({
@@ -52,11 +58,32 @@ const toPatch = (values: TBookerQuizFormValues): TBookerQuizData => ({
 const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
   companyMembers,
 }) => {
-  const bookers = companyMembers.filter(
-    (member) =>
-      !!member?.id?.uuid &&
-      (member.permission === ECompanyPermission.booker ||
-        member.permission === ECompanyPermission.owner),
+  const bookers = useMemo<TBookerOption[]>(
+    () =>
+      companyMembers.reduce<TBookerOption[]>((acc, member) => {
+        const userId = getCompanyMemberUserId(member);
+        const isBooker =
+          member?.permission === ECompanyPermission.booker ||
+          member?.permission === ECompanyPermission.owner;
+
+        if (!userId || !isBooker) return acc;
+
+        acc.push({
+          userId,
+          label:
+            buildFullName(
+              member?.attributes?.profile?.firstName,
+              member?.attributes?.profile?.lastName,
+              {
+                compareToGetLongerWith:
+                  member?.attributes?.profile?.displayName,
+              },
+            ) || member.email,
+        });
+
+        return acc;
+      }, []),
+    [companyMembers],
   );
 
   const [selectedBookerId, setSelectedBookerId] = useState<string | null>(null);
@@ -115,27 +142,16 @@ const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
   return (
     <div className={css.container}>
       <div className={css.bookerList}>
-        {bookers.map((booker) => {
-          const bookerId = booker.id!.uuid;
-
-          return (
-            <div
-              key={bookerId}
-              className={classNames(css.bookerItem, {
-                [css.bookerItemActive]: bookerId === selectedBookerId,
-              })}
-              onClick={() => setSelectedBookerId(bookerId)}>
-              {buildFullName(
-                booker?.attributes?.profile?.firstName,
-                booker?.attributes?.profile?.lastName,
-                {
-                  compareToGetLongerWith:
-                    booker?.attributes?.profile?.displayName,
-                },
-              ) || booker.email}
-            </div>
-          );
-        })}
+        {bookers.map(({ userId, label }) => (
+          <div
+            key={userId}
+            className={classNames(css.bookerItem, {
+              [css.bookerItemActive]: userId === selectedBookerId,
+            })}
+            onClick={() => setSelectedBookerId(userId)}>
+            {label}
+          </div>
+        ))}
       </div>
 
       {!selectedBookerId && (

@@ -16,6 +16,7 @@ import AlertModal from '@components/Modal/AlertModal';
 import Pagination from '@components/Pagination/Pagination';
 import type { TColumn } from '@components/Table/Table';
 import Table from '@components/Table/Table';
+import { getCompanyMemberUserId } from '@helpers/companyMemberHelper';
 import {
   getAllergyLabels,
   getNutritionLabels,
@@ -469,6 +470,10 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     }
   };
 
+  const memberToEditSpecialDemandUserId = getCompanyMemberUserId(
+    memberToEditSpecialDemand,
+  );
+
   const openSpecialDemandModal = (member: TCompanyMemberWithDetails) => {
     setMemberToEditSpecialDemand(member);
   };
@@ -477,12 +482,12 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     allergies: string[];
     nutritions: string[];
   }) => {
-    if (!memberToEditSpecialDemand?.id?.uuid || !companyId) return;
+    if (!memberToEditSpecialDemandUserId || !companyId) return;
 
     const { meta } = await dispatch(
       companyMemberThunks.adminUpdateMemberSpecialDemand({
         companyId,
-        userId: memberToEditSpecialDemand.id.uuid,
+        userId: memberToEditSpecialDemandUserId,
         allergies: values.allergies || [],
         nutritions: values.nutritions || [],
       }),
@@ -740,8 +745,8 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
         onClose={() => setMemberToEditSpecialDemand(null)}
         onSubmit={handleSubmitSpecialDemand}
         inProgress={
-          !!memberToEditSpecialDemand?.id?.uuid &&
-          updatingSpecialDemandUserId === memberToEditSpecialDemand.id.uuid
+          !!memberToEditSpecialDemandUserId &&
+          updatingSpecialDemandUserId === memberToEditSpecialDemandUserId
         }
         errorMessage={
           updateSpecialDemandError
