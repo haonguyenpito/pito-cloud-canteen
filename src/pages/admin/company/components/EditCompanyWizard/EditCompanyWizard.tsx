@@ -43,6 +43,7 @@ import type {
 } from '@utils/types';
 
 import type { TAddCompanyGroupsFormValues } from '../AddCompanyGroupsForm/AddCompanyGroupsForm';
+import EditBookerQuizTab from '../EditBookerQuizTab/EditBookerQuizTab';
 import type { TEditCompanyBankAccountsFormValues } from '../EditCompanyBankAccountsForm/EditCompanyBankAccountsForm';
 import type { TEditCompanyInformationFormValues } from '../EditCompanyInformationForm/EditCompanyInformationForm';
 import EditInformationCompanyForm from '../EditCompanyInformationForm/EditCompanyInformationForm';
@@ -52,6 +53,7 @@ import EditCompanySettingsTabs from '../EditCompanySettingsTabs/EditCompanySetti
 import type { TUpdateCompanyGroupFormValues } from '../UpdateCompanyGroupForm/UpdateCompanyGroupForm';
 
 import {
+  COMPANY_BOOKER_QUIZ_TAB,
   COMPANY_INFORMATION_TAB,
   COMPANY_SETTINGS_TAB,
   createSubmitAddMembersToCompanyValues,
@@ -335,6 +337,8 @@ const EditCompanyWizardTab: React.FC<TEditCompanyWizardTab> = (props) => {
           resetTransferError={resetTransferError}
         />
       );
+    case COMPANY_BOOKER_QUIZ_TAB:
+      return <EditBookerQuizTab companyMembers={companyMembers} />;
     default:
       return <></>;
   }

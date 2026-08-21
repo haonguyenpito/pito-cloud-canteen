@@ -7,10 +7,12 @@ import type { TEditCompanySettingsInformationFormValues } from '../EditCompanySe
 
 export const COMPANY_INFORMATION_TAB = 'information';
 export const COMPANY_SETTINGS_TAB = 'settings';
+export const COMPANY_BOOKER_QUIZ_TAB = 'quiz';
 
 export const EDIT_COMPANY_WIZARD_TABS = [
   COMPANY_INFORMATION_TAB,
   COMPANY_SETTINGS_TAB,
+  COMPANY_BOOKER_QUIZ_TAB,
 ];
 
 export const COMPANY_SETTING_INFORMATION_TAB_ID = 'companySettingsInformation';
