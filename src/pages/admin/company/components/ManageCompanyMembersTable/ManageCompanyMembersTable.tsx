@@ -4,6 +4,7 @@ import type { ChangeEvent, ReactNode } from 'react';
 import React, { useMemo, useState } from 'react';
 import type { IntlShape } from 'react-intl';
 import { useIntl } from 'react-intl';
+import { shallowEqual } from 'react-redux';
 import classNames from 'classnames';
 
 import type { TAdminTransferCompanyOwnerParams } from '@apis/companyApi';
@@ -15,6 +16,13 @@ import AlertModal from '@components/Modal/AlertModal';
 import Pagination from '@components/Pagination/Pagination';
 import type { TColumn } from '@components/Table/Table';
 import Table from '@components/Table/Table';
+import {
+  getAllergyLabels,
+  getNutritionLabels,
+} from '@helpers/specialDemandHelper';
+import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
+import AdminEditSpecialDemandModal from '@pages/admin/company/components/AdminEditSpecialDemandModal/AdminEditSpecialDemandModal';
+import { companyMemberThunks } from '@redux/slices/companyMember.slice';
 import { UserInviteStatus } from '@src/types/UserPermission';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
 import { ECompanyPermission } from '@src/utils/enums';
@@ -166,27 +174,41 @@ const TABLE_COLUMN: TColumn[] &
   {
     key: 'allergy',
     label: 'Dị ứng',
-    render: () => {
-      return <span></span>;
+    render: ({ allergies = [] }: any) => {
+      const labels = getAllergyLabels(allergies);
+
+      return <span>{labels.length > 0 ? labels.join(', ') : '-'}</span>;
     },
   },
   {
     key: 'nutritions',
     label: 'Chế độ dịnh dưỡng',
-    render: () => {
-      return <span></span>;
+    render: ({ nutritions = [], nutritionOptions = [] }: any) => {
+      const labels = getNutritionLabels(nutritions, nutritionOptions);
+
+      return <span>{labels.length > 0 ? labels.join(', ') : '-'}</span>;
     },
   },
   {
     key: 'action',
     label: '',
-    render: ({ handleToRemoveMember, permission, canRemoveOwner }) => {
+    render: ({
+      handleToRemoveMember,
+      handleToEditSpecialDemand,
+      permission,
+      canRemoveOwner,
+    }) => {
       const isOwner =
         !canRemoveOwner && permission === ECompanyPermission.owner;
 
       return (
         <div
           className={classNames(css.actionButtons, { [css.hidden]: isOwner })}>
+          {handleToEditSpecialDemand && (
+            <InlineTextButton type="button" onClick={handleToEditSpecialDemand}>
+              Sửa
+            </InlineTextButton>
+          )}
           <InlineTextButton type="button" onClick={handleToRemoveMember}>
             <IconDelete />
           </InlineTextButton>
@@ -206,6 +228,8 @@ const parseEntitiesToTableData = ({
   openTransferOwnerModal,
   openUpgradeToOwnerModal,
   canRemoveOwner,
+  nutritionOptions,
+  openSpecialDemandModal,
 }: {
   intl: IntlShape;
   companyGroups: TCompanyGroup[];
@@ -222,6 +246,8 @@ const parseEntitiesToTableData = ({
   ) => void;
   openUpgradeToOwnerModal: (member: TCompanyMemberWithDetails) => void;
   canRemoveOwner?: boolean;
+  nutritionOptions: { key: string; label: string }[];
+  openSpecialDemandModal: (member: TCompanyMemberWithDetails) => void;
 }) => {
   return companyMembers.map((companyMember) => {
     const groups = companyGroups.filter((group: TCompanyGroup) =>
@@ -293,6 +319,12 @@ const parseEntitiesToTableData = ({
         ),
         email: companyMember.attributes.email,
         groups,
+        allergies:
+          companyMember?.attributes?.profile?.publicData?.allergies || [],
+        nutritions:
+          companyMember?.attributes?.profile?.publicData?.nutritions || [],
+        nutritionOptions,
+        handleToEditSpecialDemand: () => openSpecialDemandModal(companyMember),
         handleToRemoveMember: handleToRemove,
         ...(typeof onUpdateMemberPermission !== 'undefined'
           ? { handleToUpdateMemberPermission }
@@ -358,6 +390,18 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
 
   const [page, setPage] = useState<number>(1);
 
+  const [memberToEditSpecialDemand, setMemberToEditSpecialDemand] =
+    useState<TCompanyMemberWithDetails | null>(null);
+
+  const nutritionOptions = useAppSelector(
+    (state) => state.SystemAttributes.nutritions,
+    shallowEqual,
+  );
+  const updatingSpecialDemandUserId = useAppSelector(
+    (state) => state.companyMember.updatingSpecialDemandUserId,
+  );
+  const dispatch = useAppDispatch();
+
   const onChangeNewOwner = (e: ChangeEvent<HTMLSelectElement>) => {
     setNewOwnerEmail(e.target.value);
   };
@@ -383,13 +427,13 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
   };
 
   const closeTransferOwnerModal = () => {
-    resetTransferError && resetTransferError();
+    if (resetTransferError) resetTransferError();
     setMemberToTransferOwner(null);
     setPermissionForOldOwner(null);
   };
 
   const closeUpgradeOwnerModal = () => {
-    resetTransferError && resetTransferError();
+    if (resetTransferError) resetTransferError();
     setMemberToUpgradeToOwner(null);
   };
 
@@ -417,8 +461,32 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     }
   };
 
+  const openSpecialDemandModal = (member: TCompanyMemberWithDetails) => {
+    setMemberToEditSpecialDemand(member);
+  };
+
+  const handleSubmitSpecialDemand = async (values: {
+    allergies: string[];
+    nutritions: string[];
+  }) => {
+    if (!memberToEditSpecialDemand?.id?.uuid || !companyId) return;
+
+    const { meta } = await dispatch(
+      companyMemberThunks.adminUpdateMemberSpecialDemand({
+        companyId,
+        userId: memberToEditSpecialDemand.id.uuid,
+        allergies: values.allergies || [],
+        nutritions: values.nutritions || [],
+      }),
+    );
+
+    if (meta.requestStatus === 'fulfilled') {
+      setMemberToEditSpecialDemand(null);
+    }
+  };
+
   const handleCloseModal = () => {
-    resetCompanyMemberSliceError && resetCompanyMemberSliceError();
+    if (resetCompanyMemberSliceError) resetCompanyMemberSliceError();
     setMemberToRemove(null);
   };
 
@@ -426,7 +494,7 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     const email = memberToRemove?.email || memberToRemove?.attributes?.email;
     if (email) {
       const { error } = (await onRemoveMember(email)) as any;
-      !error && handleCloseModal();
+      if (!error) handleCloseModal();
     }
   };
 
@@ -449,6 +517,8 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
     openTransferOwnerModal,
     canRemoveOwner,
     openUpgradeToOwnerModal,
+    nutritionOptions,
+    openSpecialDemandModal,
   });
 
   const pagination = useMemo(
@@ -652,6 +722,16 @@ const ManageCompanyMembersTable: React.FC<TManageCompanyMembersTable> = (
           {transferErrorMessage}
         </div>
       </AlertModal>
+      <AdminEditSpecialDemandModal
+        member={memberToEditSpecialDemand}
+        isOpen={!!memberToEditSpecialDemand}
+        onClose={() => setMemberToEditSpecialDemand(null)}
+        onSubmit={handleSubmitSpecialDemand}
+        inProgress={
+          !!memberToEditSpecialDemand?.id?.uuid &&
+          updatingSpecialDemandUserId === memberToEditSpecialDemand.id.uuid
+        }
+      />
     </div>
   );
 };

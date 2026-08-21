@@ -14,7 +14,11 @@ import {
   getCompanyMembersDetailsApi,
   queryCompanyMembersApi,
 } from '@apis/index';
-import { checkUserExistedApi, checkUsersExistedApi } from '@apis/userApi';
+import {
+  adminUpdateUserSpecialDemandApi,
+  checkUserExistedApi,
+  checkUsersExistedApi,
+} from '@apis/userApi';
 import type { POSTAddMembersBody } from '@pages/api/company/members/add-members.api';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { EMemberAccountStatus } from '@src/utils/enums';
@@ -49,6 +53,9 @@ interface TCompanyMemberState {
   updatingMemberPermissionEmail: string | null;
   updateMemberPermissionError: any;
 
+  updatingSpecialDemandUserId: string | null;
+  updateSpecialDemandError: any;
+
   companyMembersByCompanyId: TCompanyMembersByCompanyId | null;
   getCompanyMembersByCompanyIdInProgress: boolean;
   getCompanyMembersByCompanyIdError: any;
@@ -81,6 +88,9 @@ const initialState: TCompanyMemberState = {
   updatingMemberPermissionEmail: null,
   updateMemberPermissionError: null,
 
+  updatingSpecialDemandUserId: null,
+  updateSpecialDemandError: null,
+
   companyMembersByCompanyId: null,
   getCompanyMembersByCompanyIdInProgress: false,
   getCompanyMembersByCompanyIdError: null,
@@ -104,6 +114,8 @@ const ADMIN_DELETE_MEMBER = 'app/companyMember/ADMIN_DELETE_MEMBER';
 const ADMIN_ADD_MEMBERS = 'app/companyMember/ADMIN_ADD_MEMBERS';
 const ADMIN_UPDATE_MEMBER_PERMISSION =
   'app/companyMember/ADMIN_UPDATE_MEMBER_PERMISSION';
+const ADMIN_UPDATE_MEMBER_SPECIAL_DEMAND =
+  'app/CompanyMember/ADMIN_UPDATE_MEMBER_SPECIAL_DEMAND';
 
 const ADMIN_TOGGLE_MEMBER_DISABLED =
   'app/companyMember/ADMIN_TOGGLE_MEMBER_DISABLED';
@@ -257,6 +269,26 @@ const adminUpdateMemberPermission = createAsyncThunk(
   { serializeError: storableAxiosError },
 );
 
+const adminUpdateMemberSpecialDemand = createAsyncThunk(
+  ADMIN_UPDATE_MEMBER_SPECIAL_DEMAND,
+  async (
+    params: {
+      companyId: string;
+      userId: string;
+      allergies: string[];
+      nutritions: string[];
+    },
+    { dispatch },
+  ) => {
+    const { companyId, ...rest } = params;
+    const { data } = await adminUpdateUserSpecialDemandApi(rest);
+    await dispatch(queryCompanyMembers(companyId));
+
+    return data;
+  },
+  { serializeError: storableAxiosError },
+);
+
 const adminToggleMemberDisabled = createAsyncThunk(
   ADMIN_TOGGLE_MEMBER_DISABLED,
   async (
@@ -362,6 +394,7 @@ export const companyMemberThunks = {
   adminAddMembers,
   adminDeleteMember,
   adminUpdateMemberPermission,
+  adminUpdateMemberSpecialDemand,
   adminToggleMemberDisabled,
   adminToggleMembersDisabled,
   getCompanyMemberByCompanyIds,
@@ -529,6 +562,20 @@ export const companyMemberSlice = createSlice({
         ...state,
         updatingMemberPermissionEmail: null,
         updateMemberPermissionError: error,
+      }))
+      .addCase(adminUpdateMemberSpecialDemand.pending, (state, { meta }) => ({
+        ...state,
+        updatingSpecialDemandUserId: meta.arg.userId,
+        updateSpecialDemandError: null,
+      }))
+      .addCase(adminUpdateMemberSpecialDemand.fulfilled, (state) => ({
+        ...state,
+        updatingSpecialDemandUserId: null,
+      }))
+      .addCase(adminUpdateMemberSpecialDemand.rejected, (state, { error }) => ({
+        ...state,
+        updatingSpecialDemandUserId: null,
+        updateSpecialDemandError: error,
       }))
       .addCase(getCompanyMemberByCompanyIds.pending, (state) => ({
         ...state,

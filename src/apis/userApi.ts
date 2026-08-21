@@ -17,3 +17,15 @@ export const disableWalkthroughApi = (userId: string) =>
   getApi(`/users/disable-walkthrough/${userId}`);
 
 export const postSignUpApi = () => putApi(`/users/post-sign-up/`);
+
+export type TAdminUpdateUserSpecialDemandParams = {
+  userId: string;
+  allergies: string[];
+  nutritions: string[];
+};
+
+export const adminUpdateUserSpecialDemandApi = ({
+  userId,
+  ...rest
+}: TAdminUpdateUserSpecialDemandParams) =>
+  putApi(`/admin/users/${userId}/special-demand`, rest);
