@@ -9,9 +9,10 @@
  * Source: src/pages/api/apiServices/user/quizData.service.ts
  */
 
+import type { TBookerQuizData } from '@apiServices/user/quizData.service';
 import { mergeQuizData } from '@apiServices/user/quizData.service';
 
-const current = {
+const current: TBookerQuizData = {
   packagePerMember: 60_000,
   memberAmount: 30,
   daySession: 'lunch',
@@ -54,7 +55,10 @@ describe('mergeQuizData', () => {
 
   it('does not carry over fields outside the quizData allowlist', () => {
     expect(
-      mergeQuizData(current, { hasOrderBefore: true, memberAmount: 40 } as any),
+      mergeQuizData(current, {
+        hasOrderBefore: true,
+        memberAmount: 40,
+      } as TBookerQuizData),
     ).toEqual({ ...current, memberAmount: 40 });
   });
 });

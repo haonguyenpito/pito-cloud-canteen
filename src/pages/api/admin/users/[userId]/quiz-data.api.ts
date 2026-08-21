@@ -1,3 +1,4 @@
+import type { TBookerQuizData } from '@apiServices/user/quizData.service';
 import {
   getUserQuizData,
   updateUserQuizData,
@@ -19,9 +20,10 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(200).json({ quizData });
       }
       case 'PUT': {
+        const patch: TBookerQuizData = req.body || {};
         const quizData = await updateUserQuizData({
           userId: userId as string,
-          patch: req.body || {},
+          patch,
         });
 
         return res.status(200).json({ quizData });

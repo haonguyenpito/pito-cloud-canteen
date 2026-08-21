@@ -1,11 +1,20 @@
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/sdk';
 import { User } from '@src/utils/data';
-import type { TObject } from '@src/utils/types';
 
-// Only these fields belong to quizData; any other body key is dropped so it
-// can never spill into unrelated privateData (e.g. hasOrderBefore).
-const QUIZ_DATA_FIELDS = [
+export type TBookerQuizData = {
+  packagePerMember?: number;
+  memberAmount?: number;
+  daySession?: string;
+  deliveryHour?: string;
+  mealStyles?: string[];
+  nutritions?: string[];
+  mealType?: string[];
+};
+
+// Derived from TBookerQuizData so a new field can't be added to the type
+// without also being added to the merge allowlist.
+const QUIZ_DATA_FIELDS: (keyof TBookerQuizData)[] = [
   'packagePerMember',
   'memberAmount',
   'daySession',
@@ -13,10 +22,13 @@ const QUIZ_DATA_FIELDS = [
   'mealStyles',
   'nutritions',
   'mealType',
-] as const;
+];
 
-export const mergeQuizData = (current: TObject, patch: TObject): TObject =>
-  QUIZ_DATA_FIELDS.reduce<TObject>(
+export const mergeQuizData = (
+  current: TBookerQuizData,
+  patch: TBookerQuizData,
+): TBookerQuizData =>
+  QUIZ_DATA_FIELDS.reduce<TBookerQuizData>(
     (result, field) =>
       patch[field] === undefined
         ? result
@@ -32,7 +44,9 @@ const showUser = async (userId: string) => {
   return user;
 };
 
-export const getUserQuizData = async (userId: string): Promise<TObject> => {
+export const getUserQuizData = async (
+  userId: string,
+): Promise<TBookerQuizData> => {
   const user = await showUser(userId);
   const { quizData = {} } = User(user).getPrivateData();
 
@@ -44,8 +58,8 @@ export const updateUserQuizData = async ({
   patch,
 }: {
   userId: string;
-  patch: TObject;
-}): Promise<TObject> => {
+  patch: TBookerQuizData;
+}): Promise<TBookerQuizData> => {
   const currentQuizData = await getUserQuizData(userId);
   const quizData = mergeQuizData(currentQuizData, patch);
 
