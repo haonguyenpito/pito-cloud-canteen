@@ -26,12 +26,15 @@ const positiveInteger =
     return undefined;
   };
 
-const positiveNumber =
+export const nonNegativeNumber =
   (message: string) =>
-  (value: string): string | undefined => {
-    if (!value && value !== '0') return message;
+  (value: string | number): string | undefined => {
+    // Reject only genuinely-empty values. Note the field value can arrive as a
+    // number (e.g. `0` loaded from saved company metadata, where price is stored
+    // via Number(...)), so a plain `!value` check would wrongly reject numeric 0.
+    if (value === undefined || value === null || value === '') return message;
     const n = Number(removeNonNumeric(String(value)));
-    if (Number.isNaN(n) || n <= 0) return message;
+    if (Number.isNaN(n) || n < 0) return message;
 
     return undefined;
   };
@@ -153,7 +156,7 @@ const FieldPccFeeTiers: React.FC<TFieldPccFeeTiers> = ({ id, name }) => {
                               id: 'FieldPccFeeTiers.error.priceRequired',
                             }),
                           ),
-                          positiveNumber(
+                          nonNegativeNumber(
                             intl.formatMessage({
                               id: 'FieldPccFeeTiers.error.pricePositive',
                             }),
