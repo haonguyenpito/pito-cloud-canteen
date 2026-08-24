@@ -483,10 +483,16 @@ export const getSelectedRestaurantAndFoodList = ({
   foodList = [],
   foodIds = [],
   currentRestaurant,
+  extraFeeByFoodId = {},
 }: {
   foodList: TObject[];
   foodIds: string[];
   currentRestaurant: TObject;
+  /**
+   * Menu-scoped fees (`menu.publicData.foodExtraFees`). Passed in rather than
+   * read off the dish, so the same dish can cost differently in another menu.
+   */
+  extraFeeByFoodId?: Record<string, number>;
 }) => {
   const submitFoodListData = foodIds.reduce((result, foodId) => {
     const item = foodList.find((food) => food?.id?.uuid === foodId);
@@ -505,7 +511,7 @@ export const getSelectedRestaurantAndFoodList = ({
           [id?.uuid]: {
             foodName: title,
             foodPrice: price?.amount || 0,
-            foodExtraFee: attributes?.publicData?.extraFee || 0,
+            foodExtraFee: extraFeeByFoodId[id.uuid] ?? 0,
             foodUnit,
             numberOfMainDishes,
           },
@@ -544,7 +550,11 @@ export const getPickFoodParticipants = (orderDetail: TObject) => {
   return shouldSendNativeNotificationParticipantIdList;
 };
 
-export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
+export const getUpdateLineItems = (
+  foodList: any[],
+  foodIds: string[],
+  extraFeeByFoodId: Record<string, number> = {},
+) => {
   const updateFoodList = foodIds.reduce((acc: any, foodId: string) => {
     const food = foodList?.find((item) => item.id?.uuid === foodId);
     if (food) {
@@ -553,7 +563,7 @@ export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
       acc[foodId] = {
         foodName: foodListingGetter.title,
         foodPrice: foodListingGetter.price?.amount || 0,
-        foodExtraFee: foodListingGetter.publicData?.extraFee || 0,
+        foodExtraFee: extraFeeByFoodId[foodId] ?? 0,
         foodUnit: foodListingGetter.publicData?.unit || '',
       };
     }
@@ -790,7 +800,10 @@ export const adjustFoodListPrice = (
   return Object.entries(foodList).reduce(
     (
       acc: TObject,
-      [foodId, { foodName, foodPrice, foodUnit, numberOfMainDishes }],
+      [
+        foodId,
+        { foodName, foodPrice, foodExtraFee = 0, foodUnit, numberOfMainDishes },
+      ],
     ) => {
       const isSingleSelectionFood =
         numberOfMainDishes !== undefined &&
@@ -802,6 +815,9 @@ export const adjustFoodListPrice = (
           [foodId]: {
             foodName,
             foodPrice: foodPrice / 2,
+            // Halved alongside the base price so splitting one package across
+            // two dishes does not charge the menu's markup twice.
+            foodExtraFee: foodExtraFee / 2,
             foodUnit,
             numberOfMainDishes,
           },
@@ -813,6 +829,7 @@ export const adjustFoodListPrice = (
         [foodId]: {
           foodName,
           foodPrice,
+          foodExtraFee,
           foodUnit,
           numberOfMainDishes,
         },

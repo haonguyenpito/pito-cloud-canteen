@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import { queryAllFoodIdList } from '@helpers/apiHelpers';
+import { getMenuExtraFeeMap } from '@helpers/menuExtraFee';
 import cookies from '@services/cookie';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
@@ -32,7 +33,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         const queryFood = queryAllFoodIdList(foodIdList, nutritions);
         const foodList = await integrationSdk.listings.query(queryFood);
 
-        return res.status(200).json(denormalisedResponseEntities(foodList));
+        // The extra fee is menu-scoped, so it ships with the food list rather
+        // than being read back off each dish listing by the client.
+        return res.status(200).json({
+          foodList: denormalisedResponseEntities(foodList),
+          foodExtraFees: getMenuExtraFeeMap(menu),
+        });
       }
 
       default:

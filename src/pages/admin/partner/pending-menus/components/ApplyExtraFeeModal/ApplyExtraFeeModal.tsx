@@ -109,8 +109,9 @@ const ApplyExtraFeeModal = ({
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6">
             <p className="text-sm text-amber-700">
               Phí phụ thu sẽ được áp dụng cho <strong>tất cả món ăn</strong>{' '}
-              trong các menu đã chọn. Giá hiển thị với khách sẽ là đơn giá gốc +
-              phụ phí.
+              trong các menu đã chọn và ghi đè phụ phí hiện tại. Giá hiển thị
+              với khách sẽ là đơn giá gốc + phụ phí. Sau đó bạn có thể chỉnh
+              từng món bằng cách mở rộng dòng menu trong danh sách.
             </p>
           </div>
         </div>

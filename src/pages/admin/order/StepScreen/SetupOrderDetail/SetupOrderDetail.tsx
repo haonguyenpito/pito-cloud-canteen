@@ -142,6 +142,10 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   const currentRestaurant = useAppSelector(
     (state) => state.SelectRestaurantPage.selectedRestaurant,
   );
+  const foodExtraFees = useAppSelector(
+    (state) => state.SelectRestaurantPage.foodExtraFees,
+    shallowEqual,
+  );
   const foodList = useAppSelector(
     (state) => state.SelectRestaurantPage.foodList,
     shallowEqual,
@@ -413,7 +417,7 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
               };
             },
           )
-        : getUpdateLineItems(foodList, foodIds);
+        : getUpdateLineItems(foodList, foodIds, foodExtraFees);
 
       await dispatch(
         orderAsyncActions.updatePlanDetail({
@@ -682,13 +686,18 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   const handleSelectFood = async (values: TSelectFoodFormValues) => {
     dispatch(setCanNotGoAfterOderDetail(true));
     const { food: foodIds } = values;
-    const updateLineItems = getUpdateLineItems(foodList, foodIds);
+    const updateLineItems = getUpdateLineItems(
+      foodList,
+      foodIds,
+      foodExtraFees,
+    );
 
     const { submitRestaurantData, submitFoodListData } =
       getSelectedRestaurantAndFoodList({
         foodList,
         foodIds,
         currentRestaurant,
+        extraFeeByFoodId: foodExtraFees,
       });
     await handleSubmitRestaurant({
       restaurant: { ...submitRestaurantData, menuId: currentSelectedMenuId },

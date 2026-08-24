@@ -18,6 +18,7 @@ import {
 } from '@apis/participantApi';
 import { disableWalkthroughApi } from '@apis/userApi';
 import { getFoodQuery } from '@helpers/listingSearchQuery';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import {
   getIsAllowAddSecondaryFood,
   markColorForOrder,
@@ -161,8 +162,9 @@ export const getFoodIdListWithSuitablePrice = ({
   const { foodList } = subOrder.restaurant;
   const suitablePriceFoodList = Object.keys(foodList).reduce(
     (result: any, foodId: string) => {
-      const { foodPrice = 0 } = foodList[foodId] || {};
-      if (foodPrice <= packagePerMember) {
+      const { foodPrice = 0, foodExtraFee = 0 } = foodList[foodId] || {};
+      // Budget is fee-inclusive — compare what the company is billed.
+      if (getBillablePrice(foodPrice, foodExtraFee) <= packagePerMember) {
         result.push(foodId);
       }
 

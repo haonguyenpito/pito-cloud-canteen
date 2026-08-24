@@ -80,7 +80,7 @@ const SectionOrderListing: React.FC<TSectionOrderListingProps> = ({
     const convertedData: any = [];
     Object.keys(plan).forEach((item, oIndex) => {
       const isLast = oIndex === Object.keys(plan).length - 1;
-      const { foodList, restaurant } = plan[item];
+      const { foodList, restaurant, foodExtraFees = {} } = plan[item];
       const cartItem = cartList?.[item] || {};
 
       const hasDishInCartValue = hasDishInCart(
@@ -173,6 +173,7 @@ const SectionOrderListing: React.FC<TSectionOrderListingProps> = ({
             selectDisabled={selectDisabled}
             isOrderAlreadyStarted={isOrderAlreadyStarted}
             onAddedToCart={onAddedToCart}
+            extraFee={foodExtraFees[`${dishId}`] ?? 0}
           />
         );
       });

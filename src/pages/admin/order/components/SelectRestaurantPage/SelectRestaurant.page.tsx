@@ -60,6 +60,10 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
     (state) => state.SelectRestaurantPage.foodList,
     shallowEqual,
   );
+  const foodExtraFees = useAppSelector(
+    (state) => state.SelectRestaurantPage.foodExtraFees,
+    shallowEqual,
+  );
   const fetchFoodPending = useAppSelector(
     (state) => state.SelectRestaurantPage.fetchFoodPending,
   );
@@ -153,9 +157,14 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
         foodList,
         foodIds,
         currentRestaurant,
+        extraFeeByFoodId: foodExtraFees,
       });
 
-    const updateLineItems = getUpdateLineItems(foodList, foodIds);
+    const updateLineItems = getUpdateLineItems(
+      foodList,
+      foodIds,
+      foodExtraFees,
+    );
 
     await onSubmitRestaurant({
       restaurant: {

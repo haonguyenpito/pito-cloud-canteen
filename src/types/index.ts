@@ -26,7 +26,6 @@ export type FoodListing = ListingBuilder<
     packaging: string;
     sideDishes: string[];
     unit: string;
-    extraFee?: number;
   },
   {
     adminApproval: string;
@@ -463,6 +462,12 @@ export type TMenuPublicData = {
   daysOfWeek: EDayOfWeek[];
   endDate: number;
   foodsByDate: Record<EDayOfWeek, Record<string, TMenuFoodItem>>;
+  /**
+   * Admin-set extra fee (phí phụ thu) per dish, scoped to THIS menu.
+   * The same dish in another menu carries its own value — never read the fee
+   * from the food listing.
+   */
+  foodExtraFees?: Record<string, number>;
   mealType: EMenuMealType;
   menuType: EMenuType;
   numberOfCycles: number;

@@ -192,7 +192,9 @@ plan.metadata.orderDetail = {
 
 ## Food Price Display
 
-Participants see the **final price** (`base + extraFee`) on each food card in `src/components/ListingCard/ListingCard.tsx`. The `extraFee` is read from `food.publicData.extraFee`. If the admin has not set a fee, the display falls back to `price.amount` only (since `extraFee` defaults to 0).
+Participants see the **final price** (`base + fee`) on each food card in `src/components/ListingCard/ListingCard.tsx`, which takes the fee as an `extraFee` prop (default 0).
+
+The value comes from the **plan snapshot** (`orderDetail[date].restaurant.foodList[foodId].foodExtraFee`), surfaced by the participant plan/order APIs as a `foodExtraFees` map per date — not from the live menu. That way a participant always sees exactly what will be billed, even if the menu's fee changed after the order was drafted.
 
 ---
 

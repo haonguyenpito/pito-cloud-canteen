@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import uniq from 'lodash/uniq';
 
 import {
   approvePartnerMenuApi,
@@ -6,13 +7,12 @@ import {
   getPartnerPendingMenuDetailApi,
   rejectPartnerMenuApi,
 } from '@apis/admin';
-import { partnerFoodApi } from '@apis/foodApi';
+import { updateMenuExtraFeesApi } from '@apis/menuApi';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { MenuListing, TQueryParams } from '@src/types';
 import type { EListingStates } from '@src/utils/enums';
 import { storableError } from '@src/utils/errors';
 import type { TError, TPagination } from '@src/utils/types';
-import { denormalisedResponseEntities } from '@utils/data';
 
 // ================ Initial State ================ //
 type TManagePartnersMenusState = {
@@ -34,9 +34,9 @@ type TManagePartnersMenusState = {
   // Apply extra fee
   applyExtraFeeInProgress: boolean;
   applyExtraFeeError: TError | null;
-  // Extra fee per menu (fetched from food items)
-  menuExtraFees: Record<string, number | undefined>;
-  fetchMenuExtraFeesInProgress: boolean;
+  // Per-dish extra fee on the menu detail screen
+  saveMenuExtraFeesInProgress: boolean;
+  saveMenuExtraFeesError: TError | null;
 };
 
 const initialState: TManagePartnersMenusState = {
@@ -63,9 +63,9 @@ const initialState: TManagePartnersMenusState = {
   // Apply extra fee
   applyExtraFeeInProgress: false,
   applyExtraFeeError: null,
-  // Extra fee per menu
-  menuExtraFees: {},
-  fetchMenuExtraFeesInProgress: false,
+  // Per-dish extra fee
+  saveMenuExtraFeesInProgress: false,
+  saveMenuExtraFeesError: null,
 };
 
 // ================ Async Thunks ================ //
@@ -183,56 +183,33 @@ const rejectMenu = createAsyncThunk<
 );
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-const getFirstFoodId = (menu: MenuListing): string | null => {
-  const meta = menu.attributes?.metadata as any;
-  const firstNonEmpty = DAY_KEYS.map(
-    (day) => (meta?.[`${day}FoodIdList`] as string[]) || [],
-  ).find((ids) => ids.length > 0);
 
-  return firstNonEmpty?.[0] ?? null;
+/**
+ * Every dish in a menu, from the same metadata index the server prunes against.
+ */
+const getMenuFoodIds = (menu: MenuListing): string[] => {
+  const metadata = menu.attributes?.metadata as any;
+
+  return uniq(
+    DAY_KEYS.flatMap(
+      (day) => (metadata?.[`${day}FoodIdList`] as string[]) || [],
+    ),
+  );
 };
 
-const fetchMenuExtraFees = createAsyncThunk<
-  Record<string, number | undefined>,
-  (MenuListing & { restaurantName: string })[]
->(
-  'admin/ManagePartnersMenus/FETCH_MENU_EXTRA_FEES',
-  async (menus, { rejectWithValue }) => {
-    try {
-      const entries = menus
-        .map((menu) => ({
-          menuId: menu.id?.uuid ?? '',
-          foodId: getFirstFoodId(menu),
-        }))
-        .filter((e) => e.menuId && e.foodId);
+/** One fee for every dish of a menu. */
+const buildFlatExtraFeeMap = (menu: MenuListing, extraFee: number) =>
+  getMenuFoodIds(menu).reduce<Record<string, number>>(
+    (result, foodId) => ({ ...result, [foodId]: extraFee }),
+    {},
+  );
 
-      const results = await Promise.all(
-        entries.map(async ({ menuId, foodId }) => {
-          try {
-            const res = await partnerFoodApi.showFood(foodId as string, {
-              expand: true,
-            });
-            const [food] = denormalisedResponseEntities(res.data);
-            const extraFee: number =
-              food?.attributes?.publicData?.extraFee ?? 0;
-
-            return { menuId, extraFee };
-          } catch {
-            return { menuId, extraFee: 0 };
-          }
-        }),
-      );
-
-      return results.reduce<Record<string, number | undefined>>(
-        (acc, { menuId, extraFee }) => ({ ...acc, [menuId]: extraFee }),
-        {},
-      );
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  },
-);
-
+/**
+ * Applies one fee to every dish of every selected menu.
+ *
+ * The fee is stored on the MENU, so the same dish keeps a different fee in a
+ * different menu. This must never write to food listings.
+ */
 const applyExtraFeeToMenus = createAsyncThunk<
   { menuIds: string[]; extraFee: number },
   {
@@ -244,32 +221,44 @@ const applyExtraFeeToMenus = createAsyncThunk<
   'admin/ManagePartnersMenus/APPLY_EXTRA_FEE',
   async ({ selectedMenuIds, menus, extraFee }, { rejectWithValue }) => {
     try {
-      const selectedMenus = menus.filter((m) =>
-        selectedMenuIds.includes(m.id?.uuid ?? ''),
+      const selectedMenus = menus.filter((menu) =>
+        selectedMenuIds.includes(menu.id?.uuid ?? ''),
       );
 
-      const foodIdSet = new Set<string>();
-      selectedMenus.forEach((menu) => {
-        const foodsByDate = menu.attributes?.publicData?.foodsByDate || {};
-        Object.values(foodsByDate).forEach((foodsOnDay: any) => {
-          Object.values(foodsOnDay).forEach((foodItem: any) => {
-            if (foodItem?.id) foodIdSet.add(foodItem.id);
-          });
-        });
-      });
-
       await Promise.all(
-        Array.from(foodIdSet).map((foodId) =>
-          partnerFoodApi.updateFood(foodId, {
-            dataParams: { id: foodId, publicData: { extraFee } },
-            queryParams: {},
+        selectedMenus.map((menu) =>
+          updateMenuExtraFeesApi(menu.id?.uuid ?? '', {
+            extraFees: buildFlatExtraFeeMap(menu, extraFee),
+            mode: 'replace',
           }),
         ),
       );
 
       return { menuIds: selectedMenuIds, extraFee };
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(storableError(error));
+    }
+  },
+);
+
+/**
+ * Saves the per-dish fee map for one menu (menu detail screen).
+ *
+ * The screen shows every dish in the menu, so it submits the complete picture
+ * in `replace` mode — clearing a field means that dish is no longer surcharged.
+ */
+const saveMenuExtraFees = createAsyncThunk<
+  { menuId: string; extraFees: Record<string, number> },
+  { menuId: string; extraFees: Record<string, number> }
+>(
+  'admin/ManagePartnersMenus/SAVE_MENU_EXTRA_FEES',
+  async ({ menuId, extraFees }, { rejectWithValue }) => {
+    try {
+      await updateMenuExtraFeesApi(menuId, { extraFees, mode: 'replace' });
+
+      return { menuId, extraFees };
+    } catch (error) {
+      return rejectWithValue(storableError(error));
     }
   },
 );
@@ -280,7 +269,7 @@ export const ManagePartnersMenusThunks = {
   approveMenu,
   rejectMenu,
   applyExtraFeeToMenus,
-  fetchMenuExtraFees,
+  saveMenuExtraFees,
 };
 
 // ================ Slice ================ //
@@ -378,24 +367,55 @@ const ManagePartnersMenusSlice = createSlice({
       })
       .addCase(applyExtraFeeToMenus.fulfilled, (state, { payload }) => {
         state.applyExtraFeeInProgress = false;
-        payload.menuIds.forEach((menuId) => {
-          state.menuExtraFees[menuId] = payload.extraFee;
+        // Mirror the write locally so the column refreshes without a refetch.
+        state.pendingMenus = state.pendingMenus.map((menu) => {
+          if (!payload.menuIds.includes(menu.id?.uuid ?? '')) {
+            return menu;
+          }
+
+          return {
+            ...menu,
+            attributes: {
+              ...menu.attributes,
+              publicData: {
+                ...menu.attributes?.publicData,
+                foodExtraFees: buildFlatExtraFeeMap(menu, payload.extraFee),
+              },
+            },
+          } as MenuListing & { restaurantName: string };
         });
       })
       .addCase(applyExtraFeeToMenus.rejected, (state, { payload }) => {
         state.applyExtraFeeInProgress = false;
         state.applyExtraFeeError = payload as TError;
       })
-      // =============== fetchMenuExtraFees ===============
-      .addCase(fetchMenuExtraFees.pending, (state) => {
-        state.fetchMenuExtraFeesInProgress = true;
+      // =============== saveMenuExtraFees ===============
+      .addCase(saveMenuExtraFees.pending, (state) => {
+        state.saveMenuExtraFeesInProgress = true;
+        state.saveMenuExtraFeesError = null;
       })
-      .addCase(fetchMenuExtraFees.fulfilled, (state, { payload }) => {
-        state.fetchMenuExtraFeesInProgress = false;
-        state.menuExtraFees = { ...state.menuExtraFees, ...payload };
+      .addCase(saveMenuExtraFees.fulfilled, (state, { payload }) => {
+        state.saveMenuExtraFeesInProgress = false;
+        // Mirror the write into the list so the row summary and the open panel
+        // both re-read the saved values without a refetch.
+        state.pendingMenus = state.pendingMenus.map((menu) =>
+          menu.id?.uuid === payload.menuId
+            ? ({
+                ...menu,
+                attributes: {
+                  ...menu.attributes,
+                  publicData: {
+                    ...menu.attributes?.publicData,
+                    foodExtraFees: payload.extraFees,
+                  },
+                },
+              } as MenuListing & { restaurantName: string })
+            : menu,
+        );
       })
-      .addCase(fetchMenuExtraFees.rejected, (state) => {
-        state.fetchMenuExtraFeesInProgress = false;
+      .addCase(saveMenuExtraFees.rejected, (state, { payload }) => {
+        state.saveMenuExtraFeesInProgress = false;
+        state.saveMenuExtraFeesError = payload as TError;
       });
   },
 });

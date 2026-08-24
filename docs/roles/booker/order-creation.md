@@ -55,9 +55,11 @@ Restaurant search is powered by Sharetribe listing queries with filters defined 
 
 ## Restaurant Browsing — Food Price Display
 
-When a booker browses restaurants (Step 4 of the quiz wizard), the food items shown in each restaurant card ("Lựa chọn phù hợp" / "Menu tham khảo") display the **final price** (`base + extraFee`).
+When a booker browses restaurants (Step 4 of the quiz wizard), the food items shown in each restaurant card ("Lựa chọn phù hợp" / "Menu tham khảo") display the **final price** (`base + fee`), where the fee is the menu-scoped one for the menu being browsed (`menu.publicData.foodExtraFees`).
 
-The budget filter (`packagePerMember`) also compares against the final price — a food with base 75,000 + extra fee 25,000 matches a 100,000 VND/person budget.
+The budget filter (`packagePerMember`) also compares against the final price — a food with base 75,000 + extra fee 25,000 matches a 100,000 VND/person budget. This is the basis **everywhere**: restaurant search, the booker's "trong mức giá" grouping, admin recommend-restaurants, the participant's suitable-price list and auto-pick, and the `isOverflowPackage` billing check all compare `base + fee` via `getBillablePrice` (`src/helpers/menuExtraFee.ts`).
+
+Note the operators differ by intent and are not interchangeable: admin sourcing matches **exactly** (`=== packagePerMember`) because the markup is meant to close the gap to the package precisely, while participant selection uses **at most** (`<=`).
 
 **Source:** `src/helpers/searchRestaurantHelper.ts` → `parseFoodsFromMenu`
 

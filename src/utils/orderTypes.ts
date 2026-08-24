@@ -5,6 +5,8 @@ export type TFoodList = {
   [foodId: string]: {
     foodName: string;
     foodPrice: number;
+    /** Menu-scoped extra fee snapshotted at pick time — part of the billed total. */
+    foodExtraFee?: number;
     foodUnit?: string;
     numberOfMainDishes: number | string;
   };

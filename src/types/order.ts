@@ -81,6 +81,8 @@ export type TPlanData = {
   [dayId: string]: {
     foodList: FoodListing[];
     restaurant: RestaurantListing;
+    /** Menu-scoped extra fee per dish, from the plan snapshot. */
+    foodExtraFees?: Record<string, number>;
     memberOrder: TMemberOrderDetail;
   };
 };

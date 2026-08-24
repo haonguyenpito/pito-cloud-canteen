@@ -33,6 +33,11 @@ type TListCardProps = {
     foodName?: string;
     timestamp: string;
   }) => void;
+  /**
+   * Menu-scoped extra fee for this dish, taken from the plan snapshot so the
+   * participant sees exactly what will be billed. Defaults to 0.
+   */
+  extraFee?: number;
 };
 
 const ListingCard: React.FC<TListCardProps> = ({
@@ -44,6 +49,7 @@ const ListingCard: React.FC<TListCardProps> = ({
   selectDisabled,
   isOrderAlreadyStarted,
   onAddedToCart,
+  extraFee = 0,
 }) => {
   const detailModalController = useBoolean();
   const isAllowAddSecondaryFood = useAppSelector(
@@ -60,7 +66,6 @@ const ListingCard: React.FC<TListCardProps> = ({
     allergicIngredients = [],
     foodType,
     numberOfMainDishes,
-    extraFee = 0,
   } = Listing(listing).getPublicData();
   const displayPrice = (price?.amount || 0) + extraFee;
 

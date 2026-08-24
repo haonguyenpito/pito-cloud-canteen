@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-loop-func */
 /* eslint-disable no-await-in-loop */
 import { mapLimit } from 'async';
-import { chunk, flatten, uniq } from 'lodash';
+import { chunk, flatten, omit, uniq } from 'lodash';
 
 import { queryAllListings } from '@helpers/apiHelpers';
 import { denormalisedResponseEntities } from '@services/data';
@@ -90,14 +90,22 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
                 `${day}MinFoodPrice`
               ] || 0;
 
-            const foodsByDate =
-              IntegrationListing(details).getPublicData().foodsByDate || {};
+            const { foodsByDate = {}, foodExtraFees } =
+              IntegrationListing(details).getPublicData();
 
             const foodsByDay = foodsByDate?.[day];
 
             deletedFoodIds.forEach((foodId: string) => {
               delete foodsByDay?.[foodId];
             });
+
+            // The menu-scoped extra fee is keyed by foodId — drop the orphans so
+            // they cannot resurface if a dish is later re-added to this menu.
+            const prunedExtraFees =
+              foodExtraFees &&
+              deletedFoodIds.some((foodId: string) => foodId in foodExtraFees)
+                ? omit(foodExtraFees, deletedFoodIds)
+                : undefined;
 
             const newFoodIdList = foodIdList.filter(
               (foodId: string) => !deletedFoodIds.includes(foodId),
@@ -160,6 +168,9 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
                     ? {
                         [`${day}MinFoodPrice`]: newMinFoodPrice,
                       }
+                    : {}),
+                  ...(prunedExtraFees
+                    ? { foodExtraFees: prunedExtraFees }
                     : {}),
                   foodsByDate: {
                     ...(updateMap[menuId as keyof typeof updateMap]?.publicData
@@ -323,11 +334,18 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
             const currentMinFoodPrice =
               menuListing.getPublicData()[`${day}MinFoodPrice`] || 0;
 
-            const { foodsByDate } = menuListing.getPublicData();
+            const { foodsByDate, foodExtraFees } = menuListing.getPublicData();
 
             const foodsByDay = foodsByDate?.[day];
 
             delete foodsByDay?.[deletedFoodId];
+
+            // The menu-scoped extra fee is keyed by foodId — drop the orphans so
+            // they cannot resurface if a dish is later re-added to this menu.
+            const prunedExtraFees =
+              foodExtraFees && deletedFoodId in foodExtraFees
+                ? omit(foodExtraFees, [deletedFoodId])
+                : undefined;
 
             const newFoodIdList = foodIdList.filter(
               (foodId: string) => foodId !== deletedFoodId,
@@ -389,6 +407,9 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
                     ? {
                         [`${day}MinFoodPrice`]: newMinFoodPrice,
                       }
+                    : {}),
+                  ...(prunedExtraFees
+                    ? { foodExtraFees: prunedExtraFees }
                     : {}),
                   foodsByDate: {
                     ...(updateMap[menuId as keyof typeof updateMap]?.publicData

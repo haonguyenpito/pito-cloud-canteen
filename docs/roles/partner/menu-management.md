@@ -8,9 +8,9 @@ Partners manage their food catalog and menus through the partner portal. All new
 
 ## Food Item Pricing
 
-Partners set the **base price** (`price.amount`) on each food item. Admin may add an **extra fee** (`publicData.extraFee`) on top as a PITO markup — this value is not visible in the partner portal. Partners always see base price only.
+Partners set the **base price** (`price.amount`) on each food item. Admin may add an **extra fee** as a PITO markup, stored per (menu, dish) in `menu.publicData.foodExtraFees` — never on the food listing. It is not visible in the partner portal; partners always see base price only.
 
-The final price shown to bookers and participants is `base + extraFee`.
+The final price shown to bookers and participants is `base + fee`, where the fee is the one set on the menu being browsed. The same dish in another menu can carry a different fee.
 
 ---
 

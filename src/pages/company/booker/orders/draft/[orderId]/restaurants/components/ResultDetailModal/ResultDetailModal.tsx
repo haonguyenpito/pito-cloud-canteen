@@ -80,6 +80,9 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
   const updatePlanDetailInProgress = useAppSelector(
     (state) => state.BookerSelectRestaurant.updatePlanDetailInProgress,
   );
+  const menuFoodExtraFees = useAppSelector(
+    (state) => state.BookerSelectRestaurant.menuFoodExtraFees,
+  );
   const currentMenuId = useAppSelector(
     (state) => state.BookerSelectRestaurant.currentMenuId,
   );
@@ -156,6 +159,8 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
   }, [restaurantFood, selectedRestaurantId]);
 
   const foodList = restaurantFood?.[selectedRestaurantId!];
+  // The fee is a property of the menu being browsed, not of the dish.
+  const extraFeeByFoodId = menuFoodExtraFees?.[currentMenuId!] || {};
 
   const submitFoodListDisabled = selectedFoods.length === 0;
 
@@ -215,14 +220,21 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
           numberOfMainDishes !== null &&
           Number(numberOfMainDishes) === 1;
 
-        const finalPrice =
-          isSecondaryFoodAllowedCompany && !isSinglePickFood
-            ? originalPrice / 2
-            : originalPrice;
+        const isHalved = isSecondaryFoodAllowedCompany && !isSinglePickFood;
+        const finalPrice = isHalved ? originalPrice / 2 : originalPrice;
+
+        // The menu's extra fee follows the base price: when a dual-selection
+        // company splits one package across two dishes, the per-meal markup
+        // must stay the same rather than being charged twice.
+        const originalExtraFee = extraFeeByFoodId[foodId] ?? 0;
+        const finalExtraFee = isHalved
+          ? originalExtraFee / 2
+          : originalExtraFee;
 
         acc[foodId] = {
           foodName,
           foodPrice: finalPrice,
+          foodExtraFee: finalExtraFee,
           foodUnit: foodListingGetter.publicData?.unit || '',
           numberOfMainDishes,
         };
@@ -375,6 +387,7 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
               selectedFoodIds={selectedFoods}
               fetchFoodInProgress={fetchFoodInProgress}
               packagePerMember={packagePerMember}
+              extraFeeByFoodId={extraFeeByFoodId}
             />
           </div>
         </div>
@@ -404,6 +417,7 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
         onClose={foodModal.setFalse}
         onSelect={handleSelectFood}
         isMobileLayout={!isTabletLayoutOrLarger}
+        extraFee={extraFeeByFoodId[`${selectedFood?.id?.uuid}`] ?? 0}
       />
       {restaurantReviewModalControl.value && (
         <RestaurantReviewModal

@@ -4,6 +4,7 @@ import classNames from 'classnames';
 
 import FoodCard from '@components/FoodCard/FoodCard';
 import IconSpinner from '@components/Icons/IconSpinner/IconSpinner';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import { Listing } from '@src/utils/data';
 import type { TListing } from '@utils/types';
 
@@ -18,6 +19,8 @@ type TFoodsListSectionProps = {
   hideSelection?: boolean;
   fetchFoodInProgress?: boolean;
   packagePerMember?: number;
+  /** Menu-scoped extra fees keyed by foodId, from the menu being browsed. */
+  extraFeeByFoodId?: Record<string, number>;
 };
 
 const FoodListSection: React.FC<TFoodsListSectionProps> = ({
@@ -29,6 +32,7 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
   hideSelection = false,
   fetchFoodInProgress = false,
   packagePerMember = 0,
+  extraFeeByFoodId = {},
 }) => {
   const intl = useIntl();
   const groupedFoodList = foodList.reduce<{
@@ -39,8 +43,13 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
       const foodListing = Listing(foodItem);
       const { price } = foodListing.getAttributes();
       const { equalPriceFoodList, notEqualPriceFoodList } = result;
+      // The budget is fee-inclusive, so group on what the company is billed.
+      const billablePrice = getBillablePrice(
+        price.amount,
+        extraFeeByFoodId[`${foodItem?.id?.uuid}`],
+      );
 
-      if (price.amount !== packagePerMember) {
+      if (billablePrice !== packagePerMember) {
         notEqualPriceFoodList.push(foodItem);
       } else {
         equalPriceFoodList.push(foodItem);
@@ -109,6 +118,7 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
                       '!w-full !max-w-[unset]',
                     )}
                     hideSelection={hideSelection}
+                    extraFee={extraFeeByFoodId[`${item?.id.uuid}`] ?? 0}
                   />
                 ))}
               </div>
@@ -158,6 +168,9 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
                                 '!w-full !max-w-[unset]',
                               )}
                               hideSelection={hideSelection}
+                              extraFee={
+                                extraFeeByFoodId[`${item?.id.uuid}`] ?? 0
+                              }
                             />
                           ))}
                         </div>

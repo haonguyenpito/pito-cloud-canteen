@@ -10,6 +10,7 @@ import {
   pickRandomFoodExcludingIds,
 } from '@helpers/foodPickerHelpers';
 import { sleep } from '@helpers/index';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
@@ -60,11 +61,19 @@ const recommendFoodForShoppingCart = ({
   isAllowAddSecondaryFood?: boolean;
 }) => {
   const subOrder = plan[subOrderDate];
-  const { foodList } = subOrder;
+  const { foodList, foodExtraFees = {} } = subOrder;
 
-  // get the list of foods with suitable price
+  // get the list of foods with suitable price — the budget is fee-inclusive, so
+  // auto-pick must not choose a dish that would overflow the package at billing
   const suitablePriceFoodList = foodList.filter((food: TListing) => {
-    return Listing(food).getAttributes().price.amount <= packagePerMember;
+    const foodId = food?.id?.uuid;
+
+    return (
+      getBillablePrice(
+        Listing(food).getAttributes().price.amount,
+        foodExtraFees[`${foodId}`],
+      ) <= packagePerMember
+    );
   });
 
   // pick a random food from the list of foods with suitable price without allergies

@@ -4,10 +4,14 @@
  * Tests for getSubmitFoodData, getUpdateFoodData, getDuplicateData —
  * the form-value serializers that write food data back to Sharetribe.
  *
- * Critical invariant: extraFee must be parsed from its comma-formatted
- * string form and written as a number into publicData.extraFee.
- * It must never end up as a raw string in Sharetribe, and must never
- * bleed through the `...rest` spread as an unformatted value.
+ * Critical invariant: a food listing carries NO extra fee. The fee is scoped to
+ * a (menu, dish) pair and lives in `menu.publicData.foodExtraFees`, because a
+ * dish listing is shared by many menus — a dish-level fee silently repriced the
+ * dish in every menu serving it.
+ *
+ * These serializers spread `...rest` into publicData, so anything left on the
+ * form values leaks straight into Sharetribe. That is what makes an explicit
+ * regression guard worth having here.
  *
  * Source file: src/pages/admin/partner/[restaurantId]/settings/food/utils.ts
  */
@@ -65,89 +69,49 @@ const BASE_VALUES = {
   isDraft: false,
 };
 
-// ---------------------------------------------------------------------------
-// getSubmitFoodData — extraFee
-// ---------------------------------------------------------------------------
+describe('food serializers no longer write a dish-level extra fee', () => {
+  it('getSubmitFoodData omits extraFee from publicData', () => {
+    const result = getSubmitFoodData(BASE_VALUES);
 
-describe('getSubmitFoodData — extraFee', () => {
-  it('stores extraFee as a number in publicData', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: '13,000' });
-    expect(result.publicData.extraFee).toBe(13_000);
+    expect(result.publicData).not.toHaveProperty('extraFee');
   });
 
-  it('stores 0 when extraFee is "0"', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: '0' });
-    expect(result.publicData.extraFee).toBe(0);
+  it('getUpdateFoodData omits extraFee from publicData', () => {
+    const result = getUpdateFoodData({ ...BASE_VALUES, id: 'food-1' } as any);
+
+    expect(result.publicData).not.toHaveProperty('extraFee');
   });
 
-  it('stores 0 when extraFee is undefined', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: undefined });
-    expect(result.publicData.extraFee).toBe(0);
+  it('getDuplicateData omits extraFee from publicData', () => {
+    const result = getDuplicateData(BASE_VALUES);
+
+    expect(result.publicData).not.toHaveProperty('extraFee');
   });
 
-  it('strips commas — "25,000" becomes 25000', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: '25,000' });
-    expect(result.publicData.extraFee).toBe(25_000);
-  });
+  it('does not let a stray extraFee value ride in through the ...rest spread', () => {
+    const result = getSubmitFoodData({
+      ...BASE_VALUES,
+      extraFee: '13,000',
+    } as any);
 
-  it('does not include extraFee as a string key in publicData via ...rest spread', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: '13,000' });
-    // publicData.extraFee must be a number, not the raw string
-    expect(typeof result.publicData.extraFee).toBe('number');
-  });
-
-  it('correctly sets metadata restaurantId and listingType', () => {
-    const result = getSubmitFoodData({ ...BASE_VALUES, extraFee: '0' });
-    expect(result.metadata.restaurantId).toBe('restaurant-abc');
-    expect(result.metadata.listingType).toBe(EListingType.food);
+    expect(result.publicData).not.toHaveProperty('extraFee');
   });
 });
 
-// ---------------------------------------------------------------------------
-// getUpdateFoodData — extraFee
-// ---------------------------------------------------------------------------
+describe('food serializers — price', () => {
+  it('parses the dot-separated price the form produces into a Money amount', () => {
+    // `parsePrice` (the field's parser) formats with dots, e.g. "50.000".
+    const result = getSubmitFoodData({ ...BASE_VALUES, price: '50.000' });
 
-describe('getUpdateFoodData — extraFee', () => {
-  it('stores extraFee as a number in publicData', () => {
-    const result = getUpdateFoodData({
-      ...BASE_VALUES,
-      id: 'food-1',
-      extraFee: '20,000',
+    expect(result.price).toMatchObject({ amount: 50_000, currency: 'VND' });
+  });
+
+  it('writes the listing type and restaurant into metadata', () => {
+    const result = getSubmitFoodData(BASE_VALUES);
+
+    expect(result.metadata).toMatchObject({
+      restaurantId: 'restaurant-abc',
+      listingType: EListingType.food,
     });
-    expect(result.publicData.extraFee).toBe(20_000);
-  });
-
-  it('stores 0 when extraFee is omitted', () => {
-    const result = getUpdateFoodData({
-      ...BASE_VALUES,
-      id: 'food-1',
-      extraFee: undefined,
-    });
-    expect(result.publicData.extraFee).toBe(0);
-  });
-
-  it('includes the food id in the result', () => {
-    const result = getUpdateFoodData({
-      ...BASE_VALUES,
-      id: 'food-1',
-      extraFee: '5,000',
-    });
-    expect(result.id).toBe('food-1');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getDuplicateData — extraFee
-// ---------------------------------------------------------------------------
-
-describe('getDuplicateData — extraFee', () => {
-  it('stores extraFee as a number in publicData', () => {
-    const result = getDuplicateData({ ...BASE_VALUES, extraFee: '8,000' });
-    expect(result.publicData.extraFee).toBe(8_000);
-  });
-
-  it('stores 0 when extraFee is undefined', () => {
-    const result = getDuplicateData({ ...BASE_VALUES, extraFee: undefined });
-    expect(result.publicData.extraFee).toBe(0);
   });
 });

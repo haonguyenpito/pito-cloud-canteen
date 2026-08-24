@@ -6,16 +6,25 @@ import { useRouter } from 'next/router';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import Button from '@components/Button/Button';
+import IconArrow from '@components/Icons/IconArrow/IconArrow';
 import IconEye from '@components/Icons/IconEye/IconEye';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
-import type { TColumn } from '@components/Table/Table';
+import type { TColumn, TRowData } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import type { MenuListing } from '@src/types';
 import { formatTimestamp } from '@utils/dates';
 import { EListingStates, EMenuMealType, EMenuType } from '@utils/enums';
+import { parsePrice } from '@utils/validators';
 
 import ApplyExtraFeeModal from './components/ApplyExtraFeeModal/ApplyExtraFeeModal';
+import ImportExtraFeeModal from './components/ImportExtraFeeModal/ImportExtraFeeModal';
+import MenuExtraFeePanel from './components/MenuExtraFeePanel/MenuExtraFeePanel';
+import {
+  buildExtraFeeRows,
+  hasUnsavedExtraFeeChanges,
+  toAmount,
+} from './components/MenuExtraFeePanel/utils';
 import { ManagePartnersMenusThunks } from './ManagePartnersMenus.slice';
 
 const getMealTypeLabel = (mealType: string) => {
@@ -38,7 +47,29 @@ const getMenuTypeLabel = (menuType: string) => {
   return labels[menuType] || menuType;
 };
 
+/** Menu states in which the fee may still be edited — mirrors the API guard. */
+const EDITABLE_MENU_STATES: string[] = [
+  EListingStates.draft,
+  EListingStates.pendingApproval,
+];
+
 const TABLE_COLUMNS: TColumn[] = [
+  {
+    key: 'expand',
+    label: '',
+    render: (data: any) => (
+      <button
+        type="button"
+        aria-label="Xem phụ phí theo món"
+        className="p-1 rounded hover:bg-gray-100 transition-colors"
+        onClick={() => data?.onToggleExpand(data?.id)}>
+        <IconArrow
+          direction={data?.isExpanded ? 'down' : 'right'}
+          className="w-4 h-4"
+        />
+      </button>
+    ),
+  },
   {
     key: 'order',
     label: 'STT',
@@ -130,9 +161,9 @@ const TABLE_COLUMNS: TColumn[] = [
     key: 'appliedExtraFee',
     label: 'Phụ phí',
     render: (data: any) =>
-      data?.appliedExtraFee > 0 ? (
+      data?.appliedExtraFee ? (
         <span className="text-amber-600 font-semibold text-sm whitespace-nowrap">
-          +{(data.appliedExtraFee as number).toLocaleString('vi-VN')}đ
+          +{data.appliedExtraFee}
         </span>
       ) : (
         <span className="text-gray-400 text-sm">—</span>
@@ -154,14 +185,39 @@ const TABLE_COLUMNS: TColumn[] = [
   },
 ];
 
+const formatVnd = (amount: number) => `${amount.toLocaleString('vi-VN')}đ`;
+
+/**
+ * Dishes within one menu may now carry different fees, so show the single value
+ * when they agree and a range when they do not.
+ */
+const buildExtraFeeLabel = (
+  foodExtraFees: Record<string, number | undefined> = {},
+): string => {
+  const fees = Object.values(foodExtraFees).filter(
+    (fee): fee is number => typeof fee === 'number' && fee > 0,
+  );
+
+  if (fees.length === 0) {
+    return '';
+  }
+
+  const min = Math.min(...fees);
+  const max = Math.max(...fees);
+
+  return min === max ? formatVnd(min) : `${formatVnd(min)} – ${formatVnd(max)}`;
+};
+
 const parseMenusToTableData = (
   menus: (MenuListing & { restaurantName: string })[],
   {
     onViewDetail,
-    menuExtraFees,
+    onToggleExpand,
+    expandedMenuId,
   }: {
     onViewDetail: (menuId: string) => void;
-    menuExtraFees: Record<string, number | undefined>;
+    onToggleExpand: (menuId: string) => void;
+    expandedMenuId: string | null;
   },
 ) => {
   return menus.map((menu, index) => {
@@ -188,8 +244,10 @@ const parseMenusToTableData = (
         startDate,
         endDate,
         status,
-        appliedExtraFee: menuExtraFees[menuId],
+        appliedExtraFee: buildExtraFeeLabel(publicData?.foodExtraFees),
+        isExpanded: expandedMenuId === menuId,
         onViewDetail,
+        onToggleExpand,
       },
     };
   });
@@ -202,6 +260,13 @@ const ManagePartnersMenusPage = () => {
 
   const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
   const [isExtraFeeModalOpen, setIsExtraFeeModalOpen] = useState(false);
+  const [isImportFeeModalOpen, setIsImportFeeModalOpen] = useState(false);
+  // Only one panel is open at a time, so at most one can hold unsaved edits.
+  const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
+  // Drafts live here (not in the panel) so collapsing does not discard them.
+  const [feeDrafts, setFeeDrafts] = useState<
+    Record<string, Record<string, string>>
+  >({});
 
   const {
     pendingMenus,
@@ -209,18 +274,13 @@ const ManagePartnersMenusPage = () => {
     fetchPendingMenusInProgress,
     fetchPendingMenusError,
     applyExtraFeeInProgress,
-    menuExtraFees,
+    saveMenuExtraFeesInProgress,
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
   useEffect(() => {
     dispatch(
       ManagePartnersMenusThunks.fetchPendingMenus({ page: 1, perPage: 20 }),
-    )
-      .unwrap()
-      .then(({ menus }) => {
-        dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
-      })
-      .catch(() => {});
+    );
   }, [dispatch]);
 
   const handleViewDetail = (menuId: string) => {
@@ -228,17 +288,14 @@ const ManagePartnersMenusPage = () => {
   };
 
   const handlePageChange = (page: number, pageSize?: number) => {
+    setExpandedMenuId(null);
+    setFeeDrafts({});
     dispatch(
       ManagePartnersMenusThunks.fetchPendingMenus({
         page,
         perPage: pageSize || 20,
       }),
-    )
-      .unwrap()
-      .then(({ menus }) => {
-        dispatch(ManagePartnersMenusThunks.fetchMenuExtraFees(menus));
-      })
-      .catch(() => {});
+    );
   };
 
   const handleExposeValues = ({ values }: { values: any; valid: boolean }) => {
@@ -261,9 +318,113 @@ const ManagePartnersMenusPage = () => {
     );
   };
 
+  const getMenuById = (menuId: string) =>
+    pendingMenus.find((menu) => menu.id?.uuid === menuId);
+
+  const getSavedExtraFees = (menuId: string) =>
+    getMenuById(menuId)?.attributes?.publicData?.foodExtraFees || {};
+
+  /** Seeds the draft from what is stored, so an untouched panel is not dirty. */
+  const getDraftForMenu = (menuId: string, rows: { foodId: string }[]) => {
+    if (feeDrafts[menuId]) {
+      return feeDrafts[menuId];
+    }
+
+    const saved = getSavedExtraFees(menuId);
+
+    return rows.reduce<Record<string, string>>((result, row) => {
+      const fee = saved[row.foodId];
+
+      return {
+        ...result,
+        [row.foodId]: fee ? parsePrice(String(fee)) : '',
+      };
+    }, {});
+  };
+
+  const handleToggleExpand = (menuId: string) => {
+    setExpandedMenuId((current) => (current === menuId ? null : menuId));
+  };
+
+  const handleFeeChange = (
+    menuId: string,
+    rows: { foodId: string }[],
+    foodId: string,
+    value: string,
+  ) => {
+    const current = getDraftForMenu(menuId, rows);
+
+    setFeeDrafts((drafts) => ({
+      ...drafts,
+      [menuId]: { ...current, [foodId]: value },
+    }));
+  };
+
+  const handleSaveMenuExtraFees = async (
+    menuId: string,
+    rows: { foodId: string }[],
+  ) => {
+    const draft = getDraftForMenu(menuId, rows);
+    const extraFees = rows.reduce<Record<string, number>>(
+      (result, row) => ({
+        ...result,
+        [row.foodId]: toAmount(draft[row.foodId] || ''),
+      }),
+      {},
+    );
+
+    try {
+      await dispatch(
+        ManagePartnersMenusThunks.saveMenuExtraFees({ menuId, extraFees }),
+      ).unwrap();
+
+      // The store now matches the draft; drop it so the panel reads from state.
+      setFeeDrafts((drafts) => {
+        const { [menuId]: _saved, ...rest } = drafts;
+
+        return rest;
+      });
+      toast.success('Đã lưu phụ phí cho menu');
+    } catch (error) {
+      toast.error((error as Error).message || 'Lưu phụ phí thất bại');
+    }
+  };
+
+  const renderExpandedContent = (row: TRowData) => {
+    const menuId = String(row.key);
+    const menu = getMenuById(menuId);
+
+    if (!menu) {
+      return null;
+    }
+
+    const rows = buildExtraFeeRows(menu.attributes?.publicData?.foodsByDate);
+    const draft = getDraftForMenu(menuId, rows);
+    const listingState = menu.attributes?.metadata?.listingState ?? '';
+
+    return (
+      <MenuExtraFeePanel
+        rows={rows}
+        draft={draft}
+        isDirty={hasUnsavedExtraFeeChanges(
+          draft,
+          getSavedExtraFees(menuId),
+          rows.map((item) => item.foodId),
+        )}
+        isEditable={EDITABLE_MENU_STATES.includes(listingState)}
+        inProgress={saveMenuExtraFeesInProgress}
+        onChange={(foodId, value) =>
+          handleFeeChange(menuId, rows, foodId, value)
+        }
+        onSave={() => handleSaveMenuExtraFees(menuId, rows)}
+      />
+    );
+  };
+
   const tableData = parseMenusToTableData(pendingMenus, {
     onViewDetail: handleViewDetail,
-    menuExtraFees,
+    onToggleExpand: handleToggleExpand,
+    expandedMenuId,
   });
 
   const title = intl.formatMessage({
@@ -300,6 +461,24 @@ const ManagePartnersMenusPage = () => {
               Thêm phụ phí ({selectedMenuIds.length})
             </Button>
           )}
+          <Button
+            variant="secondary"
+            className="flex items-center gap-2"
+            onClick={() => setIsImportFeeModalOpen(true)}>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              />
+            </svg>
+            Import phụ phí
+          </Button>
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
             <span className="text-xl font-bold text-amber-600">
               {pagination.totalItems}
@@ -330,6 +509,8 @@ const ManagePartnersMenusPage = () => {
             onCustomPageChange={handlePageChange}
             hasCheckbox
             exposeValues={handleExposeValues}
+            expandedRowKey={expandedMenuId}
+            renderExpandedContent={renderExpandedContent}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
@@ -356,6 +537,19 @@ const ManagePartnersMenusPage = () => {
           </div>
         )}
       </div>
+
+      <ImportExtraFeeModal
+        isOpen={isImportFeeModalOpen}
+        onClose={() => setIsImportFeeModalOpen(false)}
+        onImported={() =>
+          dispatch(
+            ManagePartnersMenusThunks.fetchPendingMenus({
+              page: pagination.page,
+              perPage: pagination.perPage,
+            }),
+          )
+        }
+      />
 
       <ApplyExtraFeeModal
         isOpen={isExtraFeeModalOpen}

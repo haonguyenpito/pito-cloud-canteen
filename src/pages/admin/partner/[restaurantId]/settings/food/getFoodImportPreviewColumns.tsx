@@ -117,10 +117,6 @@ export const getFoodImportPreviewColumns = (
       accessor: 'price',
     },
     {
-      label: 'Phí phụ thu (Vnđ)',
-      accessor: 'extraFee',
-    },
-    {
       label: 'Số món chính (món)',
       accessor: 'numberOfMainDishes',
     },

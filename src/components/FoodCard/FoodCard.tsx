@@ -23,6 +23,11 @@ type TFoodCardProps = {
   onSelect?: (foodId: string) => void;
   onRemove?: (foodId: string) => void;
   hideSelection?: boolean;
+  /**
+   * Menu-scoped extra fee for this dish. Defaults to 0 — partner-facing screens
+   * pass nothing and therefore always show the base price.
+   */
+  extraFee?: number;
 };
 
 const FoodCard: React.FC<TFoodCardProps> = ({
@@ -33,10 +38,11 @@ const FoodCard: React.FC<TFoodCardProps> = ({
   onRemove = () => null,
   onClick = () => null,
   hideSelection = false,
+  extraFee = 0,
 }) => {
   const intl = useIntl();
   const classes = classNames(css.root, className);
-  const { foodType, extraFee = 0 } = Listing(food!).getPublicData();
+  const { foodType } = Listing(food!).getPublicData();
   const { price } = Listing(food!).getAttributes();
   const displayPrice = (price?.amount || 0) + extraFee;
 

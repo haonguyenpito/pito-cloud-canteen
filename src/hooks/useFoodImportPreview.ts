@@ -16,7 +16,6 @@ export type FoodImportRecord = {
   description?: string;
   packaging?: string;
   price?: string;
-  extraFee?: string;
   numberOfMainDishes?: string;
   stirFriedMeal?: string;
   soup?: string;
@@ -43,7 +42,6 @@ const NAME_TO_KEY_ADAPTER: Record<string, FoodImportRecordStringKey> = {
   'Mô tả chi tiết': 'description',
   'Chất liệu bao bì': 'packaging',
   'Đơn giá (Vnđ)': 'price',
-  'Phí phụ thu (Vnđ)': 'extraFee',
   'Số món chính (món)': 'numberOfMainDishes',
   'Món xào': 'stirFriedMeal',
   'Món canh': 'soup',
@@ -307,9 +305,6 @@ export const useFoodImportPreview = ({
             soup: dataParamsInput.soup,
             dessert: dataParamsInput.dessert,
             drink: dataParamsInput.drink,
-            ...(!isPartner && dataParamsInput.extraFee
-              ? { extraFee: dataParamsInput.extraFee }
-              : {}),
           },
         );
 

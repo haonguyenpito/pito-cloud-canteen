@@ -25,6 +25,8 @@ type TFoodDetailModalProps = {
   onSelect?: (foodId: string) => void;
   isLoading?: boolean;
   isMobileLayout?: boolean;
+  /** Menu-scoped extra fee for this dish. Defaults to 0. */
+  extraFee?: number;
 };
 
 const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
@@ -34,11 +36,12 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
   onSelect,
   isLoading,
   isMobileLayout,
+  extraFee = 0,
 }) => {
   const intl = useIntl();
 
   const foodGetter = Listing(food!);
-  const { sideDishes = [], notes, extraFee = 0 } = foodGetter.getPublicData();
+  const { sideDishes = [], notes } = foodGetter.getPublicData();
   const { title, price } = foodGetter.getAttributes();
   const displayPrice = (price?.amount || 0) + extraFee;
   const FOOD_SIDE_DISH_OPTIONS = useFoodSideDishOptionsByLocale();
