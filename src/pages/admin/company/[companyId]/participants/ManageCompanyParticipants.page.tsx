@@ -16,6 +16,7 @@ import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import AlertModal from '@components/Modal/AlertModal';
 import type { TColumn, TRowData } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
+import { getCompanyMemberUserId } from '@helpers/companyMemberHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import {
   companyMemberActions,
@@ -27,14 +28,8 @@ import type { TObject } from '@utils/types';
 
 import css from './ManageCompanyParticipants.module.scss';
 
-/**
- * A member row is `{ ...sharetribeUser, ...company.metadata.members[email] }`,
- * so `id` is the plain user id string from the members map (it overwrites the
- * user's uuid object) and `attributes` only exists for people who actually
- * signed up. Invited-but-never-registered members have neither — there is no
- * account to lock. Same detection the existing members table uses.
- */
-const hasAccount = (member: TObject) => !!member?.attributes && !!member?.id;
+// Invited-but-never-registered members have no Sharetribe account to lock.
+const hasAccount = (member: TObject) => !!getCompanyMemberUserId(member);
 
 const isMemberDisabled = (member: TObject) =>
   member?.attributes?.profile?.metadata?.isDisabled === true;
@@ -201,7 +196,7 @@ const ManageCompanyParticipantsPage = () => {
             hasAccount(member) && selectedEmails.includes(member.email),
         )
         .map((member: TObject) => ({
-          userId: member.id as string,
+          userId: getCompanyMemberUserId(member) as string,
           email: member.email as string,
           isDisabled: isMemberDisabled(member),
         })),
@@ -276,8 +271,8 @@ const ManageCompanyParticipantsPage = () => {
   const tableData: TRowData[] = useMemo(
     () =>
       companyMembers.map((member: TObject) => {
-        const flexAccount = hasAccount(member);
-        const userId = member?.id;
+        const userId = getCompanyMemberUserId(member);
+        const flexAccount = !!userId;
         const { firstName, lastName, displayName } =
           member?.attributes?.profile || {};
 

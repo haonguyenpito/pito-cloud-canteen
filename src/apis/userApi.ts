@@ -1,3 +1,5 @@
+import type { TBookerQuizData } from '@apiServices/user/quizData.service';
+
 import { getApi, putApi } from './configs';
 
 export const checkUserExistedApi = ({
@@ -17,3 +19,26 @@ export const disableWalkthroughApi = (userId: string) =>
   getApi(`/users/disable-walkthrough/${userId}`);
 
 export const postSignUpApi = () => putApi(`/users/post-sign-up/`);
+
+export type TAdminUpdateUserSpecialDemandParams = {
+  userId: string;
+  allergies: string[];
+  nutritions: string[];
+};
+
+export const adminUpdateUserSpecialDemandApi = ({
+  userId,
+  ...rest
+}: TAdminUpdateUserSpecialDemandParams) =>
+  putApi(`/admin/users/${userId}/special-demand`, rest);
+
+export type TAdminUserQuizDataResponse = { quizData: TBookerQuizData };
+
+export const adminGetUserQuizDataApi = (userId: string) =>
+  getApi<TAdminUserQuizDataResponse>(`/admin/users/${userId}/quiz-data`);
+
+export const adminUpdateUserQuizDataApi = (
+  userId: string,
+  patch: TBookerQuizData,
+) =>
+  putApi<TAdminUserQuizDataResponse>(`/admin/users/${userId}/quiz-data`, patch);

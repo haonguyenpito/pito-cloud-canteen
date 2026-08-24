@@ -1,0 +1,177 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { TBookerQuizData } from '@apiServices/user/quizData.service';
+import classNames from 'classnames';
+
+import {
+  adminGetUserQuizDataApi,
+  adminUpdateUserQuizDataApi,
+} from '@apis/userApi';
+import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
+import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
+import { getCompanyMemberUserId } from '@helpers/companyMemberHelper';
+import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
+import { ECompanyPermission } from '@src/utils/enums';
+import type { TCompanyMemberWithDetails } from '@utils/types';
+
+import type { TBookerQuizFormValues } from './BookerQuizForm';
+import BookerQuizForm from './BookerQuizForm';
+
+import css from './EditBookerQuizTab.module.scss';
+
+type TEditBookerQuizTabProps = {
+  companyMembers: TCompanyMemberWithDetails[];
+};
+
+type TBookerOption = {
+  userId: string;
+  label: string;
+};
+
+const toFormValues = (quizData: TBookerQuizData): TBookerQuizFormValues => ({
+  packagePerMember:
+    quizData.packagePerMember === undefined
+      ? undefined
+      : String(quizData.packagePerMember),
+  memberAmount:
+    quizData.memberAmount === undefined
+      ? undefined
+      : String(quizData.memberAmount),
+  daySession: quizData.daySession,
+  deliveryHour: quizData.deliveryHour,
+  mealStyles: quizData.mealStyles || [],
+  nutritions: quizData.nutritions || [],
+  mealType: quizData.mealType || [],
+});
+
+const toPatch = (values: TBookerQuizFormValues): TBookerQuizData => ({
+  packagePerMember: values.packagePerMember
+    ? Number(values.packagePerMember)
+    : undefined,
+  memberAmount: values.memberAmount ? Number(values.memberAmount) : undefined,
+  daySession: values.daySession || undefined,
+  deliveryHour: values.deliveryHour || undefined,
+  mealStyles: values.mealStyles,
+  nutritions: values.nutritions,
+  mealType: values.mealType,
+});
+
+const EditBookerQuizTab: React.FC<TEditBookerQuizTabProps> = ({
+  companyMembers,
+}) => {
+  const bookers = useMemo<TBookerOption[]>(
+    () =>
+      companyMembers.reduce<TBookerOption[]>((acc, member) => {
+        const userId = getCompanyMemberUserId(member);
+        const isBooker =
+          member?.permission === ECompanyPermission.booker ||
+          member?.permission === ECompanyPermission.owner;
+
+        if (!userId || !isBooker) return acc;
+
+        acc.push({
+          userId,
+          label:
+            buildFullName(
+              member?.attributes?.profile?.firstName,
+              member?.attributes?.profile?.lastName,
+              {
+                compareToGetLongerWith:
+                  member?.attributes?.profile?.displayName,
+              },
+            ) || member.email,
+        });
+
+        return acc;
+      }, []),
+    [companyMembers],
+  );
+
+  const [selectedBookerId, setSelectedBookerId] = useState<string | null>(null);
+  const [quizData, setQuizData] = useState<TBookerQuizData | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedBookerId) return undefined;
+
+    let cancelled = false;
+    setFetching(true);
+    setErrorMessage(null);
+    adminGetUserQuizDataApi(selectedBookerId)
+      .then(({ data }) => {
+        if (!cancelled) setQuizData(data?.quizData || {});
+      })
+      .catch(() => {
+        if (!cancelled)
+          setErrorMessage('Không tải được thông tin quiz của booker này.');
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBookerId]);
+
+  const handleSubmit = async (values: TBookerQuizFormValues) => {
+    if (!selectedBookerId) return;
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const { data } = await adminUpdateUserQuizDataApi(
+        selectedBookerId,
+        toPatch(values),
+      );
+      setQuizData(data?.quizData || {});
+    } catch (error) {
+      setErrorMessage('Lưu thông tin quiz thất bại. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (bookers.length === 0) {
+    return (
+      <div className={css.empty}>Công ty chưa có booker nào có tài khoản.</div>
+    );
+  }
+
+  return (
+    <div className={css.container}>
+      <div className={css.bookerList}>
+        {bookers.map(({ userId, label }) => (
+          <div
+            key={userId}
+            className={classNames(css.bookerItem, {
+              [css.bookerItemActive]: userId === selectedBookerId,
+            })}
+            onClick={() => setSelectedBookerId(userId)}>
+            {label}
+          </div>
+        ))}
+      </div>
+
+      {!selectedBookerId && (
+        <div className={css.empty}>Chọn một booker để xem thông tin quiz.</div>
+      )}
+
+      {errorMessage && <ErrorMessage message={errorMessage} />}
+
+      {selectedBookerId && fetching && <LoadingContainer />}
+
+      {selectedBookerId && !fetching && quizData && (
+        <BookerQuizForm
+          key={selectedBookerId}
+          onSubmit={handleSubmit}
+          initialValues={toFormValues(quizData)}
+          inProgress={submitting}
+        />
+      )}
+    </div>
+  );
+};
+
+export default EditBookerQuizTab;

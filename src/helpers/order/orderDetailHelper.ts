@@ -258,6 +258,10 @@ export const groupPickingOrderByFood = ({
           const participantName = buildFullName(firstName, lastName, {
             compareToGetLongerWith: displayName,
           });
+          const { allergies = [] } =
+            User(
+              (participantMaybe || anonymousUserMaybe) as TUser,
+            ).getPublicData() || {};
 
           // Helper function to add food to foodDataMap
           const addFoodToMap = (
@@ -277,6 +281,7 @@ export const groupPickingOrderByFood = ({
               note: foodRequirement,
               name: participantName,
               memberId,
+              allergies,
               ...(planId && {
                 barcode: generateScannerBarCode(planId, memberId, `${date}`),
               }),
@@ -413,6 +418,10 @@ export const groupPickingOrderByFoodLevels = ({
             const participantName = buildFullName(firstName, lastName, {
               compareToGetLongerWith: displayName,
             });
+            const { allergies = [] } =
+              User(
+                (participantMaybe || anonymousUserMaybe) as TUser,
+              ).getPublicData() || {};
 
             const addFoodToResult = (
               targetMap: TObject,
@@ -431,6 +440,7 @@ export const groupPickingOrderByFoodLevels = ({
                 note: foodRequirement,
                 name: participantName,
                 memberId,
+                allergies,
                 ...(planId && {
                   barcode: generateScannerBarCode(planId, memberId, `${date}`),
                 }),
@@ -538,6 +548,10 @@ export const groupPickingOrderByFoodLevels = ({
             const participantName = buildFullName(firstName, lastName, {
               compareToGetLongerWith: displayName,
             });
+            const { allergies = [] } =
+              User(
+                (participantMaybe || anonymousUserMaybe) as TUser,
+              ).getPublicData() || {};
 
             const addFoodToResult = (
               targetMap: TObject,
@@ -556,6 +570,7 @@ export const groupPickingOrderByFoodLevels = ({
                 note: foodRequirement,
                 name: participantName,
                 memberId,
+                allergies,
               };
 
               const updatedNotes = [...notes];

@@ -19,6 +19,10 @@ type TExtraProps = {
   nutritionOptions?: { key: string; label: string }[];
   inProgress: boolean;
   view: string;
+  // The default layout fills a full page; callers embedding the form (e.g. in a
+  // modal) pass these to drop the viewport-height floors.
+  rootClassName?: string;
+  formContainerClassName?: string;
 };
 type TSpecialDemandFormComponentProps =
   FormRenderProps<TSpecialDemandFormValues> & Partial<TExtraProps>;
@@ -37,6 +41,8 @@ const SpecialDemandFormComponent: React.FC<TSpecialDemandFormComponentProps> = (
     submitting,
     inProgress,
     view,
+    rootClassName,
+    formContainerClassName,
   } = props;
   const intl = useIntl();
   const ALLERGIES_OPTIONS = useAllergiesOptionsByLocale();
@@ -45,13 +51,13 @@ const SpecialDemandFormComponent: React.FC<TSpecialDemandFormComponentProps> = (
     isFormNotChanged || submitting || invalid || inProgress;
 
   return (
-    <Form onSubmit={handleSubmit} className={css.root}>
+    <Form onSubmit={handleSubmit} className={rootClassName || css.root}>
       <div className={css.header}>
         {intl.formatMessage({
           id: 'ParticipantSpecialDemandRoute.description',
         })}
       </div>
-      <div className={css.formContainer}>
+      <div className={formContainerClassName || css.formContainer}>
         <div className={css.fieldsContainer}>
           <div className={css.fieldWrapper}>
             <div className={css.title}>
