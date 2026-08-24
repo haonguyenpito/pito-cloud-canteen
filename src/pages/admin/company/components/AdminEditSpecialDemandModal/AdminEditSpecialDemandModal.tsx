@@ -10,6 +10,8 @@ import type { TSpecialDemandFormValues } from '@pages/participant/account/compon
 import SpecialDemandForm from '@pages/participant/account/components/SpecialDemandForm/SpecialDemandForm';
 import type { TCompanyMemberWithDetails } from '@utils/types';
 
+import css from './AdminEditSpecialDemandModal.module.scss';
+
 type TAdminEditSpecialDemandModalProps = {
   member: TCompanyMemberWithDetails | null;
   isOpen: boolean;
@@ -63,6 +65,8 @@ const AdminEditSpecialDemandModal: React.FC<
         nutritionOptions={nutritionOptions}
         inProgress={inProgress}
         view="admin"
+        rootClassName={css.form}
+        formContainerClassName={css.formContainer}
       />
     </Modal>,
     document.body,
