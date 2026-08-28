@@ -1,3 +1,30 @@
+import UserLabelFittedText from './UserLabelFittedText';
+
+const THERMAL_CONTENT_WIDTH_MM = 56;
+const THERMAL_HEADER_COLUMN_WIDTH_MM = 26.5;
+
+function HeaderLine({
+  text,
+  className,
+  maxFontMm = 2.2,
+}: {
+  text: string;
+  className?: string;
+  maxFontMm?: number;
+}) {
+  return (
+    <UserLabelFittedText
+      text={text}
+      widthMm={THERMAL_HEADER_COLUMN_WIDTH_MM}
+      maxLines={1}
+      maxFontMm={maxFontMm}
+      minFontMm={1.4}
+      fontFamily="Quicksand"
+      className={className}
+    />
+  );
+}
+
 function UserLabelCellNormalContent({
   type,
   companyName,
@@ -18,93 +45,58 @@ function UserLabelCellNormalContent({
   const hasGroupName = Boolean(groupName && String(groupName).trim());
   if (type === 'thermal') {
     return (
-      <div className="relative w-full h-full gap-0 px-[4mm] py-[2mm]">
-        <div className="flex items-center justify-between w-full">
-          <div className="w-[calc((100%-32mm)*0.7)] h-[14mm] overflow-hidden">
-            <div
-              className="text-[2mm] h-[4.2mm] overflow-hidden"
-              style={{
-                wordBreak: 'break-word',
-                fontFamily: 'Quicksand',
-                lineHeight: 0.95,
-              }}>
-              {companyName}
-            </div>
-            <div
-              className="text-[2mm] italic h-[4.2mm] overflow-hidden"
-              style={{
-                wordBreak: 'break-word',
-                fontFamily: 'Quicksand',
-                lineHeight: 0.95,
-              }}>
-              {partnerName}
-            </div>
+      <div className="flex flex-col w-full h-full px-[3mm] py-[2mm]">
+        <div className="flex items-start justify-between gap-[2mm] shrink-0">
+          <div className="w-[48%]">
+            <HeaderLine text={companyName} className="font-semibold" />
             {hasGroupName && (
-              <div
-                className="text-[2mm] h-[4.2mm] overflow-hidden"
-                style={{
-                  wordBreak: 'break-word',
-                  fontFamily: 'Quicksand',
-                  lineHeight: 0.95,
-                }}>
-                {groupName}
-              </div>
+              <HeaderLine
+                text={groupName!}
+                className="font-semibold uppercase"
+                maxFontMm={2.8}
+              />
             )}
           </div>
-          <div
-            className="text-[2mm] font-semibold h-[4.2mm] overflow-hidden"
-            style={{
-              wordBreak: 'break-word',
-              fontFamily: 'Quicksand',
-              lineHeight: 0.95,
-            }}>
-            {mealDate}
-          </div>
-          <div
-            className="text-[2mm] h-[4.2mm] overflow-hidden"
-            style={{
-              wordBreak: 'break-word',
-              fontFamily: 'Quicksand',
-              lineHeight: 0.95,
-            }}>
-            {groupName}
+          <div className="w-[48%]">
+            <HeaderLine text={mealDate} className="font-semibold text-right" />
+            <HeaderLine
+              text={partnerName}
+              className="font-semibold text-right"
+              maxFontMm={2.8}
+            />
           </div>
         </div>
 
-        <div className="flex items-center flex-col justify-center">
-          <div
-            className="w-full px-[2mm] text-center font-semibold h-[9mm] overflow-hidden"
-            style={{
-              wordBreak: 'break-word',
-              fontFamily: 'Reddit Sans',
-              lineHeight: 1,
-              fontSize: '2.8mm',
-            }}>
-            {foodName}
-          </div>
+        <div className="flex flex-col items-center justify-center flex-1 min-h-0 overflow-hidden mt-[2.5mm] pb-[0.8mm]">
+          <UserLabelFittedText
+            text={foodName}
+            widthMm={THERMAL_CONTENT_WIDTH_MM}
+            maxLines={4}
+            maxFontMm={3.2}
+            minFontMm={1.7}
+            className="w-full font-semibold text-center"
+          />
 
           {note && (
-            <div
-              className="w-full text-center font-light italic h-[4mm] overflow-hidden mt-[-2mm] text-nowrap"
-              style={{
-                wordBreak: 'break-word',
-                whiteSpace: 'nowrap',
-                fontFamily: 'Reddit Sans',
-                lineHeight: 1,
-                fontSize: '2.4mm',
-              }}>
-              {note}
-            </div>
+            <UserLabelFittedText
+              text={note}
+              widthMm={THERMAL_CONTENT_WIDTH_MM}
+              maxLines={2}
+              maxFontMm={2}
+              minFontMm={1.4}
+              className="w-full text-center italic mt-[0.8mm]"
+            />
           )}
+        </div>
 
-          <i
-            className="text-xs w-full text-center italic absolute bottom-[2mm] left-1/2 transform -translate-x-1/2"
-            style={{
-              fontFamily: 'Reddit Sans',
-              fontSize: '2.2mm',
-            }}>
-            Chúc bạn ngon miệng!
-          </i>
+        <div
+          className="shrink-0 text-center italic"
+          style={{
+            fontFamily: 'Reddit Sans',
+            fontSize: '2mm',
+            lineHeight: 1.4,
+          }}>
+          Chúc bạn ngon miệng!
         </div>
       </div>
     );
