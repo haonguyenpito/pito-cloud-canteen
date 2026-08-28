@@ -9,6 +9,7 @@ const THERMAL_CONTENT_HEIGHT_MM = 39;
 const THERMAL_HEADER_HEIGHT_MM = 8.2;
 const THERMAL_HEADER_GAP_MM = 2.5;
 const THERMAL_NOTE_GAP_MM = 0.8;
+const THERMAL_FOOD_MIN_HEIGHT_MM = 6.5;
 const THERMAL_FOOTER_HEIGHT_MM = 2.9;
 const THERMAL_BOTTOM_PADDING_MM = 0.8;
 
@@ -53,17 +54,23 @@ function UserLabelCellNormalContent({
 }) {
   const hasGroupName = Boolean(groupName && String(groupName).trim());
   if (type === 'thermal') {
+    const foodAndNoteHeightMm =
+      THERMAL_CONTENT_HEIGHT_MM -
+      THERMAL_HEADER_HEIGHT_MM -
+      THERMAL_HEADER_GAP_MM -
+      THERMAL_FOOTER_HEIGHT_MM -
+      THERMAL_BOTTOM_PADDING_MM;
     const noteFontMm = fitFontSizeMm({
       text: note || '',
       widthMm: THERMAL_CONTENT_WIDTH_MM,
       maxLines: 2,
-      maxFontMm: 2,
+      maxHeightMm:
+        foodAndNoteHeightMm - THERMAL_FOOD_MIN_HEIGHT_MM - THERMAL_NOTE_GAP_MM,
+      maxFontMm: 2.4,
       minFontMm: 1.4,
     });
     const foodNameHeightBudgetMm =
-      THERMAL_CONTENT_HEIGHT_MM -
-      THERMAL_HEADER_HEIGHT_MM -
-      THERMAL_HEADER_GAP_MM -
+      foodAndNoteHeightMm -
       (note
         ? THERMAL_NOTE_GAP_MM +
           estimateTextHeightMm({
@@ -71,9 +78,7 @@ function UserLabelCellNormalContent({
             widthMm: THERMAL_CONTENT_WIDTH_MM,
             fontMm: noteFontMm,
           })
-        : 0) -
-      THERMAL_FOOTER_HEIGHT_MM -
-      THERMAL_BOTTOM_PADDING_MM;
+        : 0);
 
     return (
       <div className="flex flex-col w-full h-full px-[3mm] py-[2mm]">

@@ -9,6 +9,7 @@ const THERMAL_CONTENT_HEIGHT_MM = 39;
 const THERMAL_HEADER_HEIGHT_MM = 8.2;
 const THERMAL_HEADER_GAP_MM = 2.5;
 const THERMAL_NOTE_GAP_MM = 0.8;
+const THERMAL_FOOD_MIN_HEIGHT_MM = 6.5;
 const THERMAL_FOOTER_HEIGHT_MM = 2.9;
 const THERMAL_BOTTOM_PADDING_MM = 0.8;
 const THERMAL_DIVIDER_HEIGHT_MM = 4.9;
@@ -65,14 +66,7 @@ function UserLabelCellContent({
       maxFontMm: 3.4,
       minFontMm: 2.2,
     });
-    const noteFontMm = fitFontSizeMm({
-      text: note || '',
-      widthMm: THERMAL_CONTENT_WIDTH_MM,
-      maxLines: 2,
-      maxFontMm: 2,
-      minFontMm: 1.4,
-    });
-    const foodNameHeightBudgetMm =
+    const foodAndNoteHeightMm =
       THERMAL_CONTENT_HEIGHT_MM -
       THERMAL_HEADER_HEIGHT_MM -
       THERMAL_HEADER_GAP_MM -
@@ -82,6 +76,19 @@ function UserLabelCellContent({
         fontMm: participantNameFontMm,
       }) -
       THERMAL_DIVIDER_HEIGHT_MM -
+      THERMAL_FOOTER_HEIGHT_MM -
+      THERMAL_BOTTOM_PADDING_MM;
+    const noteFontMm = fitFontSizeMm({
+      text: note || '',
+      widthMm: THERMAL_CONTENT_WIDTH_MM,
+      maxLines: 2,
+      maxHeightMm:
+        foodAndNoteHeightMm - THERMAL_FOOD_MIN_HEIGHT_MM - THERMAL_NOTE_GAP_MM,
+      maxFontMm: 2.4,
+      minFontMm: 1.4,
+    });
+    const foodNameHeightBudgetMm =
+      foodAndNoteHeightMm -
       (note
         ? THERMAL_NOTE_GAP_MM +
           estimateTextHeightMm({
@@ -89,9 +96,7 @@ function UserLabelCellContent({
             widthMm: THERMAL_CONTENT_WIDTH_MM,
             fontMm: noteFontMm,
           })
-        : 0) -
-      THERMAL_FOOTER_HEIGHT_MM -
-      THERMAL_BOTTOM_PADDING_MM;
+        : 0);
 
     return (
       <div className="flex flex-col w-full h-full px-[3mm] py-[2mm]">
@@ -136,7 +141,7 @@ function UserLabelCellContent({
             widthMm={THERMAL_CONTENT_WIDTH_MM}
             maxHeightMm={foodNameHeightBudgetMm}
             maxFontMm={4}
-            minFontMm={1.6}
+            minFontMm={1.5}
             className="w-full font-semibold text-center"
           />
 
