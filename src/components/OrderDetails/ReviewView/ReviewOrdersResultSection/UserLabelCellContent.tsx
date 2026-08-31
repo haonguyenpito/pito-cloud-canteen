@@ -1,35 +1,28 @@
-import UserLabelFittedText, {
-  estimateTextHeightMm,
-  fitFontSizeMm,
-} from './UserLabelFittedText';
+import UserLabelText from './UserLabelText';
 
 const THERMAL_CONTENT_WIDTH_MM = 56;
 const THERMAL_HEADER_COLUMN_WIDTH_MM = 26.5;
-const THERMAL_CONTENT_HEIGHT_MM = 39;
-const THERMAL_HEADER_HEIGHT_MM = 8.2;
-const THERMAL_HEADER_GAP_MM = 2.5;
-const THERMAL_NOTE_GAP_MM = 0.8;
-const THERMAL_FOOD_MIN_HEIGHT_MM = 6.5;
-const THERMAL_FOOTER_HEIGHT_MM = 2.9;
-const THERMAL_BOTTOM_PADDING_MM = 0.8;
-const THERMAL_DIVIDER_HEIGHT_MM = 4.9;
+const THERMAL_HEADER_FONT_MM = 2.8;
+const THERMAL_MEAL_DATE_FONT_MM = 2.2;
+const THERMAL_PARTICIPANT_NAME_FONT_MM = 3.4;
+const THERMAL_FOOD_NAME_FONT_MM = 3;
+const THERMAL_NOTE_FONT_MM = 2.4;
 
 function HeaderLine({
   text,
   className,
-  maxFontMm = 2.2,
+  fontMm = THERMAL_HEADER_FONT_MM,
 }: {
   text: string;
   className?: string;
-  maxFontMm?: number;
+  fontMm?: number;
 }) {
   return (
-    <UserLabelFittedText
+    <UserLabelText
       text={text}
       widthMm={THERMAL_HEADER_COLUMN_WIDTH_MM}
+      fontMm={fontMm}
       maxLines={1}
-      maxFontMm={maxFontMm}
-      minFontMm={1.4}
       fontFamily="Quicksand"
       className={className}
     />
@@ -59,98 +52,56 @@ function UserLabelCellContent({
 }) {
   const hasGroupName = Boolean(groupName && String(groupName).trim());
   if (type === 'thermal') {
-    const participantNameFontMm = fitFontSizeMm({
-      text: participantName,
-      widthMm: THERMAL_CONTENT_WIDTH_MM,
-      maxLines: 2,
-      maxFontMm: 3.4,
-      minFontMm: 2.2,
-    });
-    const foodAndNoteHeightMm =
-      THERMAL_CONTENT_HEIGHT_MM -
-      THERMAL_HEADER_HEIGHT_MM -
-      THERMAL_HEADER_GAP_MM -
-      estimateTextHeightMm({
-        text: participantName,
-        widthMm: THERMAL_CONTENT_WIDTH_MM,
-        fontMm: participantNameFontMm,
-      }) -
-      THERMAL_DIVIDER_HEIGHT_MM -
-      THERMAL_FOOTER_HEIGHT_MM -
-      THERMAL_BOTTOM_PADDING_MM;
-    const noteFontMm = fitFontSizeMm({
-      text: note || '',
-      widthMm: THERMAL_CONTENT_WIDTH_MM,
-      maxLines: 2,
-      maxHeightMm:
-        foodAndNoteHeightMm - THERMAL_FOOD_MIN_HEIGHT_MM - THERMAL_NOTE_GAP_MM,
-      maxFontMm: 2.4,
-      minFontMm: 1.4,
-    });
-    const foodNameHeightBudgetMm =
-      foodAndNoteHeightMm -
-      (note
-        ? THERMAL_NOTE_GAP_MM +
-          estimateTextHeightMm({
-            text: note,
-            widthMm: THERMAL_CONTENT_WIDTH_MM,
-            fontMm: noteFontMm,
-          })
-        : 0);
-
     return (
       <div className="flex flex-col w-full h-full px-[3mm] py-[2mm]">
         <div className="flex items-start justify-between gap-[2mm] shrink-0">
           <div className="w-[48%]">
-            <HeaderLine
-              text={companyName}
-              className="font-semibold"
-              maxFontMm={2.8}
-            />
+            <HeaderLine text={companyName} className="font-semibold" />
             {hasGroupName && (
               <HeaderLine
                 text={groupName!}
                 className="font-semibold uppercase"
-                maxFontMm={2.8}
               />
             )}
           </div>
           <div className="w-[48%]">
-            <HeaderLine text={mealDate} className="font-semibold text-right" />
+            <HeaderLine
+              text={mealDate}
+              className="font-semibold text-right"
+              fontMm={THERMAL_MEAL_DATE_FONT_MM}
+            />
             <HeaderLine
               text={partnerName}
               className="font-semibold text-right"
-              maxFontMm={2.8}
             />
           </div>
         </div>
 
-        <div className="flex flex-col items-center flex-1 min-h-0 overflow-hidden mt-[2.5mm] pb-[0.8mm]">
-          <UserLabelFittedText
+        <div className="flex flex-col items-center flex-1 min-h-0 overflow-hidden mt-[1.2mm]">
+          <UserLabelText
             text={participantName}
             widthMm={THERMAL_CONTENT_WIDTH_MM}
-            maxFontMm={participantNameFontMm}
-            minFontMm={participantNameFontMm}
+            fontMm={THERMAL_PARTICIPANT_NAME_FONT_MM}
+            maxLines={1}
             className="w-full font-semibold text-center"
           />
 
-          <div className="w-[12mm] h-[0.5mm] my-[2.2mm] bg-stone-600 shrink-0"></div>
+          <div className="w-[12mm] h-[0.5mm] my-[2mm] bg-stone-600 shrink-0"></div>
 
-          <UserLabelFittedText
+          <UserLabelText
             text={foodName}
             widthMm={THERMAL_CONTENT_WIDTH_MM}
-            maxHeightMm={foodNameHeightBudgetMm}
-            maxFontMm={4}
-            minFontMm={1.5}
+            fontMm={THERMAL_FOOD_NAME_FONT_MM}
+            maxLines={3}
             className="w-full font-semibold text-center"
           />
 
           {note && (
-            <UserLabelFittedText
+            <UserLabelText
               text={note}
               widthMm={THERMAL_CONTENT_WIDTH_MM}
-              maxFontMm={noteFontMm}
-              minFontMm={noteFontMm}
+              fontMm={THERMAL_NOTE_FONT_MM}
+              maxLines={1}
               className="w-full text-center italic mt-[0.8mm]"
             />
           )}
