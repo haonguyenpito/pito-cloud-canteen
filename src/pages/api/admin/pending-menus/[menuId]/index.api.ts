@@ -19,6 +19,17 @@ import {
   ENotificationType,
 } from '@src/utils/enums';
 import { FailedResponse, SuccessResponse } from '@src/utils/response';
+import type { TListing } from '@src/utils/types';
+
+type TMenuFoodEntry = {
+  id: string;
+  title: string;
+  price?: number;
+  sideDishes?: string[];
+  foodNote?: string;
+  foodType?: string;
+};
+type TFoodsByDate = Record<string, Record<string, TMenuFoodEntry>>;
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const apiMethod = req.method;
@@ -33,11 +44,54 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           include: ['author'],
         });
         const [menu] = denormalisedResponseEntities(menuResponse);
+        const foodsByDate: TFoodsByDate =
+          menu.attributes?.publicData?.foodsByDate || {};
+        const foodIds = Array.from(
+          new Set(
+            Object.values(foodsByDate).flatMap((foodByDate) =>
+              Object.keys(foodByDate || {}),
+            ),
+          ),
+        );
+
+        const foodTypeById: Record<string, string> = {};
+        if (foodIds.length > 0) {
+          const foodsResponse = await sdk.listings.query({ ids: foodIds });
+          const foods = denormalisedResponseEntities(
+            foodsResponse,
+          ) as TListing[];
+          foods.forEach((food) => {
+            const foodType = food.attributes?.publicData?.foodType;
+            if (foodType) {
+              foodTypeById[food.id.uuid] = foodType;
+            }
+          });
+        }
+
+        const enrichedFoodsByDate = Object.fromEntries(
+          Object.entries(foodsByDate).map(([day, foodByDate]) => [
+            day,
+            Object.fromEntries(
+              Object.entries(foodByDate || {}).map(([foodId, food]) => [
+                foodId,
+                { ...food, foodType: foodTypeById[foodId] },
+              ]),
+            ),
+          ]),
+        );
+
         const formattedMenu = {
           ...menu,
           restaurantName: buildFullNameFromProfile(
             menu.author?.attributes?.profile,
           ),
+          attributes: {
+            ...menu.attributes,
+            publicData: {
+              ...menu.attributes?.publicData,
+              foodsByDate: enrichedFoodsByDate,
+            },
+          },
         };
 
         return new SuccessResponse({

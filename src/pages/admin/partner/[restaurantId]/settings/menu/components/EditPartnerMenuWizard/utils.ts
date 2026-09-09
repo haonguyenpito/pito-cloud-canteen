@@ -51,6 +51,7 @@ export type TEditMenuPricingCalendarResources = {
   sideDishes: string[];
   price?: number;
   foodNote?: string;
+  foodType?: string;
 };
 
 export const createMinPriceByDayOfWeek = (foodsByDate: any) => {
@@ -259,10 +260,11 @@ export const createInitialValuesForFoodsByDate = (
 };
 
 export const renderValuesForFoodsByDate = (
-  foodsByDate: any = {},
+  foodsByDateParam: any,
   anchorDate: Date,
   menuPickedFoods: TIntegrationListing[] = [],
 ) => {
+  const foodsByDate = foodsByDateParam || {};
   let initialValue = {};
   const startDayOfWeek = getStartOfWeek(anchorDate.getTime());
   Object.keys(foodsByDate).forEach((dayOfWeeks) => {
@@ -302,13 +304,14 @@ export const renderValuesForFoodsByDate = (
 };
 
 export const renderResourcesForCalendar = (
-  foodsByDate: any = {},
+  foodsByDateParam: any,
   extraData: {
     onRemovePickedFood: (id: string, date: Date) => void;
     daysOfWeek: string[];
     hideRemoveButton?: boolean;
   },
 ) => {
+  const foodsByDate = foodsByDateParam || {};
   const resourses: {
     resource: TEditMenuPricingCalendarResources;
     start: Date;
@@ -324,6 +327,7 @@ export const renderResourcesForCalendar = (
           sideDishes: foodsByDate[key][foodKey]?.sideDishes || [],
           price: foodsByDate[key][foodKey]?.price || 0,
           foodNote: foodsByDate[key][foodKey]?.foodNote || '',
+          foodType: foodsByDate[key][foodKey]?.foodType,
           ...extraData,
         },
         start: DateTime.fromMillis(Number(key)).toJSDate(),
