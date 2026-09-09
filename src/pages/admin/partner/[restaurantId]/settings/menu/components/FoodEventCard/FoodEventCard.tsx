@@ -1,8 +1,11 @@
 import React from 'react';
 import { FormattedMessage } from 'react-intl';
+import classNames from 'classnames';
 
+import Badge, { EBadgeType } from '@components/Badge/Badge';
 import { InlineTextButton } from '@components/Button/Button';
 import IconClose from '@components/Icons/IconClose/IconClose';
+import { EFoodType } from '@src/utils/enums';
 
 import type { TEditMenuPricingCalendarResources } from '../EditPartnerMenuWizard/utils';
 
@@ -19,12 +22,21 @@ const FoodEventCard = ({
     onRemovePickedFood,
     sideDishes = [],
     hideRemoveButton,
+    foodType,
   } = resource;
+  const isVegetarian = foodType === EFoodType.vegetarianDish;
 
   return (
-    <div className={css.root}>
-      <div className={css.title}>
-        {title}
+    <div className={classNames(css.root, isVegetarian && css.vegetarian)}>
+      <div className={css.content}>
+        {isVegetarian && (
+          <Badge
+            className={css.vegetarianBadge}
+            type={EBadgeType.info}
+            label="Chay"
+          />
+        )}
+        <div className={css.title}>{title}</div>
         {sideDishes.length > 0 && (
           <div className={css.sideDishesContent}>
             <FormattedMessage
