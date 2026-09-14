@@ -150,6 +150,14 @@ const SubMenu: React.FC<TSubMenuProps> = (props) => {
       showOnActiveChildrenMenus ||
       (!showOnActiveChildrenMenus && !childrenMenus)
     ) {
+      // router.query can lag behind the URL right after navigation (isReady
+      // race) — bail rather than push a route with an unfilled [param] left
+      // literally in the path.
+      const hasAllParams = paramNames.every(
+        (paramName) => (newQueryParams as Record<string, unknown>)[paramName],
+      );
+      if (!hasAllParams) return undefined;
+
       return router.push({ pathname: nameLink, query: newQueryParams });
     }
 
@@ -182,7 +190,7 @@ const SubMenu: React.FC<TSubMenuProps> = (props) => {
       </div>
       {/* render children menu */}
       {shouldRenderChildMenues && (
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define
         <Menu
           menus={childMenus}
           subMenuWrapperClassName={subMenuWrapperClassName}

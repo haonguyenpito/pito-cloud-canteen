@@ -84,6 +84,15 @@ const CompanyLayout: React.FC<PropsWithChildren> = (props) => {
     ...assignedCompanies,
   ];
 
+  // companyList loads async (fetchBookerCompanies) while `companyId` from the
+  // route is already known — fall back to the route value so nav links don't
+  // send `companyId: 'personal'` during that race.
+  const routeCompanyId =
+    typeof companyId === 'string' && companyId !== 'personal'
+      ? companyId
+      : undefined;
+  const resolvedCompanyId = selectedAccount.value || routeCompanyId;
+
   const changePathnameByCompanyId = () => {
     if (companySettingPaths.includes(pathname)) {
       return pathname;
@@ -111,6 +120,7 @@ const CompanyLayout: React.FC<PropsWithChildren> = (props) => {
           </div>
         </div>
       ),
+      query: { companyId: resolvedCompanyId || 'personal' },
       pathname: companyPaths.Home,
     },
     {
@@ -124,8 +134,8 @@ const CompanyLayout: React.FC<PropsWithChildren> = (props) => {
         </div>
       ),
       query: {
-        ...(selectedAccount.value
-          ? { companyId: selectedAccount.value }
+        ...(resolvedCompanyId
+          ? { companyId: resolvedCompanyId }
           : { companyId: 'personal' }),
       },
       pathname: companyPaths.ManageOrders,
@@ -157,11 +167,11 @@ const CompanyLayout: React.FC<PropsWithChildren> = (props) => {
         />
       ),
       query: {
-        ...(selectedAccount.value
-          ? { companyId: selectedAccount.value }
+        ...(resolvedCompanyId
+          ? { companyId: resolvedCompanyId }
           : { companyId: 'personal' }),
       },
-      pathname: selectedAccount.value ? changePathnameByCompanyId() : pathname,
+      pathname: resolvedCompanyId ? changePathnameByCompanyId() : pathname,
     },
   ];
 
@@ -196,7 +206,7 @@ const CompanyLayout: React.FC<PropsWithChildren> = (props) => {
     <>
       <RenderWhen condition={!shouldHideHeaderPathnames.includes(pathname)}>
         <CompanyHeaderWrapper
-          companyId={(selectedAccount?.value as string) || 'personal'}
+          companyId={resolvedCompanyId || 'personal'}
           showFeatureHeader={showFeatureHeader}
           featureHeaderData={featureHeaderData}
           companyHeaderLinkData={companyHeaderLinkData}
