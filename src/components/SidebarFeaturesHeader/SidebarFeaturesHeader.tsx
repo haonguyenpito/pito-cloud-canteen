@@ -53,6 +53,13 @@ const SidebarFeaturesHeader = ({
     ...assignedCompanies,
   ];
 
+  // companyList loads async (fetchBookerCompanies in CompanyLayout) while
+  // `companyId` prop from the route is already known — fall back to it so
+  // nav links don't send `companyId: 'personal'` during that race.
+  const routeCompanyId =
+    companyId && companyId !== 'personal' ? companyId : undefined;
+  const resolvedCompanyId = selectedAccount.value || routeCompanyId;
+
   const changePathnameByCompanyId = () => {
     if (companySettingPaths.includes(router.pathname)) {
       return router.pathname;
@@ -82,7 +89,10 @@ const SidebarFeaturesHeader = ({
       ),
       pathname: companyPaths.Home,
       extraFunc: () => {
-        router.push(companyPaths.Home);
+        router.push({
+          pathname: companyPaths.Home,
+          query: { companyId: resolvedCompanyId || 'personal' },
+        });
         handleCloseNavbar();
       },
     },
@@ -97,8 +107,8 @@ const SidebarFeaturesHeader = ({
         </div>
       ),
       query: {
-        ...(selectedAccount.value
-          ? { companyId: selectedAccount.value }
+        ...(resolvedCompanyId
+          ? { companyId: resolvedCompanyId }
           : { companyId: 'personal' }),
       },
       pathname: companyPaths.ManageOrders,
@@ -107,8 +117,8 @@ const SidebarFeaturesHeader = ({
         router.push({
           pathname: companyPaths.ManageOrders,
           query: {
-            ...(selectedAccount.value
-              ? { companyId: selectedAccount.value }
+            ...(resolvedCompanyId
+              ? { companyId: resolvedCompanyId }
               : { companyId: 'personal' }),
           },
         });
@@ -142,21 +152,21 @@ const SidebarFeaturesHeader = ({
         </Collapsible>
       ),
       query: {
-        ...(selectedAccount.value
-          ? { companyId: selectedAccount.value }
+        ...(resolvedCompanyId
+          ? { companyId: resolvedCompanyId }
           : { companyId: 'personal' }),
       },
-      pathname: selectedAccount.value
+      pathname: resolvedCompanyId
         ? changePathnameByCompanyId()
         : router.pathname,
       extraFunc: () => {
         router.push({
-          pathname: selectedAccount.value
+          pathname: resolvedCompanyId
             ? changePathnameByCompanyId()
             : router.pathname,
           query: {
-            ...(selectedAccount.value
-              ? { companyId: selectedAccount.value }
+            ...(resolvedCompanyId
+              ? { companyId: resolvedCompanyId }
               : { companyId: 'personal' }),
           },
         });
