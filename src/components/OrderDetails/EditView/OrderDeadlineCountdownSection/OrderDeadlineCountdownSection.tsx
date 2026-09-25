@@ -26,6 +26,7 @@ type TOrderDeadlineCountdownSectionProps = TDefaultProps & {
     orderDeadline: number;
   };
   ableToUpdateOrder: boolean;
+  visibleOnMobile?: boolean;
   children?: React.ReactNode;
 };
 
@@ -44,9 +45,12 @@ const OrderDeadlineCountdownSection: React.FC<
     rootClassName,
     data: { startDate, deadlineHour, orderDeadline },
     ableToUpdateOrder,
+    visibleOnMobile = false,
   } = props;
   const currentTime = new Date().getTime();
-  const rootClasses = classNames(rootClassName || css.root, className);
+  const rootClasses = classNames(rootClassName || css.root, className, {
+    [css.visibleOnMobile]: visibleOnMobile,
+  });
 
   const disabledEditButton = currentUser?.attributes?.profile?.metadata?.isAdmin
     ? false // Admin can edit order deadline anytime
