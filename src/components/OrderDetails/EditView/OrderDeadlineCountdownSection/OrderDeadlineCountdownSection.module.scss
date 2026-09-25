@@ -10,6 +10,10 @@
     display: block;
   }
 
+  &.visibleOnMobile {
+    display: block;
+  }
+
   .titleContainer {
     display: flex;
     justify-content: space-between;

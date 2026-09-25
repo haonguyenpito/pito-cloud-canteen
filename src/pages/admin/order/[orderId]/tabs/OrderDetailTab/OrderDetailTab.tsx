@@ -369,6 +369,7 @@ const OrderDetailTab: React.FC<OrderDetailTabProps> = (props) => {
                     className={css.container}
                     data={editViewData.countdownSectionData}
                     ableToUpdateOrder={ableToUpdateOrder}
+                    visibleOnMobile
                   />
 
                   <div className={css.container}>
