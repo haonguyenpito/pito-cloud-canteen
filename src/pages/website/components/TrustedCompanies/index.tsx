@@ -2,80 +2,57 @@ import { useIntl } from 'react-intl';
 import clsx from 'clsx';
 import Image from 'next/image';
 
-import company3 from '../../assets/companies/amazon.webp'; // employment hero
-import company4 from '../../assets/companies/armor.webp'; // deloit
-import company5 from '../../assets/companies/booking.webp'; // mm
-import company1 from '../../assets/companies/employment-hero.webp'; // booking
-import company6 from '../../assets/companies/jr286.webp'; // salt
-import company7 from '../../assets/companies/lazada.webp'; // amazon
-import company8 from '../../assets/companies/saltmine.webp'; // bck
-import company2 from '../../assets/companies/seo-vina.webp'; // shopee
-import company9 from '../../assets/companies/technos.webp'; // lazada
+import amazon from '../../assets/companies/logo-khach-hang-amazon.svg';
+import armor from '../../assets/companies/logo-khach-hang-armor.svg';
+import beiersdorf from '../../assets/companies/logo-khach-hang-beiersdorf.svg';
+import booking from '../../assets/companies/logo-khach-hang-booking.com.svg';
+import britishEmbassy from '../../assets/companies/logo-khach-hang-british-embassy.svg';
+import deloitte from '../../assets/companies/logo-khach-hang-deloitte.svg';
+import flexport from '../../assets/companies/logo-khach-hang-flexport.svg';
+import forbes from '../../assets/companies/logo-khach-hang-forbes.svg';
+import groupm from '../../assets/companies/logo-khach-hang-groupm.svg';
+import jr286 from '../../assets/companies/logo-khach-hang-jr286.svg';
+import kpmg from '../../assets/companies/logo-khach-hang-kpmg.svg';
+import lazada from '../../assets/companies/logo-khach-hang-lazada.svg';
+import nab from '../../assets/companies/logo-khach-hang-nab.svg';
+import nexon from '../../assets/companies/logo-khach-hang-nexon.svg';
+import perfettiVanMelle from '../../assets/companies/logo-khach-hang-perfetti-van-melle.svg';
+import prudential from '../../assets/companies/logo-khach-hang-prudential.svg';
+import shopee from '../../assets/companies/logo-khach-hang-shopee.svg';
+import technos from '../../assets/companies/logo-khach-hang-technos.svg';
+import tinyFish from '../../assets/companies/logo-khach-hang-tiny_fish.svg';
+import vng from '../../assets/companies/logo-khach-hang-vng.svg';
 
 import styles from './styles.module.css';
 
 const companies = [
-  {
-    src: company1,
-    alt: 'Employmenthero',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
-  {
-    src: company2,
-    alt: 'SEO WOO VINA',
-    className: 'aspect-square w-[120px]',
-    classNameImage: 'object-fill',
-  },
-  {
-    src: company3,
-    alt: 'Booking.com',
-    className: 'aspect-square w-[120px]',
-    classNameImage: 'object-fill',
-  },
-  {
-    src: company4,
-    alt: 'Amazon',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
-  {
-    src: company5,
-    alt: 'Saltmine',
-    className: 'aspect-square w-[120px]',
-    classNameImage: 'object-fill',
-  },
-  {
-    src: company6,
-    alt: 'JR286',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
-  {
-    src: company7,
-    alt: 'Technos',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
-  {
-    src: company8,
-    alt: 'ARMOR',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
-  {
-    src: company9,
-    alt: 'Lazada',
-    className: 'aspect-[2/1] w-[150px]',
-    classNameImage: 'object-contain',
-  },
+  { src: amazon, alt: 'logo-khach-hang-amazon' },
+  { src: armor, alt: 'logo-khach-hang-armor' },
+  { src: beiersdorf, alt: 'logo-khach-hang-beiersdorf' },
+  { src: booking, alt: 'logo-khach-hang-booking.com' },
+  { src: britishEmbassy, alt: 'logo-khach-hang-british-embassy' },
+  { src: deloitte, alt: 'logo-khach-hang-deloitte' },
+  { src: flexport, alt: 'logo-khach-hang-flexport' },
+  { src: forbes, alt: 'logo-khach-hang-forbes' },
+  { src: groupm, alt: 'logo-khach-hang-groupm' },
+  { src: jr286, alt: 'logo-khach-hang-jr286' },
+  { src: kpmg, alt: 'logo-khach-hang-kpmg' },
+  { src: lazada, alt: 'logo-khach-hang-lazada' },
+  { src: nab, alt: 'logo-khach-hang-nab' },
+  { src: nexon, alt: 'logo-khach-hang-nexon' },
+  { src: perfettiVanMelle, alt: 'logo-khach-hang-perfetti-van-melle' },
+  { src: prudential, alt: 'logo-khach-hang-prudential' },
+  { src: shopee, alt: 'logo-khach-hang-shopee' },
+  { src: technos, alt: 'logo-khach-hang-technos' },
+  { src: tinyFish, alt: 'logo-khach-hang-tiny_fish' },
+  { src: vng, alt: 'logo-khach-hang-vng' },
 ];
 
 const TrustedCompanies = () => {
   const intl = useIntl();
 
   return (
-    <div className="mx-auto md:px-4 md:pb-16 px-5 pt-16 md:pt-0 flex flex-col md:gap-0 gap-5 items-center overflow-hidden">
+    <div className="mx-auto md:px-4 md:pb-16 px-5 pt-16 md:pt-0 flex flex-col gap-5 md:gap-6 items-center overflow-hidden">
       <span className="w-full md:w-2/3 font-medium text-center md:text-lg whitespace-pre-line md:whitespace-normal">
         {intl.formatMessage({
           id: 'trusted-by-vietnams-leading-tech-companies',
@@ -90,15 +67,13 @@ const TrustedCompanies = () => {
               styles.marquee__group,
             )}>
             {companies.map((logo, index) => (
-              <div key={index} className={clsx('relative', logo.className)}>
+              <div key={index} className="relative aspect-[2/1] w-[100px]">
                 <Image
                   src={logo.src}
                   alt={logo.alt}
                   fill
-                  className={logo.classNameImage}
-                  priority
-                  loading="eager"
-                  sizes="(max-width: 768px) 12vw, 5vw"
+                  className="object-contain"
+                  sizes="100px"
                 />
               </div>
             ))}

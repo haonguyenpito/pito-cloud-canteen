@@ -1,11 +1,11 @@
 .marquee {
   --duration: 160s;
-  --gap: 10px;
+  --gap: 32px;
 
   display: flex;
   overflow: hidden;
   user-select: none;
-  gap: 10px;
+  gap: var(--gap);
 }
 
 .marquee:hover {
@@ -17,7 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--gap);
   animation: scroll var(--duration) linear infinite;
 }
 
@@ -28,9 +28,8 @@
 }
 
 @media (min-width: 768px) {
-  .marquee__group {
-    min-width: 80%;
-    max-width: 1024px;
+  .marquee {
+    --gap: 56px;
   }
 }
 

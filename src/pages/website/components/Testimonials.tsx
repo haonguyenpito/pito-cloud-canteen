@@ -12,12 +12,15 @@ import avatar2 from '../assets/pfps/avatar2.png';
 import avatar3 from '../assets/pfps/avatar3.png';
 import avatar4 from '../assets/pfps/avatar4.png';
 // import avatar5 from '../assets/pfps/avatar5.png';
+import avatarKhanhDuy from '../assets/pfps/khanh-duy-workplace-manager.webp';
 import company2 from '../assets/testimonialCompanyLogos/company2.svg';
 import company3 from '../assets/testimonialCompanyLogos/company3.svg';
 // import company5 from '../assets/testimonialCompanyLogos/company5.svg';
 import company6 from '../assets/testimonialCompanyLogos/company6.svg';
 import company7 from '../assets/testimonialCompanyLogos/company7.svg';
 
+// Resolved via package.json "exports", which eslint-plugin-import cannot follow.
+// eslint-disable-next-line import/no-unresolved
 import '@splidejs/react-splide/css';
 
 interface Testimonial {
@@ -25,7 +28,7 @@ interface Testimonial {
   role: string;
   review: string;
   pfp: StaticImageData;
-  companyLogo: StaticImageData;
+  companyLogo?: StaticImageData;
 }
 
 const Testimonials: React.FC = () => {
@@ -71,6 +74,14 @@ const Testimonials: React.FC = () => {
       }),
       pfp: avatar4,
       companyLogo: company7,
+    },
+    {
+      name: 'Mr. Khanh Duy',
+      role: 'Workplace Manager',
+      review: intl.formatMessage({
+        id: 'pito-cloud-canteen-dashboard-helps-collect-orders-and-track-costs-without-manual-reporting',
+      }),
+      pfp: avatarKhanhDuy,
     },
   ];
 
@@ -123,7 +134,13 @@ const Testimonials: React.FC = () => {
             },
           }}>
           {testimonials.map((testimonial, index) => {
-            const colorHolders = ['#CDEBFA', '#FCE9B6', '#E9EDCD', '#F7E1EB'];
+            const colorHolders = [
+              '#CDEBFA',
+              '#FCE9B6',
+              '#E9EDCD',
+              '#F7E1EB',
+              '#E9EDCD',
+            ];
             const currentcOlor = colorHolders[index % colorHolders.length];
 
             return (
@@ -155,15 +172,17 @@ const Testimonials: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="relative aspect-square w-[100px]">
-                      <Image
-                        src={testimonial.companyLogo}
-                        alt="company"
-                        fill
-                        sizes="150px"
-                        quality={100}
-                      />
-                    </div>
+                    {testimonial.companyLogo && (
+                      <div className="relative aspect-square w-[100px]">
+                        <Image
+                          src={testimonial.companyLogo}
+                          alt="company"
+                          fill
+                          sizes="150px"
+                          quality={100}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </SplideSlide>
