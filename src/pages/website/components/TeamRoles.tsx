@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import Image from 'next/image';
 
+import employee from '../assets/bua-trua-danh-cho-nhan-vien.webp';
 import lemon from '../assets/decorations/lemon.svg';
 import pink from '../assets/decorations/pink.svg';
 import yellow from '../assets/decorations/yellow.svg';
-import employee from '../assets/employee.webp';
 import hr from '../assets/hr.webp';
 
 import GoogleCalendarModal from './GoogleCalendarModal';
@@ -114,7 +114,7 @@ const TeamRoles = () => {
                 <Image
                   style={{ objectFit: 'cover' }}
                   src={employee}
-                  alt="Employee"
+                  alt="bua-trua-danh-cho-nhan-vien"
                   className="rounded-2xl"
                   fill
                   sizes="(max-width: 768px) 70vw, (max-width: 1200px) 33vw, 20vw"

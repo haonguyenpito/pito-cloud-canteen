@@ -5,13 +5,14 @@ import type { StaticImageData } from 'next/image';
 import Image from 'next/image';
 
 import img0 from '../assets/com-trua-van-phong-cong-nghe.webp';
-import img2 from '../assets/com-van-phong-cho-moi-quy.webp';
+import img2 from '../assets/com-van-phong-cho-moi-quy-mo.webp';
 import img1 from '../assets/dashboard-quan-ly-dat-com-van-phong.webp';
 
 interface FAQ {
   question: string;
   answer: string[];
   image: StaticImageData;
+  imageAlt: string;
 }
 
 const WhyChooseUs = () => {
@@ -31,6 +32,7 @@ const WhyChooseUs = () => {
         }),
       ],
       image: img0,
+      imageAlt: 'com-trua-van-phong-cong-nghe',
     },
     {
       question: intl.formatMessage({ id: 'total-visibility-zero-hassle' }),
@@ -44,6 +46,7 @@ const WhyChooseUs = () => {
         }),
       ],
       image: img1,
+      imageAlt: 'dashboard-quan-ly-dat-com-van-phong',
     },
     {
       question: intl.formatMessage({ id: 'built-for-scale-and-flexibility' }),
@@ -55,6 +58,7 @@ const WhyChooseUs = () => {
         }),
       ],
       image: img2,
+      imageAlt: 'com-van-phong-cho-moi-quy-mo',
     },
   ];
 
@@ -69,7 +73,7 @@ const WhyChooseUs = () => {
           <Image
             src={faqs[activeIndex].image}
             className="rounded-2xl object-contain bg-white h-auto"
-            alt={`FAQ visual ${activeIndex}`}
+            alt={faqs[activeIndex].imageAlt}
             priority
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
