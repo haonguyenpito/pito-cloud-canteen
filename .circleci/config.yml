@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 jobs:
   build:
     docker:
@@ -21,7 +21,6 @@ jobs:
           command: ./scripts/deploy.sh
 
 workflows:
-  version: 2
   deploy:
     jobs:
       - build:
