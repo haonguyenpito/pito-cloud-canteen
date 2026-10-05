@@ -4,6 +4,10 @@ import { mapLimit } from 'async';
 import { chunk, flatten, omit, uniq } from 'lodash';
 
 import { queryAllListings } from '@helpers/apiHelpers';
+import {
+  getMinBillablePrice,
+  sanitizeExtraFeeMap,
+} from '@helpers/menuExtraFee';
 import { denormalisedResponseEntities } from '@services/data';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
@@ -16,6 +20,23 @@ import {
   EOrderDraftStates,
 } from '@src/utils/enums';
 import type { TIntegrationListing, TListing } from '@src/utils/types';
+
+/**
+ * `<day>MinFoodPrice` is fee-inclusive (it feeds the restaurant search budget
+ * filter, compared with the fee-inclusive package), so recomputing it from the
+ * food listings must add the menu's surcharge per dish.
+ */
+const getMinBillablePriceOfFoods = (
+  foods: TIntegrationListing[],
+  foodExtraFees?: Record<string, unknown> | null,
+) =>
+  getMinBillablePrice(
+    foods.map((food) => ({
+      foodId: food.id.uuid,
+      price: IntegrationListing(food).getAttributes().price?.amount || 0,
+    })),
+    sanitizeExtraFeeMap(foodExtraFees),
+  );
 
 export const fetchListingsByChunkedIds = async (ids: string[], sdk: any) => {
   const listingsResponse = await Promise.all(
@@ -125,18 +146,9 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
 
               const foods = denormalisedResponseEntities(listFoodResponse);
 
-              newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
+              newMinFoodPrice = getMinBillablePriceOfFoods(
+                foods,
+                foodExtraFees,
               );
               newFoodTypeList = getUniqueString(
                 foods.reduce((prev: string[], f: TIntegrationListing) => {
@@ -373,18 +385,9 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
                 }, []),
               );
 
-              newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
+              newMinFoodPrice = getMinBillablePriceOfFoods(
+                foods,
+                foodExtraFees,
               );
               newFoodNutritions = uniq(
                 foods.reduce((result: any, food: TIntegrationListing) => {
@@ -483,18 +486,9 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
                 integrationSdk,
               );
 
-              const newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
+              const newMinFoodPrice = getMinBillablePriceOfFoods(
+                foods,
+                IntegrationListing(menu).getPublicData().foodExtraFees,
               );
 
               const newFoodTypeList = getUniqueString(

@@ -10,7 +10,10 @@ import Modal from '@components/Modal/Modal';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import SlideModal from '@components/SlideModal/SlideModal';
 import { calculateDistance } from '@helpers/mapHelpers';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  buildLineItem,
+  getIsAllowAddSecondaryFood,
+} from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useViewport } from '@hooks/useViewport';
@@ -247,15 +250,8 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
       ? Object.entries<{
           foodName: string;
           foodPrice: number;
-        }>(updateFoodList).map(([foodId, { foodName, foodPrice }]) => {
-          return {
-            id: foodId,
-            name: foodName,
-            unitPrice: foodPrice,
-            price: foodPrice,
-            quantity: 1,
-          };
-        })
+          foodExtraFee: number;
+        }>(updateFoodList).map(([foodId, food]) => buildLineItem(foodId, food))
       : [];
 
     const updatedValues = {

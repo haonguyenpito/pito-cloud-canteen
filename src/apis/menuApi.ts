@@ -63,17 +63,6 @@ export const updateMenuExtraFeesApi = (
   return putApi(`/admin/listings/menus/${id}/extra-fee`, body);
 };
 
-/**
- * Validates (dryRun) or applies an imported extra-fee sheet.
- * One row per (menu, dish); writes only menu.publicData.foodExtraFees.
- */
-export const importMenuExtraFeesApi = (body: {
-  rows: { menuTitle?: string; foodName?: string; extraFee?: string | number }[];
-  dryRun?: boolean;
-}) => {
-  return postApi(`/admin/listings/menus/extra-fee-import`, body);
-};
-
 export const deletePartnerMenuApi = (body: TBodyParams) => {
   return postApi(`/admin/listings/menus/delete`, body);
 };

@@ -43,6 +43,7 @@ export type TPlan = {
         quantity: number;
         price: number;
         unitPrice: number;
+        unitExtraFee?: number;
       }[];
     };
   };

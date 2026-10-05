@@ -11,6 +11,7 @@ import { FieldDropdownSelectComponent } from '@components/FormFields/FieldDropdo
 import { FieldTextAreaComponent } from '@components/FormFields/FieldTextArea/FieldTextArea';
 import IconAdd from '@components/Icons/IconAdd/IconAdd';
 import SlideModal from '@components/SlideModal/SlideModal';
+import { buildLineItem } from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { saveDraftEditOrder } from '@redux/slices/Order.slice';
@@ -161,16 +162,13 @@ const LineItemsTable: React.FC<TLineItemsTableProps> = (props) => {
       const itemIndex = lineItems.findIndex((x: TObject) => x?.id === foodId);
       let newLineItems = lineItems;
 
-      const { foodPrice, foodName } = foodList[foodId] || {};
+      const food = foodList[foodId] || {};
+      const { foodPrice, foodName } = food;
 
       if (itemIndex === -1) {
-        newLineItems = newLineItems.concat({
-          id: foodId,
-          name: foodName,
-          unitPrice: foodPrice,
-          price: foodPrice,
-          quantity,
-        });
+        newLineItems = newLineItems.concat(
+          buildLineItem(foodId, food, quantity),
+        );
       } else if (quantity === 0) {
         newLineItems = difference(lineItems, [lineItems[itemIndex]]);
       } else {

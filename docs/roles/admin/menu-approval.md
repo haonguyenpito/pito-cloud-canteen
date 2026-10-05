@@ -53,27 +53,40 @@ listings.
 - `saveMenuExtraFees` submits the complete map (mode `replace`) — clearing a
   field means that dish is no longer surcharged
 
+**Bulk apply inside one menu — tick dishes, one amount:**
+- Each dish row carries a checkbox, plus a select-all in the table header
+  (indeterminate on a partial selection). The column only renders while the menu
+  is editable, matching the disabled inputs and hidden save footer
+- The amount field and "Áp dụng cho N món" sit in the panel header. Applying
+  **writes nothing** — `applyFeeToFoods` fills the page's draft for the ticked
+  dishes in one state update, the "• chưa lưu" marker appears, and the existing
+  "Lưu phụ phí" is still the only writer
+- An explicit `0` is allowed and clears the surcharge on those dishes; an empty
+  field keeps the button disabled. The check is `bulkAmount !== ''` and never a
+  truthiness test, because `'0'` is falsy — and the field short-circuits an empty
+  value instead of formatting it, since `parsePrice('')` returns `'0'`
+- Selection and the amount are panel-local state, so they reset when the panel
+  collapses or another menu is expanded. The applied fee **values** live in the
+  page's `feeDrafts` and survive a collapse like any manual edit
+- Deliberately scoped to the open menu: the fee map is flat and per-menu, so the
+  same dish in another menu is a separate fee by design
+- Looping the per-row `onChange` would not work — each call would rebase on the
+  same stale draft and only the last dish would keep the fee. Hence one helper
+  producing the whole next draft
+- Pinned by the `applyFeeToFoods` block in `tests/safeguards/menu-extra-fee.test.ts`,
+  including that a partial selection still leaves every dish in the `replace`
+  payload
+
 **Displaying the current fee in the list:**
 - Read straight off `menu.publicData.foodExtraFees` — the list API already
   returns whole menu listings, so there is no extra fetch
 - Shown in the "Phụ phí" column as a single value when every dish agrees, a
   range (`15.000đ – 20.000đ`) when they differ, or `—` when unset
 
-**Import — "Import phụ phí":**
-- Excel with one row per (menu, dish): `Thực đơn` / `Món ăn` / `Phụ phí (Vnđ)`
-- Uploading runs a **dry run** first (`POST /admin/listings/menus/extra-fee-import`
-  with `dryRun: true`): every row is matched and reported, and nothing is written
-- Names are matched NFC-normalised, trimmed and case-insensitively, but accents
-  are significant — "Cơm gà" does not match "Com ga"
-- Ambiguity is an error, never a guess: two pending menus sharing a title, or two
-  dishes sharing a name inside one menu, are reported so the admin can fix the data
-- Rows are matched only against `draft` / `pendingApproval` menus, so a row naming
-  an approved menu reads "Không tìm thấy thực đơn đang chờ duyệt"
-- Applying writes in `merge` mode — a sheet may cover only some of a menu's dishes.
-  A repeated (menu, dish) pair takes the last row's value
-- Files: `src/hooks/useMenuExtraFeeImportPreview.ts`,
-  `components/ImportExtraFeeModal/`,
-  `src/pages/api/apiServices/menu/importMenuExtraFees.service.ts`
+**Excel export / import ("Xuất phụ phí" / "Import phụ phí"):** removed 2026-09-27
+— no longer needed. The fee is set only through the bulk modal and the per-dish
+panel; there is no sheet round-trip and no `extra-fee-import` / `extra-fee-export`
+endpoint.
 
 **Once approved:** the map is frozen. `updateMenuExtraFees.service.ts` rejects
 writes for `published` / `closed` / `rejected` menus, and the panel renders

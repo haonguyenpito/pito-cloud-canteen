@@ -77,7 +77,6 @@ another. It is never read from the food listing.
 
 - **Edit per dish:** `/admin/partner/pending-menus` → expand a menu row → "Phụ phí theo món"
 - **Bulk apply:** select pending menus → "Thêm phụ phí" → one fee for every dish in those menus
-- **Import:** "Import phụ phí" → Excel with `Thực đơn` / `Món ăn` / `Phụ phí (Vnđ)`, one row per (menu, dish); previewed and validated before anything is written
 - **When editable:** only while the menu is `draft` / `pendingApproval`. Approval freezes the map and the endpoint rejects further writes
 - **Visibility:** booker and participant see `base + fee`; partner sees base price only
 - **Billing:** company is billed at `base + fee`; partner is paid at base price

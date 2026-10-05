@@ -18,9 +18,10 @@ import { EListingStates, EMenuMealType, EMenuType } from '@utils/enums';
 import { parsePrice } from '@utils/validators';
 
 import ApplyExtraFeeModal from './components/ApplyExtraFeeModal/ApplyExtraFeeModal';
-import ImportExtraFeeModal from './components/ImportExtraFeeModal/ImportExtraFeeModal';
 import MenuExtraFeePanel from './components/MenuExtraFeePanel/MenuExtraFeePanel';
 import {
+  applyFeeToFoods,
+  buildExtraFeeLabel,
   buildExtraFeeRows,
   hasUnsavedExtraFeeChanges,
   toAmount,
@@ -185,29 +186,6 @@ const TABLE_COLUMNS: TColumn[] = [
   },
 ];
 
-const formatVnd = (amount: number) => `${amount.toLocaleString('vi-VN')}đ`;
-
-/**
- * Dishes within one menu may now carry different fees, so show the single value
- * when they agree and a range when they do not.
- */
-const buildExtraFeeLabel = (
-  foodExtraFees: Record<string, number | undefined> = {},
-): string => {
-  const fees = Object.values(foodExtraFees).filter(
-    (fee): fee is number => typeof fee === 'number' && fee > 0,
-  );
-
-  if (fees.length === 0) {
-    return '';
-  }
-
-  const min = Math.min(...fees);
-  const max = Math.max(...fees);
-
-  return min === max ? formatVnd(min) : `${formatVnd(min)} – ${formatVnd(max)}`;
-};
-
 const parseMenusToTableData = (
   menus: (MenuListing & { restaurantName: string })[],
   {
@@ -244,7 +222,10 @@ const parseMenusToTableData = (
         startDate,
         endDate,
         status,
-        appliedExtraFee: buildExtraFeeLabel(publicData?.foodExtraFees),
+        appliedExtraFee: buildExtraFeeLabel(
+          publicData?.foodExtraFees,
+          metadata as Record<string, unknown>,
+        ),
         isExpanded: expandedMenuId === menuId,
         onViewDetail,
         onToggleExpand,
@@ -260,7 +241,6 @@ const ManagePartnersMenusPage = () => {
 
   const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
   const [isExtraFeeModalOpen, setIsExtraFeeModalOpen] = useState(false);
-  const [isImportFeeModalOpen, setIsImportFeeModalOpen] = useState(false);
   // Only one panel is open at a time, so at most one can hold unsaved edits.
   const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
   // Drafts live here (not in the panel) so collapsing does not discard them.
@@ -360,6 +340,27 @@ const ManagePartnersMenusPage = () => {
     }));
   };
 
+  /**
+   * One fee for the dishes ticked in the open panel, as a single state update.
+   * Nothing is written here — the values land in the draft and the admin still
+   * commits them with "Lưu phụ phí", which submits the complete map.
+   */
+  const handleApplySelectedFees = (
+    menuId: string,
+    rows: { foodId: string }[],
+    foodIds: string[],
+    value: string,
+  ) => {
+    setFeeDrafts((drafts) => ({
+      ...drafts,
+      [menuId]: applyFeeToFoods(
+        drafts[menuId] ?? getDraftForMenu(menuId, rows),
+        foodIds,
+        value,
+      ),
+    }));
+  };
+
   const handleSaveMenuExtraFees = async (
     menuId: string,
     rows: { foodId: string }[],
@@ -416,6 +417,9 @@ const ManagePartnersMenusPage = () => {
         onChange={(foodId, value) =>
           handleFeeChange(menuId, rows, foodId, value)
         }
+        onApplySelected={(foodIds, value) =>
+          handleApplySelectedFees(menuId, rows, foodIds, value)
+        }
         onSave={() => handleSaveMenuExtraFees(menuId, rows)}
       />
     );
@@ -461,24 +465,6 @@ const ManagePartnersMenusPage = () => {
               Thêm phụ phí ({selectedMenuIds.length})
             </Button>
           )}
-          <Button
-            variant="secondary"
-            className="flex items-center gap-2"
-            onClick={() => setIsImportFeeModalOpen(true)}>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-              />
-            </svg>
-            Import phụ phí
-          </Button>
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
             <span className="text-xl font-bold text-amber-600">
               {pagination.totalItems}
@@ -537,19 +523,6 @@ const ManagePartnersMenusPage = () => {
           </div>
         )}
       </div>
-
-      <ImportExtraFeeModal
-        isOpen={isImportFeeModalOpen}
-        onClose={() => setIsImportFeeModalOpen(false)}
-        onImported={() =>
-          dispatch(
-            ManagePartnersMenusThunks.fetchPendingMenus({
-              page: pagination.page,
-              perPage: pagination.perPage,
-            }),
-          )
-        }
-      />
 
       <ApplyExtraFeeModal
         isOpen={isExtraFeeModalOpen}

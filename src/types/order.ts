@@ -8,6 +8,8 @@ export type TLineItem = {
   price: number;
   quantity: number;
   unitPrice: number;
+  /** Menu surcharge per serving, billed to the company only. */
+  unitExtraFee?: number;
 };
 
 export type TCartItem = {

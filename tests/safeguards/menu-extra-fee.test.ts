@@ -20,6 +20,7 @@
  */
 
 import {
+  applyFeeToFoods,
   buildExtraFeeRows,
   hasUnsavedExtraFeeChanges,
   toAmount,
@@ -432,5 +433,90 @@ describe('hasUnsavedExtraFeeChanges', () => {
         FOOD_A,
       ]),
     ).toBe(true);
+  });
+});
+
+/**
+ * Bulk-applying one fee to the dishes ticked inside a single menu's panel.
+ *
+ * This is a convenience layer over the same draft the per-row inputs write to —
+ * it must never write, and it must never shrink what the save submits. The save
+ * runs in `replace` mode with the complete map, so if a bulk apply dropped the
+ * dishes it did not touch, their stored fees would be cleared on the next save.
+ */
+describe('applyFeeToFoods', () => {
+  const FOOD_C = 'food-c';
+
+  /** Mirrors how the page turns a draft into the save payload. */
+  const buildSaveMap = (draft: Record<string, string>, foodIds: string[]) =>
+    foodIds.reduce<Record<string, number>>(
+      (result, foodId) => ({
+        ...result,
+        [foodId]: toAmount(draft[foodId] || ''),
+      }),
+      {},
+    );
+
+  it('applies the value to exactly the selected dishes', () => {
+    const next = applyFeeToFoods(
+      { [FOOD_A]: '', [FOOD_B]: '', [FOOD_C]: '' },
+      [FOOD_A, FOOD_C],
+      '10.000',
+    );
+
+    expect(next).toEqual({
+      [FOOD_A]: '10.000',
+      [FOOD_B]: '',
+      [FOOD_C]: '10.000',
+    });
+  });
+
+  it('keeps an unsaved manual edit on a dish that was not selected', () => {
+    const next = applyFeeToFoods(
+      { [FOOD_A]: '', [FOOD_B]: '25.000' },
+      [FOOD_A],
+      '10.000',
+    );
+
+    expect(next[FOOD_B]).toBe('25.000');
+  });
+
+  it('applies an explicit 0 so a batch of surcharges can be cleared', () => {
+    const next = applyFeeToFoods(
+      { [FOOD_A]: '15.000', [FOOD_B]: '15.000' },
+      [FOOD_A, FOOD_B],
+      '0',
+    );
+
+    expect(next).toEqual({ [FOOD_A]: '0', [FOOD_B]: '0' });
+    expect(toAmount(next[FOOD_A])).toBe(0);
+  });
+
+  it('is a no-op when nothing is selected', () => {
+    const draft = { [FOOD_A]: '15.000' };
+
+    expect(applyFeeToFoods(draft, [], '10.000')).toEqual(draft);
+  });
+
+  it('leaves every dish of the menu in the map the save submits', () => {
+    const foodIds = [FOOD_A, FOOD_B, FOOD_C];
+    const next = applyFeeToFoods(
+      { [FOOD_A]: '', [FOOD_B]: '15.000', [FOOD_C]: '' },
+      [FOOD_A, FOOD_C],
+      '10.000',
+    );
+
+    // All three keys survive — `replace` mode would otherwise clear FOOD_B.
+    expect(buildSaveMap(next, foodIds)).toEqual({
+      [FOOD_A]: 10000,
+      [FOOD_B]: 15000,
+      [FOOD_C]: 10000,
+    });
+  });
+
+  it('marks the panel dirty so the admin still has to save', () => {
+    const next = applyFeeToFoods({ [FOOD_A]: '' }, [FOOD_A], '10.000');
+
+    expect(hasUnsavedExtraFeeChanges(next, {}, [FOOD_A])).toBe(true);
   });
 });

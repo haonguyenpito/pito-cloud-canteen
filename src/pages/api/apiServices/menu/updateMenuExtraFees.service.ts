@@ -1,4 +1,6 @@
-import { fetchListingsByChunkedIds } from '@helpers/apiHelpers';
+import { fetchListingsByChunkedIds, queryAllPages } from '@helpers/apiHelpers';
+import { getMinBillablePrice } from '@helpers/menuExtraFee';
+import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { IntegrationListing, IntegrationMenuListing } from '@src/utils/data';
@@ -7,7 +9,7 @@ import {
   EListingStates,
   EListingType,
 } from '@src/utils/enums';
-import type { TIntegrationListing, TObject } from '@src/utils/types';
+import type { TIntegrationListing, TListing, TObject } from '@src/utils/types';
 
 export type TMenuExtraFeeMap = Record<string, number>;
 
@@ -63,6 +65,93 @@ export const normalizeExtraFees = (
 };
 
 /**
+ * The fee a draft sub-order snapshots for one dish. Dual-selection companies
+ * split one package across two dishes, so — exactly like `adjustFoodListPrice`
+ * does for the base price — a multi-dish food carries half the fee; otherwise
+ * the markup would be charged twice per meal.
+ */
+const getSnapshotExtraFee = (
+  fee: number,
+  numberOfMainDishes: unknown,
+  isSecondaryFoodAllowed: boolean,
+) => {
+  const isSingleSelectionFood =
+    numberOfMainDishes !== undefined &&
+    numberOfMainDishes !== null &&
+    Number(numberOfMainDishes) === 1;
+
+  return isSecondaryFoodAllowed && !isSingleSelectionFood ? fee / 2 : fee;
+};
+
+/**
+ * Rewrites the fee snapshot of ONE draft sub-order served by the edited menu:
+ * `restaurant.foodList[*].foodExtraFee` (group orders) and
+ * `lineItems[*].unitExtraFee` (normal orders). Base prices are never touched.
+ */
+export const syncSubOrderExtraFees = ({
+  subOrder,
+  extraFees,
+  isSecondaryFoodAllowed = false,
+}: {
+  subOrder: TObject;
+  extraFees: TMenuExtraFeeMap;
+  isSecondaryFoodAllowed?: boolean;
+}): { subOrder: TObject; hasChange: boolean } => {
+  const { restaurant = {}, lineItems } = subOrder;
+  const { foodList = {} } = restaurant;
+  let hasChange = false;
+
+  const feeFor = (foodId: string) =>
+    getSnapshotExtraFee(
+      extraFees[foodId] ?? 0,
+      foodList[foodId]?.numberOfMainDishes,
+      isSecondaryFoodAllowed,
+    );
+
+  const newFoodList = Object.keys(foodList).reduce(
+    (foodListResult: TObject, foodId: string) => {
+      const food = foodList[foodId] || {};
+      const nextExtraFee = feeFor(foodId);
+
+      if (food.foodExtraFee !== nextExtraFee) {
+        hasChange = true;
+      }
+
+      return {
+        ...foodListResult,
+        [foodId]: { ...food, foodExtraFee: nextExtraFee },
+      };
+    },
+    {},
+  );
+
+  const newLineItemsMaybe = Array.isArray(lineItems)
+    ? {
+        lineItems: lineItems.map((lineItem: TObject) => {
+          const nextExtraFee = feeFor(lineItem?.id);
+
+          if (lineItem?.unitExtraFee === nextExtraFee) {
+            return lineItem;
+          }
+
+          hasChange = true;
+
+          return { ...lineItem, unitExtraFee: nextExtraFee };
+        }),
+      }
+    : {};
+
+  return {
+    subOrder: {
+      ...subOrder,
+      restaurant: { ...restaurant, foodList: newFoodList },
+      ...newLineItemsMaybe,
+    },
+    hasChange,
+  };
+};
+
+/**
  * Re-syncs the `foodExtraFee` snapshot of orders that have not been started yet.
  *
  * Scoped to `menuId` on purpose: a plan spans several menus, and the whole point
@@ -75,12 +164,16 @@ const syncExtraFeesToDraftPlans = async (
 ) => {
   const integrationSdk = getIntegrationSdk();
 
-  const plans = denormalisedResponseEntities(
-    await integrationSdk.listings.query({
+  // Every page: a menu used for a whole season can be referenced by far more
+  // than one page (100) of plans, most of them already started. A single-page
+  // query silently left the remaining draft orders on the old fee.
+  const plans = await queryAllPages({
+    sdkModel: integrationSdk.listings,
+    query: {
       meta_menuIds: `has_any:${menuId}`,
       meta_listingType: EListingType.subOrder,
-    }),
-  );
+    },
+  });
 
   if (plans.length === 0) {
     return;
@@ -112,43 +205,29 @@ const syncExtraFeesToDraftPlans = async (
       }
 
       const { orderDetail = {} } = IntegrationListing(plan).getMetadata();
+      const isSecondaryFoodAllowed = getIsAllowAddSecondaryFood(
+        order as unknown as TListing,
+      );
       let hasChange = false;
 
       const newOrderDetail = Object.keys(orderDetail).reduce(
         (result: TObject, subOrderDate: string) => {
           const subOrder = orderDetail[subOrderDate] || {};
-          const { restaurant = {} } = subOrder;
-          const { foodList = {} } = restaurant;
 
           // Only dates served by THIS menu.
-          if (restaurant.menuId !== menuId) {
+          if (subOrder.restaurant?.menuId !== menuId) {
             return { ...result, [subOrderDate]: subOrder };
           }
 
-          const newFoodList = Object.keys(foodList).reduce(
-            (foodListResult: TObject, foodId: string) => {
-              const food = foodList[foodId] || {};
-              const nextExtraFee = extraFees[foodId] ?? 0;
+          const synced = syncSubOrderExtraFees({
+            subOrder,
+            extraFees,
+            isSecondaryFoodAllowed,
+          });
 
-              if (food.foodExtraFee !== nextExtraFee) {
-                hasChange = true;
-              }
+          hasChange = hasChange || synced.hasChange;
 
-              return {
-                ...foodListResult,
-                [foodId]: { ...food, foodExtraFee: nextExtraFee },
-              };
-            },
-            {},
-          );
-
-          return {
-            ...result,
-            [subOrderDate]: {
-              ...subOrder,
-              restaurant: { ...restaurant, foodList: newFoodList },
-            },
-          };
+          return { ...result, [subOrderDate]: synced.subOrder };
         },
         {},
       );
@@ -165,10 +244,62 @@ const syncExtraFeesToDraftPlans = async (
   );
 };
 
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
 /**
- * Writes the menu-scoped extra fee map. Touches nothing else on the menu — in
- * particular it must not go through `updateMenu.service.ts`, which rebuilds
- * `foodsByDate` / `<day>FoodIdList` / `<day>MinFoodPrice` from a client payload.
+ * `<day>MinFoodPrice` drives the restaurant search budget filter
+ * (`pub_<day>MinFoodPrice <= packagePerMember`) and is fee-inclusive, so it
+ * must be recomputed whenever the fee map changes. Prices come from the food
+ * listings (the source of truth for the base price). A day whose dishes cannot
+ * be resolved is left untouched rather than reset to 0, which would let the
+ * menu pass every budget filter.
+ */
+const computeMinFoodPriceByDay = async ({
+  menuMetadata,
+  foodIdList,
+  foodExtraFees,
+  integrationSdk,
+}: {
+  menuMetadata: TObject;
+  foodIdList: string[];
+  foodExtraFees: TMenuExtraFeeMap;
+  integrationSdk: any;
+}): Promise<TObject> => {
+  if (foodIdList.length === 0) {
+    return {};
+  }
+
+  const foods = await fetchListingsByChunkedIds(foodIdList, integrationSdk);
+  const priceByFoodId = foods.reduce(
+    (result: Record<string, number>, food: TIntegrationListing) => ({
+      ...result,
+      [food.id.uuid]:
+        IntegrationListing(food).getAttributes().price?.amount || 0,
+    }),
+    {},
+  );
+
+  return DAY_KEYS.reduce((result: TObject, day) => {
+    const dayFoods = ((menuMetadata[`${day}FoodIdList`] || []) as string[])
+      .filter((foodId) => foodId in priceByFoodId)
+      .map((foodId) => ({ foodId, price: priceByFoodId[foodId] }));
+
+    if (dayFoods.length === 0) {
+      return result;
+    }
+
+    return {
+      ...result,
+      [`${day}MinFoodPrice`]: getMinBillablePrice(dayFoods, foodExtraFees),
+    };
+  }, {});
+};
+
+/**
+ * Writes the menu-scoped extra fee map and the fee-inclusive `<day>MinFoodPrice`
+ * derived from it. Touches nothing else on the menu — in particular it must not
+ * go through `updateMenu.service.ts`, which rebuilds `foodsByDate` /
+ * `<day>FoodIdList` from a client payload.
  */
 const updateMenuExtraFees = async (
   menuId: string,
@@ -198,8 +329,15 @@ const updateMenuExtraFees = async (
 
   const foodExtraFees = { ...keptExtraFees, ...submittedExtraFees };
 
+  const minFoodPriceByDay = await computeMinFoodPriceByDay({
+    menuMetadata: menuListing.getMetadata(),
+    foodIdList,
+    foodExtraFees,
+    integrationSdk,
+  });
+
   const response = await integrationSdk.listings.update(
-    { id: menuId, publicData: { foodExtraFees } },
+    { id: menuId, publicData: { foodExtraFees, ...minFoodPriceByDay } },
     { expand: true },
   );
 

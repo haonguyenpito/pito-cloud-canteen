@@ -94,10 +94,18 @@ const groupFoodForNormal = (orderDetail: TObject, date?: number | string) => {
           name: foodName,
           quantity = 1,
           unitPrice: foodPrice = 0,
+          unitExtraFee: foodExtraFee = 0,
         } = lineItem;
         const { foodUnit = '' } = foodListOfDate[foodId] || {};
 
-        return { foodId, foodName, foodUnit, foodPrice, frequency: quantity };
+        return {
+          foodId,
+          foodName,
+          foodUnit,
+          foodPrice,
+          foodExtraFee,
+          frequency: quantity,
+        };
       });
 
       const summary = lineItems.reduce(

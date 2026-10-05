@@ -55,6 +55,7 @@ const partnerOrderDetailsUpdated = ({
       orderServiceFeePercentage: (serviceFees[restaurantId] || 0) / 100,
       date: subOrderDate,
       shouldIncludePITOFee: false,
+      includeExtraFee: false,
     });
   const orderUrl = `${BASE_URL}/partner/orders/${orderId}_${subOrderDate}`;
 

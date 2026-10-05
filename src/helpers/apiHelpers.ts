@@ -11,7 +11,7 @@ import {
 } from '@utils/enums';
 
 // query all page
-const calculateRemainPages = (meta: any) => {
+const calculateRemainPages = (meta: any = {}) => {
   const { totalPages = 1 } = meta;
   if (totalPages <= 1) return [];
 

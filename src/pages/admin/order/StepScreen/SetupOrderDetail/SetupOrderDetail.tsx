@@ -26,6 +26,7 @@ import { getItem } from '@helpers/localStorageHelpers';
 import { findSuitableAnchorDate } from '@helpers/order/prepareDataHelper';
 import {
   adjustFoodListPrice,
+  buildLineItem,
   getIsAllowAddSecondaryFood,
   getRestaurantListFromOrderDetail,
   getSelectedRestaurantAndFoodList,
@@ -356,15 +357,8 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
           Object.entries<{
             foodName: string;
             foodPrice: number;
-          }>(_foodList).map(([foodId, { foodName, foodPrice }]) => {
-            return {
-              id: foodId,
-              name: foodName,
-              unitPrice: foodPrice,
-              price: foodPrice,
-              quantity: 1,
-            };
-          });
+            foodExtraFee?: number;
+          }>(_foodList).map(([foodId, food]) => buildLineItem(foodId, food));
         const removeDeletedFoodLineItems = currentSubOrderLineItems.filter(
           (lineItem: TObject) => has(selectedFoodList, lineItem.id),
         );
@@ -407,15 +401,7 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
       );
       const lineItems = isOrderAllowAddSecondaryFood
         ? Object.entries(adjustedFoodList).map(
-            ([foodId, { foodName, foodPrice }]: [string, any]) => {
-              return {
-                id: foodId,
-                name: foodName,
-                unitPrice: foodPrice,
-                price: foodPrice,
-                quantity: 1,
-              };
-            },
+            ([foodId, food]: [string, any]) => buildLineItem(foodId, food),
           )
         : getUpdateLineItems(foodList, foodIds, foodExtraFees);
 

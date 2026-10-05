@@ -181,8 +181,10 @@ describe('order snapshot — foodExtraFee comes from the menu', () => {
     expect((submitFoodListData as any)[FOOD_A].foodExtraFee).toBe(0);
   });
 
-  it('getUpdateLineItems keeps line-item price at the base amount', () => {
-    // Line items are the partner-facing amount and must exclude the markup.
+  it('getUpdateLineItems keeps the base price and carries the menu fee apart', () => {
+    // Line items also feed the partner quotation, so `unitPrice` / `price`
+    // must stay at the base amount; the markup is billed to the company via
+    // `unitExtraFee`.
     const lineItems = getUpdateLineItems([makeFood(99000)], [FOOD_A], {
       [FOOD_A]: 15000,
     });
@@ -191,7 +193,15 @@ describe('order snapshot — foodExtraFee comes from the menu', () => {
     expect(lineItems[0]).toMatchObject({
       id: FOOD_A,
       unitPrice: BASE_PRICE,
+      price: BASE_PRICE,
+      unitExtraFee: 15000,
     });
+  });
+
+  it('getUpdateLineItems writes unitExtraFee 0 when the menu does not surcharge', () => {
+    const [lineItem] = getUpdateLineItems([makeFood(99000)], [FOOD_A]);
+
+    expect(lineItem.unitExtraFee).toBe(0);
   });
 });
 

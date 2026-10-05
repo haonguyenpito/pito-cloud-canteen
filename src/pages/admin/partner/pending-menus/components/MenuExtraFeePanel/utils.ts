@@ -63,6 +63,25 @@ export const toAmount = (value: string) =>
   Number(value.replace(/\D/g, '')) || 0;
 
 /**
+ * Applies one raw input value to several dishes at once.
+ *
+ * Returns the whole next draft so the caller can do it in a single state update:
+ * looping the per-row `onChange` would base every call on the same stale draft
+ * and only the last dish would keep the fee.
+ */
+export const applyFeeToFoods = (
+  draft: Record<string, string>,
+  foodIds: string[],
+  value: string,
+): Record<string, string> => ({
+  ...draft,
+  ...foodIds.reduce<Record<string, string>>(
+    (result, foodId) => ({ ...result, [foodId]: value }),
+    {},
+  ),
+});
+
+/**
  * True when the admin's draft differs from what is stored on the menu.
  *
  * Guards against silent edit loss: the panel shows "chưa lưu" from this, and an
@@ -77,3 +96,36 @@ export const hasUnsavedExtraFeeChanges = (
   foodIds.some(
     (foodId) => toAmount(draft[foodId] || '') !== (saved[foodId] ?? 0),
   );
+
+const MENU_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+/**
+ * Label for the menu list's "Phụ phí" column: the single value when the
+ * dishes agree, a range when they do not.
+ *
+ * Only dishes still in the menu count — a fee left over from a removed dish
+ * (stored before orphans were pruned on menu save) must not widen the range.
+ */
+export const buildExtraFeeLabel = (
+  foodExtraFees: Record<string, number | undefined> = {},
+  menuMetadata: Record<string, unknown> = {},
+): string => {
+  const menuFoodIds = new Set(
+    MENU_DAY_KEYS.flatMap(
+      (day) => (menuMetadata[`${day}FoodIdList`] as string[]) || [],
+    ),
+  );
+  const fees = Object.entries(foodExtraFees)
+    .filter(([foodId]) => menuFoodIds.has(foodId))
+    .map(([, fee]) => fee)
+    .filter((fee): fee is number => typeof fee === 'number' && fee > 0);
+
+  if (fees.length === 0) {
+    return '';
+  }
+
+  const min = Math.min(...fees);
+  const max = Math.max(...fees);
+
+  return min === max ? formatVnd(min) : `${formatVnd(min)} – ${formatVnd(max)}`;
+};

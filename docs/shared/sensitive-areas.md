@@ -45,8 +45,12 @@ All exported helpers (every one is load-bearing for billing):
 - A fee of `0` is valid and means "no surcharge" — never use a truthiness check on it.
 - `updateMenuExtraFees.service.ts` is the only writer. It rejects menus that are not `draft` / `pendingApproval`: approval freezes the fee.
 - Its fan-out into draft-stage plans must stay scoped to `restaurant.menuId === menuId`. A plan spans several menus; an unscoped rewrite reintroduces the cross-menu bug.
+- The fan-out (`syncSubOrderExtraFees`) rewrites both snapshots: `restaurant.foodList[*].foodExtraFee` (group orders) and `lineItems[*].unitExtraFee` (normal orders). For dual-selection companies (`canAddSecondaryFood`) a multi-dish food gets **half** the fee, mirroring `adjustFoodListPrice`.
+- `<day>MinFoodPrice` on a menu is **fee-inclusive** (`getMinBillablePrice`): it drives the restaurant search budget filter `pub_<day>MinFoodPrice <= packagePerMember`, and the package is fee-inclusive. Every writer must pass the menu's fee map — `updateMenu`, `updateMenuExtraFees`, and the three recompute paths in `foodHelpers.ts`. Production backfill: `scripts/backfill-menu-min-food-price.js`.
+- Normal orders: `lineItems[*].unitPrice` / `price` are the partner's base amount; the surcharge is `unitExtraFee` (written by `buildLineItem` in `orderHelper.ts`). Never fold the fee into `unitPrice` — line items also feed the partner quotation.
 - Started orders are never re-priced — `plan.metadata.orderDetail[...].foodExtraFee` is the billed value.
 - `calculatePriceQuotationPartner` must never see the fee; partner payout is base price only.
+- The fee is client-only on every side of the ledger: client totals (`calculatePriceQuotationInfoFromOrder`, and the client flow of `calculatePriceQuotationInfoFromQuotation` used to rewrite the client payment record on sub-order cancel) include it; partner-facing totals (`isPartner`, the partner flow `date + partnerId`, or `includeExtraFee: false`) exclude it. Covered by `tests/safeguards/menu-extra-fee-billing-sides.test.ts`.
 
 ---
 
