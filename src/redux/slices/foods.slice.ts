@@ -130,6 +130,9 @@ const CREATE_PARTNER_FOOD_LISTING =
 const UPDATE_PARTNER_FOOD_LISTING =
   'app/ManageFoodsPage/UPDATE_PARTNER_FOOD_LISTING';
 
+const UPDATE_PARTNER_FOOD_PRICES =
+  'app/ManageFoodsPage/UPDATE_PARTNER_FOOD_PRICES';
+
 const SHOW_PARTNER_FOOD_LISTING =
   'app/ManageFoodsPage/SHOW_PARTNER_FOOD_LISTING';
 const REMOVE_PARTNER_FOOD_LISTING =
@@ -326,6 +329,21 @@ const updatePartnerFoodListing = createAsyncThunk(
       console.error(`${UPDATE_PARTNER_FOOD_LISTING} error: `, error);
 
       return rejectWithValue(storableError(error));
+    }
+  },
+);
+
+const updatePartnerFoodPrices = createAsyncThunk(
+  UPDATE_PARTNER_FOOD_PRICES,
+  async (foodPrices: { id: string; price: number }[], { rejectWithValue }) => {
+    try {
+      const { data } = await partnerFoodApi.updateFoodPrices(foodPrices);
+
+      return data;
+    } catch (error) {
+      console.error(`${UPDATE_PARTNER_FOOD_PRICES} error: `, error);
+
+      return rejectWithValue(storableAxiosError(error));
     }
   },
 );
@@ -590,6 +608,7 @@ export const foodSliceThunks = {
   requestUploadFoodImages,
   createPartnerFoodListing,
   updatePartnerFoodListing,
+  updatePartnerFoodPrices,
   showPartnerFoodListing,
   removePartnerFood,
   showDuplicateFood,
@@ -734,6 +753,20 @@ const foodSlice = createSlice({
         updateFoodInProgress: false,
       }))
       .addCase(updatePartnerFoodListing.rejected, (state, { payload }) => ({
+        ...state,
+        updateFoodInProgress: false,
+        updateFoodError: payload,
+      }))
+      .addCase(updatePartnerFoodPrices.pending, (state) => ({
+        ...state,
+        updateFoodInProgress: true,
+        updateFoodError: null,
+      }))
+      .addCase(updatePartnerFoodPrices.fulfilled, (state) => ({
+        ...state,
+        updateFoodInProgress: false,
+      }))
+      .addCase(updatePartnerFoodPrices.rejected, (state, { payload }) => ({
         ...state,
         updateFoodInProgress: false,
         updateFoodError: payload,
