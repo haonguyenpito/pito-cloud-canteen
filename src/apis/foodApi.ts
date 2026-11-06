@@ -17,6 +17,10 @@ const updateFood = (foodId: string, body: TBodyParams) => {
   return putApi(`${baseUrl}/${foodId}`, body);
 };
 
+const updateFoodPrices = (foodPrices: { id: string; price: number }[]) => {
+  return putApi(`${baseUrl}/update-prices`, { foodPrices });
+};
+
 const deleteFood = (foodId: string, body: TBodyParams) => {
   return deleteApi(`${baseUrl}/${foodId}`, body);
 };
@@ -37,6 +41,7 @@ export const partnerFoodApi = {
   showFood,
   createFood,
   updateFood,
+  updateFoodPrices,
   deleteFood,
   deleteFoodByIds,
   publishFoodApi,

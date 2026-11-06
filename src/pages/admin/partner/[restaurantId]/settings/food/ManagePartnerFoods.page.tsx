@@ -23,6 +23,7 @@ import type { TColumn } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
 import Toggle from '@components/Toggle/Toggle';
 import Tooltip from '@components/Tooltip/Tooltip';
+import { parseThousandNumber } from '@helpers/format';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useFoodImportPreview } from '@hooks/useFoodImportPreview';
@@ -40,6 +41,7 @@ import {
 import type { TIntegrationListing } from '@utils/types';
 
 import FilterForm from './FilterForm/FilterForm';
+import BulkUpdateFoodPriceModal from './BulkUpdateFoodPriceModal';
 import { getFoodImportPreviewColumns } from './getFoodImportPreviewColumns';
 import { PreviewTable } from './PreviewTable';
 
@@ -88,6 +90,21 @@ const TABLE_COLUMN: TColumn[] = [
       }
 
       return <div className={css.descriptionRow}>{data.foodType}</div>;
+    },
+  },
+  {
+    key: 'price',
+    label: 'Đơn giá',
+    render: (data: any) => {
+      if (data.isDeleted) {
+        return <div></div>;
+      }
+
+      return (
+        <div className={css.descriptionRow}>
+          {parseThousandNumber(data.price)}đ
+        </div>
+      );
     },
   },
   {
@@ -166,6 +183,7 @@ const parseEntitiesToTableData = (
             : food.attributes.metadata.isFoodEnable,
         isCloseOrPublishInProgress: publishOrCloseFoodId === food.id.uuid,
         title: food.attributes.title,
+        price: food.attributes.price?.amount ?? 0,
         description: food.attributes.description,
         id: food.id.uuid,
         menuType: getLabelByKey(
@@ -303,6 +321,12 @@ const ManagePartnerFoods = () => {
   };
 
   const {
+    value: isBulkUpdatePriceModalOpen,
+    setTrue: openBulkUpdatePriceModal,
+    setFalse: closeBulkUpdatePriceModal,
+  } = useBoolean(false);
+
+  const {
     value: removeCheckedModalOpen,
     setTrue: openRemoveCheckedModal,
     setFalse: closeRemoveCheckedModal,
@@ -318,6 +342,8 @@ const ManagePartnerFoods = () => {
     managePartnerFoodPagination,
     publishOrCloseFoodId,
     publishOrCloseFoodError,
+    updateFoodInProgress,
+    updateFoodError,
   } = useAppSelector((state) => state.foods, shallowEqual);
 
   const categoryString = pub_category as string;
@@ -366,6 +392,17 @@ const ManagePartnerFoods = () => {
     return dispatch(foodSliceThunks.queryPartnerFoods(params));
   };
 
+  const onQueryCurrentPage = () =>
+    onQueryPartnerFood({
+      restaurantId,
+      page,
+      ...(groupPubCategory.length > 0
+        ? { pub_category: groupPubCategory }
+        : {}),
+
+      ...(keywords ? { keywords } : {}),
+    });
+
   const removeFood = async () => {
     if (!foodToRemove) return;
     const { id } = foodToRemove;
@@ -391,6 +428,32 @@ const ManagePartnerFoods = () => {
     }
   };
 
+  const foodsToUpdatePrice = foods
+    .filter(
+      (food: TIntegrationListing) =>
+        idsToAction.includes(food.id.uuid) &&
+        !food.attributes.metadata.isDeleted,
+    )
+    .map((food: TIntegrationListing) => ({
+      id: food.id.uuid,
+      title: food.attributes.title,
+      price: food.attributes.price?.amount ?? 0,
+    }));
+
+  const updateFoodPrices = async (
+    foodPrices: { id: string; price: number }[],
+  ) => {
+    const { error } = (await dispatch(
+      foodSliceThunks.updatePartnerFoodPrices(foodPrices),
+    )) as any;
+    if (!error) {
+      setIdsToAction([]);
+      closeBulkUpdatePriceModal();
+
+      return onQueryCurrentPage();
+    }
+  };
+
   const parsedFoods = parseEntitiesToTableData(
     foods,
     {
@@ -411,15 +474,7 @@ const ManagePartnerFoods = () => {
   };
 
   useEffect(() => {
-    onQueryPartnerFood({
-      restaurantId,
-      page,
-      ...(groupPubCategory.length > 0
-        ? { pub_category: groupPubCategory }
-        : {}),
-
-      ...(keywords ? { keywords } : {}),
-    });
+    onQueryCurrentPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, restaurantId, keywords, categoryString]);
 
@@ -497,6 +552,22 @@ const ManagePartnerFoods = () => {
               Xóa món
             </div>
           </InlineTextButton>
+          <Button
+            onClick={openBulkUpdatePriceModal}
+            disabled={foodsToUpdatePrice.length === 0}
+            className={css.lightButton}>
+            <IconEdit
+              className={classNames(css.buttonIcon, {
+                [css.disabled]: foodsToUpdatePrice.length === 0,
+              })}
+            />
+            <div
+              className={classNames({
+                [css.disabled]: foodsToUpdatePrice.length === 0,
+              })}>
+              Sửa giá
+            </div>
+          </Button>
           {!isMobileLayout && (
             <Button onClick={openImportModal} className={css.lightButton}>
               <IconUploadFile className={css.buttonIcon} />
@@ -613,6 +684,15 @@ const ManagePartnerFoods = () => {
             </div>
           )}
         </AlertModal>
+      )}
+      {isBulkUpdatePriceModalOpen && (
+        <BulkUpdateFoodPriceModal
+          foods={foodsToUpdatePrice}
+          inProgress={updateFoodInProgress}
+          error={updateFoodError}
+          onClose={closeBulkUpdatePriceModal}
+          onSubmit={updateFoodPrices}
+        />
       )}
       <AlertModal
         title={<FormattedMessage id="ManagePartnerFoods.removeTitle" />}

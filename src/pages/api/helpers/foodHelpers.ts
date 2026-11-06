@@ -8,6 +8,7 @@ import {
   getMinBillablePrice,
   sanitizeExtraFeeMap,
 } from '@helpers/menuExtraFee';
+import { adjustFoodListPrice } from '@helpers/orderHelper';
 import { denormalisedResponseEntities } from '@services/data';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
@@ -461,8 +462,11 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
     const updatedFood = await fetchListing(updatedFoodId);
     const updatedFoodListing = IntegrationListing(updatedFood);
 
-    const { menuIdList = [], unit: newFoodUnit } =
-      updatedFoodListing.getPublicData();
+    const {
+      menuIdList = [],
+      unit: newFoodUnit,
+      numberOfMainDishes,
+    } = updatedFoodListing.getPublicData();
     const {
       price: { amount: newPriceAmount = 0 },
       title: newFoodName,
@@ -580,10 +584,23 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
           );
           const planListing = IntegrationListing(plan);
           const { orderDetail } = planListing.getMetadata();
+          // Same price rule the booker/admin pickers apply (half price for dual-selection companies).
+          const { foodPrice: orderFoodPrice } = adjustFoodListPrice(
+            {
+              [updatedFoodId]: {
+                foodName: newFoodName,
+                foodPrice: newPriceAmount,
+                foodUnit: newFoodUnit,
+                numberOfMainDishes,
+              },
+            },
+            order as unknown as TListing,
+          )[updatedFoodId];
           const newOrderDetail = Object.keys(orderDetail).reduce(
             (result, subOrderDate: string) => {
-              const { restaurant = {} } = orderDetail[subOrderDate];
+              const { restaurant = {} } = orderDetail[subOrderDate] || {};
               const { foodList } = restaurant;
+              if (!foodList) return result;
 
               const newFoodList = Object.keys(foodList).reduce(
                 (foodListResult: any, foodId: string) => {
@@ -594,7 +611,7 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
                       [foodId]: {
                         ...food,
                         foodName: newFoodName,
-                        foodPrice: newPriceAmount,
+                        foodPrice: orderFoodPrice,
                         foodUnit: newFoodUnit,
                       },
                     };
