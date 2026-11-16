@@ -17,8 +17,16 @@ const updateFood = (foodId: string, body: TBodyParams) => {
   return putApi(`${baseUrl}/${foodId}`, body);
 };
 
-const updateFoodPrices = (foodPrices: { id: string; price: number }[]) => {
-  return putApi(`${baseUrl}/update-prices`, { foodPrices });
+export type TUpdateFoodPricesBody =
+  | { foodPrices: { id: string; price: number }[] }
+  | {
+      restaurantId: string;
+      filter: { keywords?: string; pub_category?: string[] };
+      price: number;
+    };
+
+const updateFoodPrices = (body: TUpdateFoodPricesBody) => {
+  return putApi(`${baseUrl}/update-prices`, body);
 };
 
 const deleteFood = (foodId: string, body: TBodyParams) => {
