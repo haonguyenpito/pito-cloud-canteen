@@ -6,6 +6,7 @@ import classNames from 'classnames';
 import { useRouter } from 'next/router';
 import * as XLSX from 'xlsx';
 
+import type { TUpdateFoodPricesBody } from '@apis/foodApi';
 import Button, { InlineTextButton } from '@components/Button/Button';
 import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import IconDelete from '@components/Icons/IconDelete/IconDelete';
@@ -325,6 +326,8 @@ const ManagePartnerFoods = () => {
     setTrue: openBulkUpdatePriceModal,
     setFalse: closeBulkUpdatePriceModal,
   } = useBoolean(false);
+  const [isUpdatingAllFilteredFoods, setIsUpdatingAllFilteredFoods] =
+    useState(false);
 
   const {
     value: removeCheckedModalOpen,
@@ -392,16 +395,13 @@ const ManagePartnerFoods = () => {
     return dispatch(foodSliceThunks.queryPartnerFoods(params));
   };
 
-  const onQueryCurrentPage = () =>
-    onQueryPartnerFood({
-      restaurantId,
-      page,
-      ...(groupPubCategory.length > 0
-        ? { pub_category: groupPubCategory }
-        : {}),
+  const filterParams = {
+    ...(groupPubCategory.length > 0 ? { pub_category: groupPubCategory } : {}),
+    ...(keywords ? { keywords: keywords as string } : {}),
+  };
 
-      ...(keywords ? { keywords } : {}),
-    });
+  const onQueryCurrentPage = () =>
+    onQueryPartnerFood({ restaurantId, page, ...filterParams });
 
   const removeFood = async () => {
     if (!foodToRemove) return;
@@ -428,27 +428,43 @@ const ManagePartnerFoods = () => {
     }
   };
 
-  const foodsToUpdatePrice = foods
-    .filter(
-      (food: TIntegrationListing) =>
-        idsToAction.includes(food.id.uuid) &&
-        !food.attributes.metadata.isDeleted,
-    )
+  const activeFoodsOnPage = foods.filter(
+    (food: TIntegrationListing) => !food.attributes.metadata.isDeleted,
+  );
+  const totalFilteredFoods: number =
+    managePartnerFoodPagination?.totalItems ?? 0;
+  const canSelectAllFilteredFoods =
+    activeFoodsOnPage.length > 0 &&
+    totalFilteredFoods > activeFoodsOnPage.length &&
+    activeFoodsOnPage.every((food: TIntegrationListing) =>
+      idsToAction.includes(food.id.uuid),
+    );
+
+  const foodsToUpdatePrice = activeFoodsOnPage
+    .filter((food: TIntegrationListing) => idsToAction.includes(food.id.uuid))
     .map((food: TIntegrationListing) => ({
       id: food.id.uuid,
       title: food.attributes.title,
       price: food.attributes.price?.amount ?? 0,
     }));
 
-  const updateFoodPrices = async (
-    foodPrices: { id: string; price: number }[],
-  ) => {
+  const openPriceModalForAllFilteredFoods = () => {
+    setIsUpdatingAllFilteredFoods(true);
+    openBulkUpdatePriceModal();
+  };
+
+  const closePriceModal = () => {
+    setIsUpdatingAllFilteredFoods(false);
+    closeBulkUpdatePriceModal();
+  };
+
+  const updateFoodPrices = async (body: TUpdateFoodPricesBody) => {
     const { error } = (await dispatch(
-      foodSliceThunks.updatePartnerFoodPrices(foodPrices),
+      foodSliceThunks.updatePartnerFoodPrices(body),
     )) as any;
     if (!error) {
       setIdsToAction([]);
-      closeBulkUpdatePriceModal();
+      closePriceModal();
 
       return onQueryCurrentPage();
     }
@@ -598,6 +614,17 @@ const ManagePartnerFoods = () => {
         </div>
       </div>
       {queryFoodsError && <ErrorMessage message={queryFoodsError.message} />}
+      {canSelectAllFilteredFoods && (
+        <div className="mb-3 rounded-lg bg-gray-100 px-4 py-2 text-center text-sm">
+          Đã chọn {activeFoodsOnPage.length} món trong trang này.{' '}
+          <button
+            type="button"
+            className="font-semibold text-blue-600 hover:underline"
+            onClick={openPriceModalForAllFilteredFoods}>
+            Sửa giá tất cả {totalFilteredFoods} món theo bộ lọc
+          </button>
+        </div>
+      )}
       {queryFoodsInProgress ? (
         <LoadingContainer />
       ) : (
@@ -687,11 +714,21 @@ const ManagePartnerFoods = () => {
       )}
       {isBulkUpdatePriceModalOpen && (
         <BulkUpdateFoodPriceModal
-          foods={foodsToUpdatePrice}
+          foods={isUpdatingAllFilteredFoods ? [] : foodsToUpdatePrice}
+          filteredFoodCount={
+            isUpdatingAllFilteredFoods ? totalFilteredFoods : undefined
+          }
           inProgress={updateFoodInProgress}
           error={updateFoodError}
-          onClose={closeBulkUpdatePriceModal}
-          onSubmit={updateFoodPrices}
+          onClose={closePriceModal}
+          onSubmit={(foodPrices) => updateFoodPrices({ foodPrices })}
+          onSubmitFilteredPrice={(price) =>
+            updateFoodPrices({
+              restaurantId: restaurantId as string,
+              filter: filterParams,
+              price,
+            })
+          }
         />
       )}
       <AlertModal

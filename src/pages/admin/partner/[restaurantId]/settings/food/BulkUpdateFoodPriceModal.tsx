@@ -10,10 +10,13 @@ type TFoodPriceItem = { id: string; title: string; price: number };
 
 type TBulkUpdateFoodPriceModalProps = {
   foods: TFoodPriceItem[];
+  // Set when editing every food matching the current filter; only one shared price is sent.
+  filteredFoodCount?: number;
   inProgress: boolean;
   error?: any;
   onClose: () => void;
   onSubmit: (foodPrices: { id: string; price: number }[]) => void;
+  onSubmitFilteredPrice?: (price: number) => void;
 };
 
 const formatVND = (value: number) => `${parseThousandNumber(value)}đ`;
@@ -23,11 +26,14 @@ const inputClassName =
 
 const BulkUpdateFoodPriceModal: React.FC<TBulkUpdateFoodPriceModalProps> = ({
   foods,
+  filteredFoodCount,
   inProgress,
   error,
   onClose,
   onSubmit,
+  onSubmitFilteredPrice,
 }) => {
+  const isFilterMode = filteredFoodCount !== undefined;
   const [newPrices, setNewPrices] = useState<Record<string, string>>({});
   const [commonPrice, setCommonPrice] = useState('');
 
@@ -42,7 +48,7 @@ const BulkUpdateFoodPriceModal: React.FC<TBulkUpdateFoodPriceModalProps> = ({
   );
 
   const applyCommonPrice = () => {
-    if (!commonPrice) return;
+    if (!commonPrice || isFilterMode) return;
     setNewPrices(Object.fromEntries(foods.map(({ id }) => [id, commonPrice])));
   };
 
@@ -52,18 +58,31 @@ const BulkUpdateFoodPriceModal: React.FC<TBulkUpdateFoodPriceModalProps> = ({
       title="Sửa giá món"
       handleClose={onClose}
       onCancel={onClose}
-      onConfirm={() => onSubmit(changedFoods)}
+      onConfirm={() =>
+        isFilterMode
+          ? onSubmitFilteredPrice?.(Number(commonPrice))
+          : onSubmit(changedFoods)
+      }
       cancelLabel="Hủy"
-      confirmLabel={`Cập nhật giá (${changedFoods.length} món)`}
+      confirmLabel={`Cập nhật giá (${
+        isFilterMode ? filteredFoodCount : changedFoods.length
+      } món)`}
       confirmInProgress={inProgress}
-      confirmDisabled={inProgress || hasInvalidPrice || !changedFoods.length}
+      confirmDisabled={
+        inProgress ||
+        (isFilterMode
+          ? !(Number(commonPrice) > 0)
+          : hasInvalidPrice || !changedFoods.length)
+      }
       containerClassName="!w-full md:!min-w-[640px]"
       childrenClassName="!text-gray-900">
       <div className="flex flex-col gap-4">
         <div className="flex items-end gap-2">
           <label className="flex-1 text-sm">
             <span className="mb-1 block font-semibold">
-              Đặt cùng một giá cho {foods.length} món
+              {isFilterMode
+                ? `Giá mới cho tất cả ${filteredFoodCount} món theo bộ lọc`
+                : `Đặt cùng một giá cho ${foods.length} món`}
             </span>
             <input
               className={inputClassName}
@@ -74,16 +93,21 @@ const BulkUpdateFoodPriceModal: React.FC<TBulkUpdateFoodPriceModalProps> = ({
               onKeyDown={(e) => e.key === 'Enter' && applyCommonPrice()}
             />
           </label>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!commonPrice}
-            onClick={applyCommonPrice}>
-            Áp dụng
-          </Button>
+          {!isFilterMode && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!commonPrice}
+              onClick={applyCommonPrice}>
+              Áp dụng
+            </Button>
+          )}
         </div>
 
-        <div className="max-h-[50vh] overflow-y-auto">
+        <div
+          className={classNames('max-h-[50vh] overflow-y-auto', {
+            hidden: isFilterMode,
+          })}>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500">

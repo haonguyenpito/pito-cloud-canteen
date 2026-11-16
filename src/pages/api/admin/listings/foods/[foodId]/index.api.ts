@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import {
   updateMenuAfterFoodDeleted,
-  updateMenuAfterFoodUpdated,
+  updateMenuAfterFoodsUpdated,
 } from '@pages/api/helpers/foodHelpers';
 import cookies from '@services/cookie';
 import adminChecker from '@services/permissionChecker/admin';
@@ -36,7 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           queryParams,
         );
 
-        updateMenuAfterFoodUpdated(foodId as string);
+        updateMenuAfterFoodsUpdated([foodId as string]);
 
         return res.status(200).json(response);
       }

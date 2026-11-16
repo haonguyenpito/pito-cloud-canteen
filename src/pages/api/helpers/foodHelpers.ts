@@ -16,6 +16,7 @@ import {
   EListingType,
   EOrderDraftStates,
 } from '@src/utils/enums';
+import type { TFoodList } from '@src/utils/orderTypes';
 import type { TIntegrationListing, TListing } from '@src/utils/types';
 
 export const fetchListingsByChunkedIds = async (ids: string[], sdk: any) => {
@@ -432,121 +433,147 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
   }
 };
 
-export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
+export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
   try {
     const integrationSdk = getIntegrationSdk();
-    const updatedFood = await fetchListing(updatedFoodId);
-    const updatedFoodListing = IntegrationListing(updatedFood);
+    const updatedFoods = await fetchListingsByChunkedIds(
+      updatedFoodIds,
+      integrationSdk,
+    );
+    const updatedFoodList: TFoodList = Object.fromEntries(
+      updatedFoods.map((food: TIntegrationListing) => {
+        const { unit, numberOfMainDishes } =
+          IntegrationListing(food).getPublicData();
+        const { price, title } = IntegrationListing(food).getAttributes();
 
-    const {
-      menuIdList = [],
-      unit: newFoodUnit,
-      numberOfMainDishes,
-    } = updatedFoodListing.getPublicData();
-    const {
-      price: { amount: newPriceAmount = 0 },
-      title: newFoodName,
-    } = updatedFoodListing.getAttributes();
+        return [
+          food.id.uuid,
+          {
+            foodName: title,
+            foodPrice: price?.amount || 0,
+            foodUnit: unit,
+            numberOfMainDishes,
+          },
+        ];
+      }),
+    );
+    const menuIdList: string[] = uniq(
+      flatten(
+        updatedFoods.map(
+          (food: TIntegrationListing) =>
+            IntegrationListing(food).getPublicData().menuIdList || [],
+        ),
+      ),
+    );
+    if (!menuIdList.length) return;
 
     const menus = await queryMenuByIdList(menuIdList);
+    const isUpdatedFood = (foodId: string) => !!updatedFoodList[foodId];
 
-    let updateMap: any = {};
-
-    await Promise.all(
-      menus.map(async (menu: TIntegrationListing) => {
-        return Promise.all(
-          Object.keys(EDayOfWeek).map(async (key) => {
-            const day = EDayOfWeek[key as keyof typeof EDayOfWeek];
-            const foodIdList =
-              IntegrationListing(menu).getMetadata()[`${day}FoodIdList`] || [];
-
-            if (foodIdList.includes(updatedFoodId)) {
-              const foods = await fetchListingsByChunkedIds(
-                foodIdList,
-                integrationSdk,
-              );
-
-              const newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
-              );
-
-              const newFoodTypeList = getUniqueString(
-                foods.reduce((prev: string[], f: TIntegrationListing) => {
-                  const { foodType } = IntegrationListing(f).getPublicData();
-                  if (!foodType) return prev;
-
-                  return [...prev, foodType];
-                }, [] as string[]),
-              );
-
-              const newFoodNutritions = uniq(
-                foods.reduce((result: any, food: TIntegrationListing) => {
-                  const { specialDiets = [] } =
-                    IntegrationListing(food).getPublicData();
-
-                  return [...result, ...specialDiets];
-                }, []),
-              );
-
-              const menuId = menu.id.uuid;
-
-              updateMap = {
-                ...updateMap,
-                [menuId]: {
-                  publicData: {
-                    ...(updateMap?.[menuId]?.publicData || {}),
-                    [`${day}MinFoodPrice`]: newMinFoodPrice,
-                  },
-                  metadata: {
-                    ...(updateMap?.[menuId]?.metadata || {}),
-                    [`${day}FoodType`]: newFoodTypeList,
-                    [`${day}Nutritions`]: newFoodNutritions,
-                  },
-                },
-              };
-            }
-          }),
-        );
-      }),
+    const menuDays: {
+      menu: TIntegrationListing;
+      day: EDayOfWeek;
+      foodIdList: string[];
+    }[] = flatten(
+      menus.map((menu: TIntegrationListing) =>
+        Object.values(EDayOfWeek)
+          .map((day) => ({
+            menu,
+            day,
+            foodIdList: (IntegrationListing(menu).getMetadata()[
+              `${day}FoodIdList`
+            ] || []) as string[],
+          }))
+          .filter(({ foodIdList }) => foodIdList.some(isUpdatedFood)),
+      ),
+    );
+    const dayFoods = await fetchListingsByChunkedIds(
+      uniq(flatten(menuDays.map(({ foodIdList }) => foodIdList))),
+      integrationSdk,
+    );
+    const dayFoodById = new Map(
+      dayFoods.map((food: TIntegrationListing) => [food.id.uuid, food]),
     );
 
-    const plans = denormalisedResponseEntities(
-      await integrationSdk.listings.query({
+    const updateMap: Record<string, any> = menuDays.reduce(
+      (result: any, { menu, day, foodIdList }) => {
+        const foods = foodIdList
+          .map((foodId) => dayFoodById.get(foodId))
+          .filter(Boolean) as TIntegrationListing[];
+
+        const newMinFoodPrice = foods.reduce(
+          (min: number, food: TIntegrationListing, index: number) => {
+            const { price = {} } = IntegrationListing(food).getAttributes();
+            const { amount = 0 } = price;
+            if (index === 0) {
+              return amount;
+            }
+
+            return amount < min ? amount : min;
+          },
+          0,
+        );
+
+        const newFoodTypeList = getUniqueString(
+          foods.reduce((prev: string[], f: TIntegrationListing) => {
+            const { foodType } = IntegrationListing(f).getPublicData();
+            if (!foodType) return prev;
+
+            return [...prev, foodType];
+          }, [] as string[]),
+        );
+
+        const newFoodNutritions = uniq(
+          foods.reduce((acc: any, food: TIntegrationListing) => {
+            const { specialDiets = [] } =
+              IntegrationListing(food).getPublicData();
+
+            return [...acc, ...specialDiets];
+          }, []),
+        );
+
+        const menuId = menu.id.uuid;
+
+        return {
+          ...result,
+          [menuId]: {
+            publicData: {
+              ...(result?.[menuId]?.publicData || {}),
+              [`${day}MinFoodPrice`]: newMinFoodPrice,
+            },
+            metadata: {
+              ...(result?.[menuId]?.metadata || {}),
+              [`${day}FoodType`]: newFoodTypeList,
+              [`${day}Nutritions`]: newFoodNutritions,
+            },
+          },
+        };
+      },
+      {},
+    );
+
+    const plans = await queryAllListings({
+      query: {
         meta_menuIds: `has_any:${menuIdList.join(',')}`,
         meta_listingType: EListingType.subOrder,
-      }),
-    );
-
-    const orderIdList = plans.reduce(
-      (result: any, plan: TIntegrationListing) => {
-        const { orderDetail, orderId } = IntegrationListing(plan).getMetadata();
-        const totalFoodIdList = Object.values(orderDetail).reduce<string[]>(
-          (totalFoodIdListResult: any, subOrder: any) => {
-            return [
-              ...totalFoodIdListResult,
-              ...Object.keys(subOrder?.restaurant?.foodList || {}),
-            ];
-          },
-          [],
-        );
-
-        if (totalFoodIdList.includes(updatedFoodId)) {
-          return [...result, orderId];
-        }
-
-        return result;
       },
-      [],
+    });
+
+    const orderIdList: string[] = uniq(
+      plans
+        .filter((plan: TIntegrationListing) =>
+          Object.values(
+            IntegrationListing(plan).getMetadata().orderDetail || {},
+          ).some((subOrder: any) =>
+            Object.keys(subOrder?.restaurant?.foodList || {}).some(
+              isUpdatedFood,
+            ),
+          ),
+        )
+        .map(
+          (plan: TIntegrationListing) =>
+            IntegrationListing(plan).getMetadata().orderId,
+        ),
     );
 
     const orders = await fetchListingsByChunkedIds(orderIdList, integrationSdk);
@@ -570,17 +597,10 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
           const planListing = IntegrationListing(plan);
           const { orderDetail } = planListing.getMetadata();
           // Same price rule the booker/admin pickers apply (half price for dual-selection companies).
-          const { foodPrice: orderFoodPrice } = adjustFoodListPrice(
-            {
-              [updatedFoodId]: {
-                foodName: newFoodName,
-                foodPrice: newPriceAmount,
-                foodUnit: newFoodUnit,
-                numberOfMainDishes,
-              },
-            },
+          const orderFoodList = adjustFoodListPrice(
+            updatedFoodList,
             order as unknown as TListing,
-          )[updatedFoodId];
+          );
           const newOrderDetail = Object.keys(orderDetail).reduce(
             (result, subOrderDate: string) => {
               const { restaurant = {} } = orderDetail[subOrderDate] || {};
@@ -590,14 +610,15 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
               const newFoodList = Object.keys(foodList).reduce(
                 (foodListResult: any, foodId: string) => {
                   const food = foodList[foodId] || {};
-                  if (foodId === updatedFoodId) {
+                  const updatedFood = orderFoodList[foodId];
+                  if (updatedFood) {
                     return {
                       ...foodListResult,
                       [foodId]: {
                         ...food,
-                        foodName: newFoodName,
-                        foodPrice: orderFoodPrice,
-                        foodUnit: newFoodUnit,
+                        foodName: updatedFood.foodName,
+                        foodPrice: updatedFood.foodPrice,
+                        foodUnit: updatedFood.foodUnit,
                       },
                     };
                   }
@@ -634,22 +655,23 @@ export const updateMenuAfterFoodUpdated = async (updatedFoodId: string) => {
       }),
     );
 
-    const response = await Promise.all(
+    return await Promise.all(
       Object.keys(updateMap).map(async (menuId) => {
         await integrationSdk.listings.update({
           id: menuId,
           publicData: {
-            ...(updateMap[menuId as keyof typeof updateMap].publicData || {}),
+            ...(updateMap[menuId].publicData || {}),
           },
           metadata: {
-            ...(updateMap[menuId as keyof typeof updateMap].metadata || {}),
+            ...(updateMap[menuId].metadata || {}),
           },
         });
       }),
     );
-
-    return response;
   } catch (error) {
-    console.error(`SERVER updateMenuAfterFoodUpdated ${updatedFoodId}`, error);
+    console.error(
+      `SERVER updateMenuAfterFoodsUpdated ${updatedFoodIds.join(',')}`,
+      error,
+    );
   }
 };

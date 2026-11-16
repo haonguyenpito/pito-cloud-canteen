@@ -7,6 +7,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 import { responseApprovalRequestApi } from '@apis/admin';
+import type { TUpdateFoodPricesBody } from '@apis/foodApi';
 import { partnerFoodApi } from '@apis/foodApi';
 import { queryAllPages } from '@helpers/apiHelpers';
 import { sleep } from '@helpers/index';
@@ -335,9 +336,9 @@ const updatePartnerFoodListing = createAsyncThunk(
 
 const updatePartnerFoodPrices = createAsyncThunk(
   UPDATE_PARTNER_FOOD_PRICES,
-  async (foodPrices: { id: string; price: number }[], { rejectWithValue }) => {
+  async (body: TUpdateFoodPricesBody, { rejectWithValue }) => {
     try {
-      const { data } = await partnerFoodApi.updateFoodPrices(foodPrices);
+      const { data } = await partnerFoodApi.updateFoodPrices(body);
 
       return data;
     } catch (error) {
