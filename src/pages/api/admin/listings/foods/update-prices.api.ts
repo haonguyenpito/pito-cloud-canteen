@@ -3,13 +3,15 @@ import range from 'lodash/range';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
-import type { TUpdateFoodPricesBody } from '@apis/foodApi';
+import type { TFoodFilter, TUpdateFoodPricesBody } from '@apis/foodApi';
 import { types as sdkTypes } from '@helpers/sdkLoader';
-import { updateMenuAfterFoodsUpdated } from '@pages/api/helpers/foodHelpers';
+import {
+  buildFoodFilterQuery,
+  updateMenuAfterFoodsUpdated,
+} from '@pages/api/helpers/foodHelpers';
 import cookies from '@services/cookie';
 import adminChecker from '@services/permissionChecker/admin';
-import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
-import { EListingType } from '@src/utils/enums';
+import { getIntegrationSdk, handleError } from '@services/sdk';
 
 const { Money } = sdkTypes;
 
@@ -22,31 +24,20 @@ const isValidPrice = (price: unknown) =>
 
 // Same query as the admin food table, so "all filtered foods" is exactly what the admin sees.
 const queryFilteredFoodIds = async (
-  sdk: any,
-  {
-    restaurantId,
-    filter,
-  }: {
-    restaurantId: string;
-    filter: { keywords?: string; pub_category?: string[] };
-  },
+  restaurantId: string,
+  filter: TFoodFilter,
 ): Promise<string[]> => {
+  const integrationSdk = getIntegrationSdk();
   const query = {
-    meta_listingType: EListingType.food,
-    meta_restaurantId: restaurantId,
-    meta_isDeleted: false,
-    ...(filter.keywords ? { keywords: filter.keywords } : {}),
-    ...(filter.pub_category?.length
-      ? { pub_category: filter.pub_category }
-      : {}),
+    ...buildFoodFilterQuery(restaurantId, filter),
     perPage: 100,
     'fields.listing': ['title'],
   };
-  const firstPage = await sdk.listings.query({ ...query, page: 1 });
+  const firstPage = await integrationSdk.listings.query({ ...query, page: 1 });
   const { totalPages = 1 } = firstPage.data.meta;
   const otherPages = await Promise.all(
     range(2, totalPages + 1).map((page) =>
-      sdk.listings.query({ ...query, page }),
+      integrationSdk.listings.query({ ...query, page }),
     ),
   );
 
@@ -68,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       if (typeof restaurantId !== 'string' || !filter || !isValidPrice(price))
         return res.status(400).json({ message: 'Invalid prices' });
 
-      const foodIds = await queryFilteredFoodIds(getSdk(req, res), body);
+      const foodIds = await queryFilteredFoodIds(restaurantId, filter);
       foodPrices = foodIds.map((id) => ({ id, price }));
     } else {
       foodPrices = body.foodPrices || [];

@@ -6,7 +6,7 @@ import classNames from 'classnames';
 import { useRouter } from 'next/router';
 import * as XLSX from 'xlsx';
 
-import type { TUpdateFoodPricesBody } from '@apis/foodApi';
+import type { TFoodFilter, TUpdateFoodPricesBody } from '@apis/foodApi';
 import Button, { InlineTextButton } from '@components/Button/Button';
 import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import IconDelete from '@components/Icons/IconDelete/IconDelete';
@@ -41,6 +41,7 @@ import {
 } from '@src/utils/options';
 import type { TIntegrationListing } from '@utils/types';
 
+import type { TFilterFormValues } from './FilterForm/FilterForm';
 import FilterForm from './FilterForm/FilterForm';
 import BulkUpdateFoodPriceModal from './BulkUpdateFoodPriceModal';
 import { getFoodImportPreviewColumns } from './getFoodImportPreviewColumns';
@@ -270,7 +271,17 @@ const parseEntitiesToExportCsv = (
 const ManagePartnerFoods = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { restaurantId, page = 1, keywords, pub_category = '' } = router.query;
+  const {
+    restaurantId,
+    page = 1,
+    keywords,
+    pub_category = '',
+    pub_foodType,
+    priceFrom,
+    priceTo,
+    createdAtFrom,
+    createdAtTo,
+  } = router.query;
 
   const categoryOptions = useAppSelector(
     (state) => state.SystemAttributes.categories,
@@ -362,12 +373,12 @@ const ManagePartnerFoods = () => {
 
   const handleSubmitFilter = ({
     pub_category: _pub_category = [],
-    keywords: _keywords,
-  }: any) => {
+    ...values
+  }: TFilterFormValues) => {
     router.push({
       pathname: adminRoutes.ManagePartnerFoods.path,
       query: {
-        keywords: _keywords,
+        ...values,
         pub_category: _pub_category?.join(','),
         restaurantId,
       },
@@ -391,17 +402,30 @@ const ManagePartnerFoods = () => {
     setFoodToRemove(null);
   };
 
-  const onQueryPartnerFood = (params: any = {}) => {
-    return dispatch(foodSliceThunks.queryPartnerFoods(params));
+  const onQueryPartnerFood = (params: {
+    page: number;
+    filter?: TFoodFilter;
+  }) => {
+    return dispatch(
+      foodSliceThunks.queryFilteredPartnerFoods({
+        restaurantId: restaurantId as string,
+        ...params,
+      }),
+    );
   };
 
-  const filterParams = {
-    ...(groupPubCategory.length > 0 ? { pub_category: groupPubCategory } : {}),
-    ...(keywords ? { keywords: keywords as string } : {}),
+  const filterParams: TFoodFilter = {
+    keywords: keywords as string,
+    pub_category: groupPubCategory,
+    pub_foodType: pub_foodType as string,
+    priceFrom: Number(priceFrom) || undefined,
+    priceTo: Number(priceTo) || undefined,
+    createdAtFrom: createdAtFrom as string,
+    createdAtTo: createdAtTo as string,
   };
 
   const onQueryCurrentPage = () =>
-    onQueryPartnerFood({ restaurantId, page, ...filterParams });
+    onQueryPartnerFood({ page: Number(page), filter: filterParams });
 
   const removeFood = async () => {
     if (!foodToRemove) return;
@@ -412,7 +436,7 @@ const ManagePartnerFoods = () => {
     if (!error) {
       onClearFoodToRemove();
 
-      return onQueryPartnerFood({ page: 1, restaurantId });
+      return onQueryPartnerFood({ page: 1 });
     }
   };
 
@@ -424,7 +448,7 @@ const ManagePartnerFoods = () => {
       setIdsToAction([]);
       closeRemoveCheckedModal();
 
-      return onQueryPartnerFood({ page: 1, restaurantId });
+      return onQueryPartnerFood({ page: 1 });
     }
   };
 
@@ -492,7 +516,17 @@ const ManagePartnerFoods = () => {
   useEffect(() => {
     onQueryCurrentPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, restaurantId, keywords, categoryString]);
+  }, [
+    page,
+    restaurantId,
+    keywords,
+    categoryString,
+    pub_foodType,
+    priceFrom,
+    priceTo,
+    createdAtFrom,
+    createdAtTo,
+  ]);
 
   const makeExcelFile = () => {
     const foodsToExport = parseEntitiesToExportCsv(
@@ -530,8 +564,13 @@ const ManagePartnerFoods = () => {
                   onSubmit={handleSubmitFilter}
                   categoryOptions={categoryOptions}
                   initialValues={{
-                    keywords,
+                    keywords: keywords as string,
                     pub_category: groupPubCategory,
+                    pub_foodType: pub_foodType as string,
+                    priceFrom: priceFrom as string,
+                    priceTo: priceTo as string,
+                    createdAtFrom: createdAtFrom as string,
+                    createdAtTo: createdAtTo as string,
                   }}
                 />
               }
