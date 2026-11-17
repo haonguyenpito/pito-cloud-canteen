@@ -17,13 +17,31 @@ const updateFood = (foodId: string, body: TBodyParams) => {
   return putApi(`${baseUrl}/${foodId}`, body);
 };
 
+export type TFoodFilter = {
+  keywords?: string;
+  pub_category?: string[];
+  pub_foodType?: string;
+  priceFrom?: number;
+  priceTo?: number;
+  // yyyy-MM-dd, Vietnam calendar day
+  createdAtFrom?: string;
+  createdAtTo?: string;
+};
+
+export type TQueryFoodsParams = {
+  restaurantId: string;
+  page?: number;
+  perPage?: number;
+  filter?: TFoodFilter;
+};
+
+const queryFoods = (params: TQueryFoodsParams) => {
+  return getApi(`${baseUrl}/query`, params);
+};
+
 export type TUpdateFoodPricesBody =
   | { foodPrices: { id: string; price: number }[] }
-  | {
-      restaurantId: string;
-      filter: { keywords?: string; pub_category?: string[] };
-      price: number;
-    };
+  | { restaurantId: string; filter: TFoodFilter; price: number };
 
 const updateFoodPrices = (body: TUpdateFoodPricesBody) => {
   return putApi(`${baseUrl}/update-prices`, body);
@@ -47,6 +65,7 @@ const closeFoodApi = (foodId: string, body: TBodyParams) => {
 
 export const partnerFoodApi = {
   showFood,
+  queryFoods,
   createFood,
   updateFood,
   updateFoodPrices,

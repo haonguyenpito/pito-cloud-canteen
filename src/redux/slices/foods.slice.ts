@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-shadow */
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, isAnyOf } from '@reduxjs/toolkit';
 import chunk from 'lodash/chunk';
 import flatten from 'lodash/flatten';
 import omit from 'lodash/omit';
@@ -7,7 +7,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 import { responseApprovalRequestApi } from '@apis/admin';
-import type { TUpdateFoodPricesBody } from '@apis/foodApi';
+import type { TQueryFoodsParams, TUpdateFoodPricesBody } from '@apis/foodApi';
 import { partnerFoodApi } from '@apis/foodApi';
 import { queryAllPages } from '@helpers/apiHelpers';
 import { sleep } from '@helpers/index';
@@ -123,6 +123,8 @@ const initialState: TFoodSliceState = {
 
 // ================ Thunk types ================ //
 const QUERY_PARTNER_FOODS = 'app/ManageFoodsPage/QUERY_PARTNER_FOODS';
+const QUERY_FILTERED_PARTNER_FOODS =
+  'app/ManageFoodsPage/QUERY_FILTERED_PARTNER_FOODS';
 const REQUEST_UPLOAD_IMAGE_FOOD =
   'app/ManageFoodsPage/REQUEST_UPLOAD_IMAGE_FOOD';
 
@@ -205,6 +207,32 @@ const queryPartnerFoods = createAsyncThunk(
   },
   {
     serializeError: storableError,
+  },
+);
+
+const queryFilteredPartnerFoods = createAsyncThunk(
+  QUERY_FILTERED_PARTNER_FOODS,
+  async (
+    {
+      isMobileLayout = false,
+      ...params
+    }: TQueryFoodsParams & { isMobileLayout?: boolean },
+    { rejectWithValue },
+  ) => {
+    try {
+      const { data } = await partnerFoodApi.queryFoods({
+        ...params,
+        perPage: MANAGE_FOOD_PAGE_SIZE,
+      });
+
+      return {
+        isMobileLayout,
+        foods: data.foods,
+        managePartnerFoodPagination: data.pagination,
+      };
+    } catch (error) {
+      return rejectWithValue(storableAxiosError(error));
+    }
   },
 );
 
@@ -606,6 +634,7 @@ const responseApprovalRequest = createAsyncThunk(
 
 export const foodSliceThunks = {
   queryPartnerFoods,
+  queryFilteredPartnerFoods,
   requestUploadFoodImages,
   createPartnerFoodListing,
   updatePartnerFoodListing,
@@ -655,26 +684,6 @@ const foodSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(queryPartnerFoods.pending, (state) => ({
-        ...state,
-        queryFoodsInProgress: true,
-        queryFoodsError: null,
-      }))
-      .addCase(queryPartnerFoods.fulfilled, (state, { payload }) => {
-        const { page = 1 } = payload.managePartnerFoodPagination || {};
-
-        state.queryFoodsInProgress = false;
-        state.foods =
-          payload.isMobileLayout && page !== 1
-            ? state.foods.concat(payload.foods)
-            : payload.foods;
-        state.managePartnerFoodPagination = payload.managePartnerFoodPagination;
-      })
-      .addCase(queryPartnerFoods.rejected, (state, { payload }) => ({
-        ...state,
-        queryFoodsInProgress: false,
-        queryFoodsError: payload,
-      }))
       .addCase(requestUploadFoodImages.pending, (state, action) => {
         const { id } = action.meta.arg;
 
@@ -905,7 +914,40 @@ const foodSlice = createSlice({
         ...state,
         fetchFoodDetailInProgress: false,
         fetchFoodDetailError: payload,
-      }));
+      }))
+      .addMatcher(
+        isAnyOf(queryPartnerFoods.pending, queryFilteredPartnerFoods.pending),
+        (state) => ({
+          ...state,
+          queryFoodsInProgress: true,
+          queryFoodsError: null,
+        }),
+      )
+      .addMatcher(
+        isAnyOf(
+          queryPartnerFoods.fulfilled,
+          queryFilteredPartnerFoods.fulfilled,
+        ),
+        (state, { payload }) => {
+          const { page = 1 } = payload.managePartnerFoodPagination || {};
+
+          state.queryFoodsInProgress = false;
+          state.foods =
+            payload.isMobileLayout && page !== 1
+              ? state.foods.concat(payload.foods)
+              : payload.foods;
+          state.managePartnerFoodPagination =
+            payload.managePartnerFoodPagination;
+        },
+      )
+      .addMatcher(
+        isAnyOf(queryPartnerFoods.rejected, queryFilteredPartnerFoods.rejected),
+        (state, { payload }) => ({
+          ...state,
+          queryFoodsInProgress: false,
+          queryFoodsError: payload,
+        }),
+      );
   },
 });
 

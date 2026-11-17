@@ -3,6 +3,7 @@
 import { mapLimit } from 'async';
 import { chunk, flatten, omit, uniq } from 'lodash';
 
+import type { TFoodFilter } from '@apis/foodApi';
 import { queryAllListings } from '@helpers/apiHelpers';
 import {
   getMinBillablePrice,
@@ -39,6 +40,54 @@ const getMinBillablePriceOfFoods = (
     })),
     sanitizeExtraFeeMap(foodExtraFees),
   );
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const startOfVietnamDay = (date: string) =>
+  new Date(`${date}T00:00:00+07:00`).getTime();
+
+export const buildFoodFilterQuery = (
+  restaurantId: string,
+  filter: TFoodFilter = {},
+) => {
+  const {
+    keywords,
+    pub_category,
+    pub_foodType,
+    priceFrom,
+    priceTo,
+    createdAtFrom,
+    createdAtTo,
+  } = filter;
+
+  return {
+    meta_listingType: EListingType.food,
+    meta_restaurantId: restaurantId,
+    meta_isDeleted: false,
+    // Integration API also returns closed listings; match what the Marketplace API used to show.
+    states: EListingStates.published,
+    ...(keywords ? { keywords } : {}),
+    ...(pub_category?.length ? { pub_category } : {}),
+    ...(pub_foodType ? { pub_foodType } : {}),
+    // Sharetribe range upper bounds are exclusive; filters are inclusive.
+    ...(priceFrom || priceTo
+      ? { price: `${priceFrom || ''},${priceTo ? priceTo + 1 : ''}` }
+      : {}),
+    ...(createdAtFrom
+      ? {
+          createdAtStart: new Date(
+            startOfVietnamDay(createdAtFrom),
+          ).toISOString(),
+        }
+      : {}),
+    ...(createdAtTo
+      ? {
+          createdAtEnd: new Date(
+            startOfVietnamDay(createdAtTo) + ONE_DAY_MS,
+          ).toISOString(),
+        }
+      : {}),
+  };
+};
 
 export const fetchListingsByChunkedIds = async (ids: string[], sdk: any) => {
   const listingsResponse = await Promise.all(
