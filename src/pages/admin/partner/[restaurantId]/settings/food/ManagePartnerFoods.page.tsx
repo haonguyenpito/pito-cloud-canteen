@@ -6,6 +6,7 @@ import classNames from 'classnames';
 import { useRouter } from 'next/router';
 import * as XLSX from 'xlsx';
 
+import type { TFoodFilter, TUpdateFoodPricesBody } from '@apis/foodApi';
 import Button, { InlineTextButton } from '@components/Button/Button';
 import ErrorMessage from '@components/ErrorMessage/ErrorMessage';
 import IconDelete from '@components/Icons/IconDelete/IconDelete';
@@ -23,6 +24,7 @@ import type { TColumn } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
 import Toggle from '@components/Toggle/Toggle';
 import Tooltip from '@components/Tooltip/Tooltip';
+import { parseThousandNumber } from '@helpers/format';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useFoodImportPreview } from '@hooks/useFoodImportPreview';
@@ -39,7 +41,9 @@ import {
 } from '@src/utils/options';
 import type { TIntegrationListing } from '@utils/types';
 
+import type { TFilterFormValues } from './FilterForm/FilterForm';
 import FilterForm from './FilterForm/FilterForm';
+import BulkUpdateFoodPriceModal from './BulkUpdateFoodPriceModal';
 import { getFoodImportPreviewColumns } from './getFoodImportPreviewColumns';
 import { PreviewTable } from './PreviewTable';
 
@@ -88,6 +92,21 @@ const TABLE_COLUMN: TColumn[] = [
       }
 
       return <div className={css.descriptionRow}>{data.foodType}</div>;
+    },
+  },
+  {
+    key: 'price',
+    label: 'Đơn giá',
+    render: (data: any) => {
+      if (data.isDeleted) {
+        return <div></div>;
+      }
+
+      return (
+        <div className={css.descriptionRow}>
+          {parseThousandNumber(data.price)}đ
+        </div>
+      );
     },
   },
   {
@@ -166,6 +185,7 @@ const parseEntitiesToTableData = (
             : food.attributes.metadata.isFoodEnable,
         isCloseOrPublishInProgress: publishOrCloseFoodId === food.id.uuid,
         title: food.attributes.title,
+        price: food.attributes.price?.amount ?? 0,
         description: food.attributes.description,
         id: food.id.uuid,
         menuType: getLabelByKey(
@@ -251,7 +271,17 @@ const parseEntitiesToExportCsv = (
 const ManagePartnerFoods = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { restaurantId, page = 1, keywords, pub_category = '' } = router.query;
+  const {
+    restaurantId,
+    page = 1,
+    keywords,
+    pub_category = '',
+    pub_foodType,
+    priceFrom,
+    priceTo,
+    createdAtFrom,
+    createdAtTo,
+  } = router.query;
 
   const categoryOptions = useAppSelector(
     (state) => state.SystemAttributes.categories,
@@ -303,6 +333,14 @@ const ManagePartnerFoods = () => {
   };
 
   const {
+    value: isBulkUpdatePriceModalOpen,
+    setTrue: openBulkUpdatePriceModal,
+    setFalse: closeBulkUpdatePriceModal,
+  } = useBoolean(false);
+  const [isUpdatingAllFilteredFoods, setIsUpdatingAllFilteredFoods] =
+    useState(false);
+
+  const {
     value: removeCheckedModalOpen,
     setTrue: openRemoveCheckedModal,
     setFalse: closeRemoveCheckedModal,
@@ -318,6 +356,8 @@ const ManagePartnerFoods = () => {
     managePartnerFoodPagination,
     publishOrCloseFoodId,
     publishOrCloseFoodError,
+    updateFoodInProgress,
+    updateFoodError,
   } = useAppSelector((state) => state.foods, shallowEqual);
 
   const categoryString = pub_category as string;
@@ -333,12 +373,12 @@ const ManagePartnerFoods = () => {
 
   const handleSubmitFilter = ({
     pub_category: _pub_category = [],
-    keywords: _keywords,
-  }: any) => {
+    ...values
+  }: TFilterFormValues) => {
     router.push({
       pathname: adminRoutes.ManagePartnerFoods.path,
       query: {
-        keywords: _keywords,
+        ...values,
         pub_category: _pub_category?.join(','),
         restaurantId,
       },
@@ -362,9 +402,30 @@ const ManagePartnerFoods = () => {
     setFoodToRemove(null);
   };
 
-  const onQueryPartnerFood = (params: any = {}) => {
-    return dispatch(foodSliceThunks.queryPartnerFoods(params));
+  const onQueryPartnerFood = (params: {
+    page: number;
+    filter?: TFoodFilter;
+  }) => {
+    return dispatch(
+      foodSliceThunks.queryFilteredPartnerFoods({
+        restaurantId: restaurantId as string,
+        ...params,
+      }),
+    );
   };
+
+  const filterParams: TFoodFilter = {
+    keywords: keywords as string,
+    pub_category: groupPubCategory,
+    pub_foodType: pub_foodType as string,
+    priceFrom: Number(priceFrom) || undefined,
+    priceTo: Number(priceTo) || undefined,
+    createdAtFrom: createdAtFrom as string,
+    createdAtTo: createdAtTo as string,
+  };
+
+  const onQueryCurrentPage = () =>
+    onQueryPartnerFood({ page: Number(page), filter: filterParams });
 
   const removeFood = async () => {
     if (!foodToRemove) return;
@@ -375,7 +436,7 @@ const ManagePartnerFoods = () => {
     if (!error) {
       onClearFoodToRemove();
 
-      return onQueryPartnerFood({ page: 1, restaurantId });
+      return onQueryPartnerFood({ page: 1 });
     }
   };
 
@@ -387,7 +448,49 @@ const ManagePartnerFoods = () => {
       setIdsToAction([]);
       closeRemoveCheckedModal();
 
-      return onQueryPartnerFood({ page: 1, restaurantId });
+      return onQueryPartnerFood({ page: 1 });
+    }
+  };
+
+  const activeFoodsOnPage = foods.filter(
+    (food: TIntegrationListing) => !food.attributes.metadata.isDeleted,
+  );
+  const totalFilteredFoods: number =
+    managePartnerFoodPagination?.totalItems ?? 0;
+  const canSelectAllFilteredFoods =
+    activeFoodsOnPage.length > 0 &&
+    totalFilteredFoods > activeFoodsOnPage.length &&
+    activeFoodsOnPage.every((food: TIntegrationListing) =>
+      idsToAction.includes(food.id.uuid),
+    );
+
+  const foodsToUpdatePrice = activeFoodsOnPage
+    .filter((food: TIntegrationListing) => idsToAction.includes(food.id.uuid))
+    .map((food: TIntegrationListing) => ({
+      id: food.id.uuid,
+      title: food.attributes.title,
+      price: food.attributes.price?.amount ?? 0,
+    }));
+
+  const openPriceModalForAllFilteredFoods = () => {
+    setIsUpdatingAllFilteredFoods(true);
+    openBulkUpdatePriceModal();
+  };
+
+  const closePriceModal = () => {
+    setIsUpdatingAllFilteredFoods(false);
+    closeBulkUpdatePriceModal();
+  };
+
+  const updateFoodPrices = async (body: TUpdateFoodPricesBody) => {
+    const { error } = (await dispatch(
+      foodSliceThunks.updatePartnerFoodPrices(body),
+    )) as any;
+    if (!error) {
+      setIdsToAction([]);
+      closePriceModal();
+
+      return onQueryCurrentPage();
     }
   };
 
@@ -411,17 +514,19 @@ const ManagePartnerFoods = () => {
   };
 
   useEffect(() => {
-    onQueryPartnerFood({
-      restaurantId,
-      page,
-      ...(groupPubCategory.length > 0
-        ? { pub_category: groupPubCategory }
-        : {}),
-
-      ...(keywords ? { keywords } : {}),
-    });
+    onQueryCurrentPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, restaurantId, keywords, categoryString]);
+  }, [
+    page,
+    restaurantId,
+    keywords,
+    categoryString,
+    pub_foodType,
+    priceFrom,
+    priceTo,
+    createdAtFrom,
+    createdAtTo,
+  ]);
 
   const makeExcelFile = () => {
     const foodsToExport = parseEntitiesToExportCsv(
@@ -459,8 +564,13 @@ const ManagePartnerFoods = () => {
                   onSubmit={handleSubmitFilter}
                   categoryOptions={categoryOptions}
                   initialValues={{
-                    keywords,
+                    keywords: keywords as string,
                     pub_category: groupPubCategory,
+                    pub_foodType: pub_foodType as string,
+                    priceFrom: priceFrom as string,
+                    priceTo: priceTo as string,
+                    createdAtFrom: createdAtFrom as string,
+                    createdAtTo: createdAtTo as string,
                   }}
                 />
               }
@@ -497,6 +607,22 @@ const ManagePartnerFoods = () => {
               Xóa món
             </div>
           </InlineTextButton>
+          <Button
+            onClick={openBulkUpdatePriceModal}
+            disabled={foodsToUpdatePrice.length === 0}
+            className={css.lightButton}>
+            <IconEdit
+              className={classNames(css.buttonIcon, {
+                [css.disabled]: foodsToUpdatePrice.length === 0,
+              })}
+            />
+            <div
+              className={classNames({
+                [css.disabled]: foodsToUpdatePrice.length === 0,
+              })}>
+              Sửa giá
+            </div>
+          </Button>
           {!isMobileLayout && (
             <Button onClick={openImportModal} className={css.lightButton}>
               <IconUploadFile className={css.buttonIcon} />
@@ -527,6 +653,17 @@ const ManagePartnerFoods = () => {
         </div>
       </div>
       {queryFoodsError && <ErrorMessage message={queryFoodsError.message} />}
+      {canSelectAllFilteredFoods && (
+        <div className="mb-3 rounded-lg bg-gray-100 px-4 py-2 text-center text-sm">
+          Đã chọn {activeFoodsOnPage.length} món trong trang này.{' '}
+          <button
+            type="button"
+            className="font-semibold text-blue-600 hover:underline"
+            onClick={openPriceModalForAllFilteredFoods}>
+            Sửa giá tất cả {totalFilteredFoods} món theo bộ lọc
+          </button>
+        </div>
+      )}
       {queryFoodsInProgress ? (
         <LoadingContainer />
       ) : (
@@ -613,6 +750,25 @@ const ManagePartnerFoods = () => {
             </div>
           )}
         </AlertModal>
+      )}
+      {isBulkUpdatePriceModalOpen && (
+        <BulkUpdateFoodPriceModal
+          foods={isUpdatingAllFilteredFoods ? [] : foodsToUpdatePrice}
+          filteredFoodCount={
+            isUpdatingAllFilteredFoods ? totalFilteredFoods : undefined
+          }
+          inProgress={updateFoodInProgress}
+          error={updateFoodError}
+          onClose={closePriceModal}
+          onSubmit={(foodPrices) => updateFoodPrices({ foodPrices })}
+          onSubmitFilteredPrice={(price) =>
+            updateFoodPrices({
+              restaurantId: restaurantId as string,
+              filter: filterParams,
+              price,
+            })
+          }
+        />
       )}
       <AlertModal
         title={<FormattedMessage id="ManagePartnerFoods.removeTitle" />}

@@ -1,3 +1,6 @@
+@use '/src/styles/vars.scss' as *;
+@use '/src/styles/defaults.scss' as *;
+
 .input {
   margin-bottom: 20px;
 }
@@ -6,4 +9,18 @@
   width: 160px;
   height: 48px;
   margin: 20px auto 0;
+}
+
+.label {
+  @include inputLabelStyles;
+}
+
+.range {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  // Tooltip overlay sets white text.
+  color: $neutralGray7;
 }
