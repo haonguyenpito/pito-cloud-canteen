@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { composeApiCheckers, HttpMethod } from '@apis/configs';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { createFirebaseDocNotification } from '@services/notifications';
@@ -77,32 +78,40 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           );
 
           const planId = orderListing.attributes?.metadata?.plans?.[0];
-          const planListingResponse: WithFlexSDKData<PlanListing> =
-            await integrationSdk.listings.show({
+          if (!planId) {
+            throw new Error(`Order ${orderId} has no plan`);
+          }
+          // Not awaited, as before: the response does not depend on it.
+          withPlanLock(planId, async () => {
+            const planListingResponse: WithFlexSDKData<PlanListing> =
+              await integrationSdk.listings.show({
+                id: planId,
+              });
+
+            const oldOrderDetail =
+              planListingResponse.data.data.attributes?.metadata?.orderDetail;
+            const orderDetailHasFoodList = Object.keys(
+              oldOrderDetail || {},
+            ).reduce((_orderDetailHasFoodList, date) => {
+              if (!oldOrderDetail?.[date]?.restaurant?.foodList) {
+                return _orderDetailHasFoodList;
+              }
+
+              return {
+                ..._orderDetailHasFoodList,
+                [date]: oldOrderDetail?.[date],
+              };
+            }, {});
+
+            await integrationSdk.listings.update({
               id: planId,
+              metadata: {
+                orderDetail: orderDetailHasFoodList,
+              },
             });
-
-          const oldOrderDetail =
-            planListingResponse.data.data.attributes?.metadata?.orderDetail;
-          const orderDetailHasFoodList = Object.keys(
-            oldOrderDetail || {},
-          ).reduce((_orderDetailHasFoodList, date) => {
-            if (!oldOrderDetail?.[date]?.restaurant?.foodList) {
-              return _orderDetailHasFoodList;
-            }
-
-            return {
-              ..._orderDetailHasFoodList,
-              [date]: oldOrderDetail?.[date],
-            };
-          }, {});
-
-          integrationSdk.listings.update({
-            id: planId,
-            metadata: {
-              orderDetail: orderDetailHasFoodList,
-            },
-          });
+          }).catch((error) =>
+            console.error('request-approval-order: plan update failed', error),
+          );
 
           await Promise.allSettled([
             emailSendingFactory(

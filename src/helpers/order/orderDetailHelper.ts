@@ -626,3 +626,226 @@ export const groupPickingOrderByFoodLevels = ({
     [] as TObject[],
   );
 };
+
+// Written only by server flows (initiate-transaction, transit, payment). Client
+// payloads carry them from a loaded copy that may be minutes old.
+const SERVER_OWNED_SUB_ORDER_KEYS = [
+  'transactionId',
+  'lastTransition',
+  'isPaid',
+] as const;
+
+/**
+ * Applies a client-built orderDetail on top of the fresh plan without letting
+ * the stale copy roll back server-owned sub-order state. The set of dates and
+ * every other field still come from `nextOrderDetail`.
+ */
+export const keepServerOwnedSubOrderFields = (
+  nextOrderDetail: TObject,
+  freshOrderDetail: TObject,
+): TObject =>
+  Object.entries(nextOrderDetail).reduce<TObject>(
+    (result, [date, nextSubOrder]) => {
+      const freshSubOrder = freshOrderDetail[date];
+      if (!nextSubOrder || !freshSubOrder) {
+        return { ...result, [date]: nextSubOrder };
+      }
+
+      const subOrder: TObject = { ...nextSubOrder };
+      SERVER_OWNED_SUB_ORDER_KEYS.forEach((key) => {
+        if (key in freshSubOrder) {
+          subOrder[key] = freshSubOrder[key];
+        } else {
+          delete subOrder[key];
+        }
+      });
+      // Cancellation is terminal; a stale copy must not resurrect the date.
+      if (freshSubOrder.status === ESubOrderStatus.canceled) {
+        subOrder.status = ESubOrderStatus.canceled;
+      }
+
+      return { ...result, [date]: subOrder };
+    },
+    {},
+  );
+
+/** Empties every pick whose dish is no longer offered in `foodList`. */
+export const clearPicksOutsideFoodList = (
+  memberOrders: TObject = {},
+  foodList: TObject = {},
+) =>
+  Object.entries(memberOrders).reduce<{
+    memberOrders: TObject;
+    clearedMemberIds: string[];
+  }>(
+    (result, [memberId, pickingFoodData]) => {
+      const { foodId = '', ...restPickingData } = pickingFoodData || {};
+      if (foodId === '' || !isEmpty(foodList[foodId])) {
+        return result;
+      }
+
+      return {
+        memberOrders: {
+          ...result.memberOrders,
+          [memberId]: {
+            ...restPickingData,
+            foodId: '',
+            status: EParticipantOrderStatus.empty,
+          },
+        },
+        clearedMemberIds: [...result.clearedMemberIds, memberId],
+      };
+    },
+    { memberOrders: { ...memberOrders }, clearedMemberIds: [] },
+  );
+
+/**
+ * Merges per-date field patches into the fresh orderDetail. memberOrders are
+ * never taken from a patch (participants own them); a restaurant change only
+ * clears the fresh picks the new foodList no longer offers. Dates missing from
+ * the fresh plan are ignored rather than created.
+ */
+export const patchSubOrders = (
+  freshOrderDetail: TObject,
+  patches: TObject,
+): TObject =>
+  Object.entries(patches).reduce<TObject>(
+    (result, [date, patch]) => {
+      const freshSubOrder = result[date];
+      if (!freshSubOrder || !patch) {
+        return result;
+      }
+
+      const { memberOrders: _ignored, ...fields } = patch;
+      const memberOrders = fields.restaurant
+        ? clearPicksOutsideFoodList(
+            freshSubOrder.memberOrders,
+            fields.restaurant.foodList,
+          ).memberOrders
+        : freshSubOrder.memberOrders;
+
+      return {
+        ...result,
+        [date]: {
+          ...freshSubOrder,
+          ...fields,
+          ...(memberOrders && { memberOrders }),
+        },
+      };
+    },
+    { ...freshOrderDetail },
+  );
+
+export type TParticipantOrderUpdate = {
+  currentUserId: string;
+  orderDay?: string;
+  memberOrders?: TObject;
+  orderDays?: string[];
+  planData?: TObject;
+};
+
+/**
+ * Applies one participant's pick to an orderDetail. Shared by processOrder.job
+ * (the write) and the participant UI (to show the pick once the job is done).
+ */
+export const mergeParticipantOrder = (
+  orderDetail: TObject,
+  {
+    currentUserId,
+    orderDay,
+    memberOrders,
+    orderDays,
+    planData,
+  }: TParticipantOrderUpdate,
+): TObject => {
+  const setPick = (result: TObject, day: string, pick: unknown) => ({
+    ...result,
+    [day]: {
+      ...result[day],
+      memberOrders: { ...result[day]?.memberOrders, [currentUserId]: pick },
+    },
+  });
+
+  if (orderDay && memberOrders) {
+    return setPick(orderDetail, orderDay, memberOrders[currentUserId]);
+  }
+  if (orderDays && planData) {
+    return orderDays.reduce<TObject>((result, day) => {
+      const pick = planData[day]?.[currentUserId];
+
+      return pick === undefined ? result : setPick(result, day, pick);
+    }, orderDetail);
+  }
+
+  return orderDetail;
+};
+
+export const getParticipantOrderDays = ({
+  orderDay,
+  orderDays,
+}: Pick<TParticipantOrderUpdate, 'orderDay' | 'orderDays'>): string[] =>
+  orderDay ? [orderDay] : orderDays ?? [];
+
+/** The plan as processOrder.job wrote it, without refetching it. */
+export const applyParticipantOrderToPlan = (
+  plan: TListing,
+  update: Omit<TParticipantOrderUpdate, 'currentUserId'> & { planId: string },
+  currentUserId: string,
+): TListing => {
+  if (plan?.id?.uuid !== update.planId) {
+    return plan;
+  }
+
+  const metadata = Listing(plan).getMetadata();
+
+  return {
+    ...plan,
+    attributes: {
+      ...plan.attributes,
+      metadata: {
+        ...metadata,
+        orderDetail: mergeParticipantOrder(metadata.orderDetail || {}, {
+          ...update,
+          currentUserId,
+        }),
+      },
+    },
+  };
+};
+
+export type TClearedPick = {
+  date: string;
+  memberId: string;
+  foodName: string;
+};
+
+/**
+ * The picks a sub-order edit will clear on save: same rule as patchSubOrders,
+ * applied to the fresh plan so picks made after the editor opened are listed.
+ */
+export const getPicksClearedByEdit = (
+  freshOrderDetail: TObject,
+  editedOrderDetail: TObject,
+): TClearedPick[] =>
+  Object.entries(editedOrderDetail).flatMap(([date, editedSubOrder]) => {
+    const freshSubOrder = freshOrderDetail[date];
+    const editedFoodList = editedSubOrder?.restaurant?.foodList;
+    if (!freshSubOrder || !editedFoodList) {
+      return [];
+    }
+
+    const freshFoodList = freshSubOrder.restaurant?.foodList || {};
+
+    return clearPicksOutsideFoodList(
+      freshSubOrder.memberOrders,
+      editedFoodList,
+    ).clearedMemberIds.map((memberId) => {
+      const { foodId } = freshSubOrder.memberOrders[memberId];
+
+      return {
+        date,
+        memberId,
+        foodName: freshFoodList[foodId]?.foodName || foodId,
+      };
+    });
+  });

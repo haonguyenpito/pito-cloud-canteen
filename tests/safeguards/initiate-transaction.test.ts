@@ -35,6 +35,12 @@ jest.mock('@services/subAccountSdk', () => ({
 }));
 jest.mock('@services/integrationHelper', () => ({
   fetchUser: jest.fn(),
+  fetchListing: jest.fn().mockResolvedValue({ id: 'plan-222' }),
+}));
+jest.mock('@services/distributedLock', () => ({
+  withPlanLock: jest.fn((_planId: string, criticalSection: () => unknown) =>
+    criticalSection(),
+  ),
 }));
 jest.mock('@services/data', () => ({
   denormalisedResponseEntities: jest.fn(),

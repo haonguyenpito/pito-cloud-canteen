@@ -43,6 +43,12 @@ jest.mock('@services/integrationHelper', () => ({
   fetchUser: jest.fn(),
 }));
 
+jest.mock('@services/distributedLock', () => ({
+  withPlanLock: jest.fn((_planId: string, criticalSection: () => unknown) =>
+    criticalSection(),
+  ),
+}));
+
 jest.mock('@services/sdk', () => ({
   getIntegrationSdk: jest.fn(),
   handleError: jest.fn(),

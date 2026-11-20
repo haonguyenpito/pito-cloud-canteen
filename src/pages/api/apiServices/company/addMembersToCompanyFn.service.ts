@@ -1,8 +1,6 @@
 import { mapLimit } from 'async';
-import chunk from 'lodash/chunk';
 import compact from 'lodash/compact';
 import difference from 'lodash/difference';
-import flatten from 'lodash/flatten';
 import isEmpty from 'lodash/isEmpty';
 import uniq from 'lodash/uniq';
 
@@ -12,8 +10,9 @@ import {
 } from '@helpers/apiHelpers';
 import { isUserDisabled } from '@helpers/userDisabledHelper';
 import { sendIndividualEmail } from '@services/awsSES';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
-import { fetchUser } from '@services/integrationHelper';
+import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { createFirebaseDocNotification } from '@services/notifications';
 import { UserInviteStatus } from '@src/types/UserPermission';
@@ -77,28 +76,6 @@ const addMembersToCompanyFn = async (params: TAddMembersToCompanyParams) => {
       meta_selectedGroups: 'has_any:allMembers',
     },
   });
-
-  const allNeedUpdatePlanIds: string[] = uniq(
-    compact(
-      allNeedOrders.map((order: TListing) => {
-        const { plans = [] } = Listing(order).getMetadata();
-
-        return plans[0];
-      }),
-    ),
-  );
-
-  const allNeedUpdatePlans = flatten(
-    await Promise.all(
-      chunk<string>(allNeedUpdatePlanIds, 100).map(async (ids: string[]) => {
-        return denormalisedResponseEntities(
-          await integrationSdk.listings.query({
-            ids,
-          }),
-        );
-      }),
-    ),
-  );
 
   // * Step update data for existed user
   const newParticipantIds = difference(userIdList, membersIdList);
@@ -167,19 +144,18 @@ const addMembersToCompanyFn = async (params: TAddMembersToCompanyParams) => {
 
     const planId = plans[0];
     if (!isEmpty(planId)) {
-      const planListing = allNeedUpdatePlans.find(
-        (p: TListing) => p.id.uuid === planId,
-      );
-
-      const newOrderDetail = prepareNewOrderDetailPlan({
-        planListing: planListing!,
-        newMemberIds: anonymousIdDiffs,
-      });
-      await integrationSdk.listings.update({
-        id: planId,
-        metadata: {
-          orderDetail: newOrderDetail,
-        },
+      // The batch query above can be seconds old; re-read under the lock.
+      await withPlanLock(planId, async () => {
+        const newOrderDetail = prepareNewOrderDetailPlan({
+          planListing: await fetchListing(planId),
+          newMemberIds: anonymousIdDiffs,
+        });
+        await integrationSdk.listings.update({
+          id: planId,
+          metadata: {
+            orderDetail: newOrderDetail,
+          },
+        });
       });
     }
   };

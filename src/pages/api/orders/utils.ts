@@ -180,28 +180,29 @@ export const normalizeOrderDetail = ({
   );
 };
 
+/** Links each newly initiated transaction to its date; other dates are untouched. */
 export const prepareNewPlanOrderDetail = (
   planOrderDetail: TPlanOrderDetail,
   transactionIdMap: TObject,
-) => {
-  if (isEmpty(transactionIdMap)) {
-    return planOrderDetail;
-  }
+) =>
+  Object.entries(transactionIdMap).reduce<TPlanOrderDetail>(
+    (prev, [date, transactionId]) => {
+      const orderOfDate: TOrderOfDate | undefined = prev[date];
+      if (!orderOfDate) {
+        return prev;
+      }
 
-  return Object.entries(planOrderDetail).reduce<TPlanOrderDetail>(
-    (prev, [date, orderOfDate]: [string, TOrderOfDate]) => {
       return {
         ...prev,
         [date]: {
           ...orderOfDate,
-          transactionId: transactionIdMap[date],
+          transactionId,
           lastTransition: ETransition.INITIATE_TRANSACTION,
         },
       };
     },
-    {},
+    { ...planOrderDetail },
   );
-};
 
 export const getSubOrdersWithNoTxId = (planOrderDetail: TPlanOrderDetail) => {
   return Object.entries(planOrderDetail).reduce<TObject>(
