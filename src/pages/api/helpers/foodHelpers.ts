@@ -11,6 +11,7 @@ import {
 } from '@helpers/menuExtraFee';
 import { adjustFoodListPrice } from '@helpers/orderHelper';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { getUniqueString, IntegrationListing, Listing } from '@src/utils/data';
@@ -308,60 +309,63 @@ const removeFoodFromDraftOrder = async (
 
       if (!orderIsDraft) return;
 
-      const { orderDetail = {} } = planListing.getMetadata();
+      const planId = planListing.getId();
+      await withPlanLock(planId, async () => {
+        const { orderDetail = {} } = Listing(
+          await fetchListing(planId),
+        ).getMetadata();
 
-      let newOrderDetail = { ...orderDetail };
+        let newOrderDetail = { ...orderDetail };
 
-      Object.keys(newOrderDetail).forEach((subOrderDate: string) => {
-        const {
-          memberOrders = {},
-          restaurant = {},
-          lineItems = [],
-        } = newOrderDetail[subOrderDate];
+        Object.keys(newOrderDetail).forEach((subOrderDate: string) => {
+          const {
+            memberOrders = {},
+            restaurant = {},
+            lineItems = [],
+          } = newOrderDetail[subOrderDate];
 
-        const newMemberOrders = { ...memberOrders };
+          const newMemberOrders = { ...memberOrders };
 
-        const newFoodList = { ...restaurant.foodList };
+          const newFoodList = { ...restaurant.foodList };
 
-        const newLineItems = [...lineItems];
+          Object.keys(newMemberOrders).forEach((memberId: string) => {
+            const { foodId } = newMemberOrders[memberId];
 
-        Object.keys(newMemberOrders).forEach((memberId: string) => {
-          const { foodId } = newMemberOrders[memberId];
+            if (foodId === deletedFoodId) {
+              newMemberOrders[memberId].foodId = '';
+            }
+          });
 
-          if (foodId === deletedFoodId) {
-            newMemberOrders[memberId].foodId = '';
-          }
-        });
+          Object.keys(newFoodList).forEach((foodId: string) => {
+            if (foodId === deletedFoodId) {
+              delete newFoodList[foodId];
+            }
+          });
 
-        Object.keys(newFoodList).forEach((foodId: string) => {
-          if (foodId === deletedFoodId) {
-            delete newFoodList[foodId];
-          }
-        });
+          const newLineItems = lineItems.filter(
+            (lineItem: any) => lineItem.id !== deletedFoodId,
+          );
 
-        newLineItems.filter((lineItem: any) => {
-          return lineItem.id !== deletedFoodId;
-        });
-
-        newOrderDetail = {
-          ...newOrderDetail,
-          [subOrderDate]: {
-            ...newOrderDetail[subOrderDate],
-            memberOrders: newMemberOrders,
-            restaurant: {
-              ...restaurant,
-              foodList: newFoodList,
+          newOrderDetail = {
+            ...newOrderDetail,
+            [subOrderDate]: {
+              ...newOrderDetail[subOrderDate],
+              memberOrders: newMemberOrders,
+              restaurant: {
+                ...restaurant,
+                foodList: newFoodList,
+              },
+              lineItems: newLineItems,
             },
-            lineItems: newLineItems,
-          },
-        };
-      });
+          };
+        });
 
-      await integrationSdk.listings.update({
-        id: plan.id.uuid,
-        metadata: {
-          orderDetail: newOrderDetail,
-        },
+        await integrationSdk.listings.update({
+          id: planId,
+          metadata: {
+            orderDetail: newOrderDetail,
+          },
+        });
       });
     } catch (error) {
       console.error(`SERVER removeFoodFromDraftOrder`, error);
@@ -656,65 +660,66 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
             EBookerOrderDraftStates.bookerDraft,
           ].includes(orderState)
         ) {
-          const plan = plans.find(
-            (p: TIntegrationListing) => p.id.uuid === orderPlans[0],
-          );
-          const planListing = IntegrationListing(plan);
-          const { orderDetail } = planListing.getMetadata();
           // Same price rule the booker/admin pickers apply (half price for dual-selection companies).
           const orderFoodList = adjustFoodListPrice(
             updatedFoodList,
             order as unknown as TListing,
           );
-          const newOrderDetail = Object.keys(orderDetail).reduce(
-            (result, subOrderDate: string) => {
-              const { restaurant = {} } = orderDetail[subOrderDate] || {};
-              const { foodList } = restaurant;
-              if (!foodList) return result;
+          const planId = orderPlans[0];
+          await withPlanLock(planId, async () => {
+            const { orderDetail = {} } = Listing(
+              await fetchListing(planId),
+            ).getMetadata();
+            const newOrderDetail = Object.keys(orderDetail).reduce(
+              (result, subOrderDate: string) => {
+                const { restaurant = {} } = orderDetail[subOrderDate] || {};
+                const { foodList } = restaurant;
+                if (!foodList) return result;
 
-              const newFoodList = Object.keys(foodList).reduce(
-                (foodListResult: any, foodId: string) => {
-                  const food = foodList[foodId] || {};
-                  const updatedFood = orderFoodList[foodId];
-                  if (updatedFood) {
+                const newFoodList = Object.keys(foodList).reduce(
+                  (foodListResult: any, foodId: string) => {
+                    const food = foodList[foodId] || {};
+                    const updatedFood = orderFoodList[foodId];
+                    if (updatedFood) {
+                      return {
+                        ...foodListResult,
+                        [foodId]: {
+                          ...food,
+                          foodName: updatedFood.foodName,
+                          foodPrice: updatedFood.foodPrice,
+                          foodUnit: updatedFood.foodUnit,
+                        },
+                      };
+                    }
+
                     return {
                       ...foodListResult,
-                      [foodId]: {
-                        ...food,
-                        foodName: updatedFood.foodName,
-                        foodPrice: updatedFood.foodPrice,
-                        foodUnit: updatedFood.foodUnit,
-                      },
+                      [foodId]: food,
                     };
-                  }
-
-                  return {
-                    ...foodListResult,
-                    [foodId]: food,
-                  };
-                },
-                {},
-              );
-
-              return {
-                ...result,
-                [subOrderDate]: {
-                  ...orderDetail[subOrderDate],
-                  restaurant: {
-                    ...restaurant,
-                    foodList: newFoodList,
                   },
-                },
-              };
-            },
-            orderDetail,
-          );
+                  {},
+                );
 
-          await integrationSdk.listings.update({
-            id: orderPlans[0],
-            metadata: {
-              orderDetail: newOrderDetail,
-            },
+                return {
+                  ...result,
+                  [subOrderDate]: {
+                    ...orderDetail[subOrderDate],
+                    restaurant: {
+                      ...restaurant,
+                      foodList: newFoodList,
+                    },
+                  },
+                };
+              },
+              orderDetail,
+            );
+
+            await integrationSdk.listings.update({
+              id: planId,
+              metadata: {
+                orderDetail: newOrderDetail,
+              },
+            });
           });
         }
       }),

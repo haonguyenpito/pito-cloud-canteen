@@ -122,6 +122,8 @@ const LineItemsTable: React.FC<TLineItemsTableProps> = (props) => {
             orderId,
             planId,
             orderDetail: updateOrderDetail,
+            subOrderDate: currentViewDate,
+            subOrderPatch: { note: newValue },
           }),
         );
       }
@@ -219,6 +221,8 @@ const LineItemsTable: React.FC<TLineItemsTableProps> = (props) => {
           orderId,
           planId,
           orderDetail: updateOrderDetail,
+          subOrderDate: currentViewDate,
+          subOrderPatch: { lineItems: newLineItems },
         });
       }
     };

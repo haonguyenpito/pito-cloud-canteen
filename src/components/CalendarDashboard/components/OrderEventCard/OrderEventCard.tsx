@@ -229,6 +229,8 @@ const OrderEventCard: React.FC<TOrderEventCardProps> = ({
               className={css.cardStatus}
               status={status}
               lastTransition={lastTransition}
+              planId={planId}
+              subOrderDate={timestamp}
             />
             <div className={css.orderEventCardContentItems}>
               <OrderEventCardContentItems

@@ -9,10 +9,10 @@ import {
   pickRandomFood,
   pickRandomFoodExcludingIds,
 } from '@helpers/foodPickerHelpers';
-import { sleep } from '@helpers/index';
 import { getBillablePrice } from '@helpers/menuExtraFee';
 import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
+import { runParticipantOrderJob } from '@redux/slices/ParticipantOrderJob.slice';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
 import {
   shoppingCartActions,
@@ -398,11 +398,16 @@ const updateOrder = createAsyncThunk(
       planData: updatedPlan,
     };
 
-    const {
-      data: { jobId },
-    } = await updateParticipantOrderApi(orderId, updateValues);
-
-    await sleep(2000); // wait for the order to be updated
+    const { jobId } = await runParticipantOrderJob({
+      dispatch,
+      planId,
+      userId: currentUserId,
+      days: orderDays,
+      submit: async () =>
+        (
+          await updateParticipantOrderApi(orderId, updateValues)
+        ).data,
+    });
     await dispatch(reloadData(planId));
     // firebase documents for history sub-orders and rating feature
     await Promise.all(
@@ -499,11 +504,22 @@ const placeOrder = createAsyncThunk(
         planData: updatedPlan,
       };
 
-      const res = await placeOrderApi(orderId, updateValues);
-      const { orderMemberDocumentId } = res?.data?.data || {};
-      if (!orderMemberDocumentId) {
-        return rejectWithValue(new Error('Failed to place order'));
-      }
+      // Throws on a failed request or job, so the catch below reports it.
+      const { jobId } = await runParticipantOrderJob({
+        dispatch,
+        planId,
+        userId: currentUserId,
+        days: orderDays,
+        submit: async () => {
+          const res = await placeOrderApi(orderId, updateValues);
+          const queued = res?.data?.data;
+          if (!queued?.jobId || !queued.submissionId) {
+            throw new Error('Failed to place order');
+          }
+
+          return queued;
+        },
+      });
       await dispatch(reloadData(planId));
       // firebase documents for history sub-orders and rating feature
       await Promise.all(
@@ -516,7 +532,7 @@ const placeOrder = createAsyncThunk(
         ),
       );
 
-      return { status: true, orderMemberDocumentId };
+      return { status: true, jobId };
     } catch (error: unknown) {
       const { orderId, planId, userOrder = {} } = data;
       const { currentUser } = getState().user;

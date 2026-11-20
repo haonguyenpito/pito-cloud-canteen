@@ -227,6 +227,8 @@ const OrderDetailTab: React.FC<OrderDetailTabProps> = (props) => {
                   ...orderDetail,
                   [key]: { ...orderDetail[key], ...updateData },
                 },
+                subOrderDate: key,
+                subOrderPatch: updateData,
                 skipRefetch,
               }),
             );

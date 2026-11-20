@@ -1,6 +1,7 @@
 import React from 'react';
 import { useIntl } from 'react-intl';
 import { DateTime } from 'luxon';
+import { useRouter } from 'next/router';
 
 import { isOrderOverDeadline } from '@helpers/orderHelper';
 import { useAppSelector } from '@hooks/reduxHooks';
@@ -8,6 +9,10 @@ import { Listing } from '@utils/data';
 import type { TObject } from '@utils/types';
 
 import CartItem from './CartItem';
+
+import cartItemCss from './CartItem.module.scss';
+
+const EMPTY_DAYS: string[] = [];
 
 type TCartItemList = {
   className?: string;
@@ -25,6 +30,11 @@ const CartItemList: React.FC<TCartItemList> = ({
 }) => {
   const intl = useIntl();
   const order = useAppSelector((state) => state.ParticipantPlanPage.order);
+  const { planId } = useRouter().query;
+  const processingDays = useAppSelector(
+    (state) =>
+      state.ParticipantOrderJob.processingDaysByPlan[`${planId}`] || EMPTY_DAYS,
+  );
 
   const isOrderDeadlineOver = isOrderOverDeadline(order);
 
@@ -77,13 +87,14 @@ const CartItemList: React.FC<TCartItemList> = ({
           removeDisabled={isOrderDeadlineOver}
           onRemove={onRemoveItem(key)}
           foodPosition="first"
+          isProcessing={processingDays.includes(key)}
         />
         {secondDishTitle && (
           <CartItem
             label=""
             value={secondDishTitle}
             subOrderDate={key}
-            removeDisabled={isOrderDeadlineOver}
+            removeDisabled={isOrderDeadlineOver || processingDays.includes(key)}
             onRemove={() => {
               handleRemoveItem(key, true);
             }}
@@ -94,8 +105,21 @@ const CartItemList: React.FC<TCartItemList> = ({
     );
   };
 
+  // Clearing the cart removes every row at once, so the pending save needs a
+  // cart-level line instead of the per-day badge.
+  const isSavingWithoutVisibleRow =
+    processingDays.length > 0 &&
+    !processingDays.some((day) => cartList[day]?.foodId);
+
   return (
     <>
+      {isSavingWithoutVisibleRow && (
+        <div className="px-[18px] pt-[10px]">
+          <span className={cartItemCss.processing} role="status">
+            {intl.formatMessage({ id: 'SectionOrderPanel.savingChanges' })}
+          </span>
+        </div>
+      )}
       {cartListKeys
         .sort()
         .map((cartKey: string) => renderItem(cartList[cartKey], cartKey))}

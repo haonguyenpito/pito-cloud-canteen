@@ -20,11 +20,16 @@ import { disableWalkthroughApi } from '@apis/userApi';
 import { getFoodQuery } from '@helpers/listingSearchQuery';
 import { getBillablePrice } from '@helpers/menuExtraFee';
 import {
+  applyParticipantOrderToPlan,
+  getParticipantOrderDays,
+} from '@helpers/order/orderDetailHelper';
+import {
   getIsAllowAddSecondaryFood,
   markColorForOrder,
 } from '@helpers/orderHelper';
 import type { POSTParticipantRating } from '@pages/api/participants/ratings/index.api';
 import { createAsyncThunk } from '@redux/redux.helper';
+import { runParticipantOrderJob } from '@redux/slices/ParticipantOrderJob.slice';
 import { ParticipantOrderManagementActions } from '@redux/slices/ParticipantOrderManagementPage.slice';
 import { userThunks } from '@redux/slices/user.slice';
 import type { FoodListing, ParticipantSubOrderDocument } from '@src/types';
@@ -275,6 +280,23 @@ const updateRecommendFoodToOrderDetail = ({
   return newOrderDetail;
 };
 
+const pickRecommendedMemberOrders = ({
+  orderDetail,
+  subOrderDates,
+  userId,
+}: {
+  orderDetail: TObject;
+  subOrderDates: string[];
+  userId: string;
+}) =>
+  subOrderDates.reduce<TObject>(
+    (result, subOrderDate) => ({
+      ...result,
+      [subOrderDate]: orderDetail[subOrderDate]?.memberOrders?.[userId],
+    }),
+    {},
+  );
+
 /**
  * Build recommended meals for a sub order
  * @param foodList - The list of foods to recommend
@@ -431,24 +453,25 @@ const updateSubOrder = createAsyncThunk(
   UPDATE_SUB_ORDER,
   async (
     data: { orderId: string; updateValues: TUpdateParticipantOrderBody },
-    { getState },
+    { getState, dispatch },
   ) => {
-    const { allPlans } = getState().ParticipantOrderList;
     const { orderId, updateValues } = data;
-    const { data: updateResponse } = await updateParticipantOrderApi(
-      orderId,
-      updateValues,
-    );
-
-    const { plan } = updateResponse;
-
-    const newAllPlans = allPlans.map((oldPlan: any) => {
-      if (oldPlan.id.uuid === plan.id.uuid) {
-        return plan;
-      }
-
-      return oldPlan;
+    const currentUserId = getState().user.currentUser?.id?.uuid as string;
+    await runParticipantOrderJob({
+      dispatch,
+      planId: updateValues.planId,
+      userId: currentUserId,
+      days: getParticipantOrderDays(updateValues),
+      submit: async () =>
+        (
+          await updateParticipantOrderApi(orderId, updateValues)
+        ).data,
     });
+
+    const { allPlans } = getState().ParticipantOrderList;
+    const newAllPlans = allPlans.map((plan: any) =>
+      applyParticipantOrderToPlan(plan, updateValues, currentUserId),
+    );
 
     return {
       allPlans: newAllPlans,
@@ -632,7 +655,19 @@ const pickFoodForSubOrders = createAsyncThunk(
       };
     }, {});
 
-    await recommendFoodForSubOrdersApi({ mappedRecommendFoodToOrderDetail });
+    await recommendFoodForSubOrdersApi({
+      recommendedMemberOrders: Object.keys(groupedFoodBySubOrderDate).reduce(
+        (result, planId) => ({
+          ...result,
+          [planId]: pickRecommendedMemberOrders({
+            orderDetail: mappedRecommendFoodToOrderDetail[planId].orderDetail,
+            subOrderDates: Object.keys(groupedFoodBySubOrderDate[planId]),
+            userId: currentUserGetter.getId(),
+          }),
+        }),
+        {},
+      ),
+    });
     recommendSubOrders.forEach((item) => {
       const { planId, subOrderDate } = item;
       participantSubOrderAddDocumentApi({
@@ -770,10 +805,12 @@ const pickFoodForSpecificSubOrder = createAsyncThunk(
     });
 
     await recommendFoodForSubOrdersApi({
-      mappedRecommendFoodToOrderDetail: {
-        [planId]: {
+      recommendedMemberOrders: {
+        [planId]: pickRecommendedMemberOrders({
           orderDetail: newOrderDetail,
-        },
+          subOrderDates: [subOrderDate],
+          userId: currentUserGetter.getId(),
+        }),
       },
     });
 

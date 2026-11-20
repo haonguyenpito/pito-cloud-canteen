@@ -1,5 +1,6 @@
 import type { Event } from 'react-big-calendar';
 import { useIntl } from 'react-intl';
+import last from 'lodash/last';
 
 import OrderEventCardContentItems from '@components/CalendarDashboard/components/OrderEventCard/OrderEventCardContentItems';
 import OrderEventCardStatus from '@components/CalendarDashboard/components/OrderEventCard/OrderEventCardStatus';
@@ -26,8 +27,15 @@ const SubOrderCard: React.FC<TSubOrderCardProps> = (props) => {
     dateSection,
   } = props;
   const intl = useIntl();
-  const { daySession, deliveryHour, status, orderColor, lastTransition } =
-    event?.resource || {};
+  const {
+    daySession,
+    deliveryHour,
+    status,
+    orderColor,
+    lastTransition,
+    subOrderId,
+    id: orderDay,
+  } = event?.resource || {};
 
   const orderTitle = event?.title || '';
   const isFoodPicked = !!event.resource?.dishSelection?.dishSelection;
@@ -61,6 +69,8 @@ const SubOrderCard: React.FC<TSubOrderCardProps> = (props) => {
             isFoodPicked={!!event.resource?.dishSelection?.dishSelection}
             status={status}
             lastTransition={lastTransition}
+            planId={subOrderId}
+            subOrderDate={last(`${orderDay || ''}`.split(' - '))}
           />
         </div>
         <div className={css.orderInfo}>

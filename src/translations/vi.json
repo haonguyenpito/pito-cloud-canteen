@@ -1589,6 +1589,8 @@
   "ParticipantSubOrdersRoute.description": "Món đã đặt",
   "ParticipantSubOrdersRoute.title": "Món đã đặt",
   "OrderEventCardStatus.notPicked": "Không chọn món",
+  "OrderEventCardStatus.processing": "Đang xử lý, vui lòng đợi",
+  "SectionOrderPanel.savingChanges": "Đang lưu thay đổi, vui lòng đợi",
   "ParticipantPlan.summary.currentDayText": "Đang chọn món cho ngày: ",
   "PartnerAccountSettingsRoute.description": "Đối tác | Cài đặt tài khoản",
   "PartnerAccountSettingsRoute.title": "Đối tác | Cài đặt tài khoản",

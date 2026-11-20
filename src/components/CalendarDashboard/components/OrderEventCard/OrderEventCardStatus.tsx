@@ -3,6 +3,7 @@ import { useIntl } from 'react-intl';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import type { TEventStatus } from '@components/CalendarDashboard/helpers/types';
+import { useIsSubOrderProcessing } from '@hooks/useIsSubOrderProcessing';
 import { ETransition } from '@src/utils/transaction';
 
 import { EVENT_STATUS } from '../../helpers/constant';
@@ -14,6 +15,9 @@ type TOrderEventCardStatusProps = {
   className?: string;
   lastTransition: string;
   isFoodPicked: boolean;
+  /** With subOrderDate, shows the pending state while the pick is queued. */
+  planId?: string;
+  subOrderDate?: string | number;
 };
 
 const StatusToBadgeTypeMap = {
@@ -63,12 +67,20 @@ const OrderEventCardStatus: React.FC<TOrderEventCardStatusProps> = ({
   status,
   isFoodPicked,
   lastTransition,
+  planId,
+  subOrderDate,
 }) => {
   const intl = useIntl();
+  const isProcessing = useIsSubOrderProcessing(planId, subOrderDate);
 
   let extendStatusData = null;
 
-  if (!!lastTransition && !isFoodPicked) {
+  if (isProcessing) {
+    extendStatusData = {
+      type: EBadgeType.warning,
+      label: intl.formatMessage({ id: 'OrderEventCardStatus.processing' }),
+    };
+  } else if (!!lastTransition && !isFoodPicked) {
     extendStatusData = {
       type: EBadgeType.default,
       label: intl.formatMessage({ id: 'OrderEventCardStatus.notPicked' }),

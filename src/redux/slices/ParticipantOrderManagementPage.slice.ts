@@ -5,7 +5,12 @@ import uniq from 'lodash/uniq';
 import { updateParticipantOrderApi } from '@apis/index';
 import { updateFirstTimeViewOrderApi } from '@apis/participantApi';
 import { fetchTxApi } from '@apis/txApi';
+import {
+  applyParticipantOrderToPlan,
+  getParticipantOrderDays,
+} from '@helpers/order/orderDetailHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
+import { runParticipantOrderJob } from '@redux/slices/ParticipantOrderJob.slice';
 import type { TUpdateParticipantOrderBody } from '@src/types/order';
 import { denormalisedResponseEntities, Listing } from '@src/utils/data';
 import { EImageVariants, EParticipantOrderStatus } from '@src/utils/enums';
@@ -169,23 +174,25 @@ const updateOrder = createAsyncThunk(
   UPDATE_ORDER,
   async (
     data: { orderId: string; updateValues: TUpdateParticipantOrderBody },
-    { getState },
+    { getState, dispatch },
   ) => {
-    const { plans } = getState().ParticipantOrderManagementPage;
     const { orderId, updateValues } = data;
-    const { data: response } = await updateParticipantOrderApi(
-      orderId,
-      updateValues,
-    );
-    const { plan } = response;
-
-    const newAllPlans = plans.map((oldPlan: any) => {
-      if (oldPlan.id.uuid === plan.id.uuid) {
-        return plan;
-      }
-
-      return oldPlan;
+    const currentUserId = getState().user.currentUser?.id?.uuid as string;
+    await runParticipantOrderJob({
+      dispatch,
+      planId: updateValues.planId,
+      userId: currentUserId,
+      days: getParticipantOrderDays(updateValues),
+      submit: async () =>
+        (
+          await updateParticipantOrderApi(orderId, updateValues)
+        ).data,
     });
+
+    const { plans } = getState().ParticipantOrderManagementPage;
+    const newAllPlans = plans.map((plan: any) =>
+      applyParticipantOrderToPlan(plan, updateValues, currentUserId),
+    );
 
     return {
       plans: newAllPlans,

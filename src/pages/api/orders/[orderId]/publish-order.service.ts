@@ -7,6 +7,7 @@ import {
   upsertPickFoodForEmptyMembersScheduler,
 } from '@services/awsEventBrigdeScheduler';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { createNativeNotification } from '@services/nativeNotification';
 import { createFirebaseDocNotification } from '@services/notifications';
@@ -102,24 +103,28 @@ export const publishOrder = async (orderId: string, isAdmin = false) => {
   }
 
   const [planId] = plans;
-  const [planListing] = denormalisedResponseEntities(
-    await integrationSdk.listings.show({ id: planId }),
-  );
-  const { orderDetail: planOrderDetails = {} } =
-    Listing(planListing).getMetadata();
+  const normalizedOrderDetail = await withPlanLock(planId, async () => {
+    const [planListing] = denormalisedResponseEntities(
+      await integrationSdk.listings.show({ id: planId }),
+    );
+    const { orderDetail: planOrderDetails = {} } =
+      Listing(planListing).getMetadata();
 
-  const normalizedOrderDetail = normalizeOrderDetailsData(
-    planOrderDetails,
-    participants,
-    isGroupOrder,
-    isAdmin,
-  );
+    const nextOrderDetail = normalizeOrderDetailsData(
+      planOrderDetails,
+      participants,
+      isGroupOrder,
+      isAdmin,
+    );
 
-  await integrationSdk.listings.update({
-    id: planId,
-    metadata: {
-      orderDetail: normalizedOrderDetail,
-    },
+    await integrationSdk.listings.update({
+      id: planId,
+      metadata: {
+        orderDetail: nextOrderDetail,
+      },
+    });
+
+    return nextOrderDetail;
   });
 
   const response = denormalisedResponseEntities(

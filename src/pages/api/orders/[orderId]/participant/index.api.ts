@@ -6,6 +6,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import logger from '@helpers/logger';
 import cookies from '@services/cookie';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { getIntegrationSdk, handleError } from '@services/sdk';
 import type { TPlan } from '@src/utils/orderTypes';
@@ -129,47 +130,49 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         }
 
         if (!isEmpty(planId)) {
-          const [planListing] = denormalisedResponseEntities(
-            await integrationSdk.listings.show({
+          await withPlanLock(planId, async () => {
+            const [planListing] = denormalisedResponseEntities(
+              await integrationSdk.listings.show({
+                id: planId,
+              }),
+            );
+            const { orderDetail } = Listing(planListing).getMetadata();
+
+            const newOrderDetail = Object.entries(orderDetail).reduce(
+              (result, current) => {
+                const [date, orderDetailOnDate] = current;
+                const { memberOrders } = orderDetailOnDate as TObject;
+
+                const newMemberOrders = userIds.reduce(
+                  (memberOrderRes, userId) => {
+                    return {
+                      [userId]: {
+                        foodId: '',
+                        status: EParticipantOrderStatus.empty,
+                      },
+                      ...memberOrderRes,
+                    };
+                  },
+                  memberOrders,
+                );
+
+                return {
+                  ...result,
+                  [date]: {
+                    ...(orderDetailOnDate as TObject),
+                    memberOrders: newMemberOrders,
+                  },
+                };
+              },
+              {},
+            );
+
+            await integrationSdk.listings.update({
               id: planId,
-            }),
-          );
-          const { orderDetail } = Listing(planListing).getMetadata();
-
-          const newOrderDetail = Object.entries(orderDetail).reduce(
-            (result, current) => {
-              const [date, orderDetailOnDate] = current;
-              const { memberOrders } = orderDetailOnDate as TObject;
-
-              const newMemberOrders = userIds.reduce(
-                (memberOrderRes, userId) => {
-                  return {
-                    [userId]: {
-                      foodId: '',
-                      status: EParticipantOrderStatus.empty,
-                    },
-                    ...memberOrderRes,
-                  };
-                },
-                memberOrders,
-              );
-
-              return {
-                ...result,
-                [date]: {
-                  ...(orderDetailOnDate as TObject),
-                  memberOrders: newMemberOrders,
-                },
-              };
-            },
-            {},
-          );
-
-          await integrationSdk.listings.update({
-            id: planId,
-            metadata: {
-              orderDetail: newOrderDetail,
-            },
+              metadata: {
+                orderDetail: newOrderDetail,
+              },
+            });
           });
 
           userIds.forEach(async (userId: string) =>
@@ -228,22 +231,24 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         });
 
         if (!isEmpty(planId)) {
-          const [planListing] = denormalisedResponseEntities(
-            await integrationSdk.listings.show({
-              id: planId as string,
-            }),
-          );
-          const { orderDetail = {} } = Listing(planListing).getMetadata();
-          const newOrderDetail = removeParticipantFromOrderDetail(
-            orderDetail as TPlan['orderDetail'],
-            participantId,
-          );
+          await withPlanLock(planId as string, async () => {
+            const [planListing] = denormalisedResponseEntities(
+              await integrationSdk.listings.show({
+                id: planId as string,
+              }),
+            );
+            const { orderDetail = {} } = Listing(planListing).getMetadata();
+            const newOrderDetail = removeParticipantFromOrderDetail(
+              orderDetail as TPlan['orderDetail'],
+              participantId,
+            );
 
-          await integrationSdk.listings.update({
-            id: planId as string,
-            metadata: {
-              orderDetail: newOrderDetail,
-            },
+            await integrationSdk.listings.update({
+              id: planId as string,
+              metadata: {
+                orderDetail: newOrderDetail,
+              },
+            });
           });
         }
 

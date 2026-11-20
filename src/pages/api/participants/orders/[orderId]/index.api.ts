@@ -5,7 +5,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
-import { addToProcessOrderQueue } from '@services/jobs/processOrder.job';
+import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
 import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
 import type { TUpdateParticipantOrderBody } from '@src/types/order';
 import { EListingType } from '@src/utils/enums';
@@ -158,7 +158,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           planId,
           currentUserId,
         });
-        const job = await addToProcessOrderQueue({
+        const queued = await enqueueParticipantOrder({
           orderId,
           planId,
           memberOrders,
@@ -167,13 +167,17 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           planData,
           currentUserId,
         });
-        console.info('[TRACK] step=enqueue_job success', { jobId: job?.id });
+        console.info('[TRACK] step=enqueue_job success', {
+          jobId: queued?.jobId,
+        });
+        if (!queued) {
+          return res.status(409).json({
+            message: 'Previous order of this participant is still processing',
+          });
+        }
         console.info('[TRACK] step=api_receive success');
 
-        return res.json({
-          message: 'Job queued',
-          jobId: job?.id,
-        });
+        return res.json({ message: 'Job queued', ...queued });
       } catch (error) {
         handleError(res, error);
         console.error(error);

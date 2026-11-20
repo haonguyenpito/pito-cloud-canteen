@@ -13,6 +13,12 @@ type TConfirmNotifyUserModalProps = {
   shouldHideParticipantOption: boolean;
   setUserRoles: (value: string[]) => void;
   initialValues: any;
+  clearedPicks?: {
+    key: string;
+    dateLabel: string;
+    memberName: string;
+    foodName: string;
+  }[];
 };
 
 const ConfirmNotifyUserModal: React.FC<TConfirmNotifyUserModalProps> = (
@@ -27,6 +33,7 @@ const ConfirmNotifyUserModal: React.FC<TConfirmNotifyUserModalProps> = (
     onClose,
     setUserRoles,
     initialValues,
+    clearedPicks = [],
   } = props;
 
   return (
@@ -42,6 +49,24 @@ const ConfirmNotifyUserModal: React.FC<TConfirmNotifyUserModalProps> = (
         confirmLabel="Gửi thông báo"
         confirmDisabled={confirmDisabled}
         childrenClassName={css.modalChildrenContainer}>
+        {clearedPicks.length > 0 && (
+          <div className={css.clearedPicks} role="alert">
+            <div className={css.clearedPicksTitle}>
+              {clearedPicks.length} lựa chọn của thành viên sẽ bị huỷ vì món
+              không còn trong thực đơn:
+            </div>
+            <ul className={css.clearedPicksList}>
+              {clearedPicks.map(({ key, dateLabel, memberName, foodName }) => (
+                <li key={key}>
+                  {dateLabel} – {memberName} – {foodName}
+                </li>
+              ))}
+            </ul>
+            <div className={css.clearedPicksHint}>
+              Đóng hộp thoại này để quay lại chỉnh sửa, đơn hàng chưa được lưu.
+            </div>
+          </div>
+        )}
         <div>Chọn đối tượng để gửi thông báo thay đổi về đơn hàng</div>
         <ConfirmNotifyUserForm
           initialValues={initialValues}

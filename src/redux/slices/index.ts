@@ -13,6 +13,7 @@ export { default as Notification } from './notification.slice';
 export { default as notificationPopup } from './notificationPopup.slice';
 export { default as Order } from './Order.slice';
 export { default as OrderManagement } from './OrderManagement.slice';
+export { default as ParticipantOrderJob } from './ParticipantOrderJob.slice';
 export { default as ParticipantOrderManagementPage } from './ParticipantOrderManagementPage.slice';
 export { default as partners } from './partners.slice';
 export { default as password } from './password.slice';

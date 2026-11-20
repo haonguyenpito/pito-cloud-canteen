@@ -1,13 +1,18 @@
+import omit from 'lodash/omit';
 import { DateTime } from 'luxon';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import { convertDateToVNTimezone } from '@helpers/dateHelpers';
 import logger from '@helpers/logger';
+import { keepServerOwnedSubOrderFields } from '@helpers/order/orderDetailHelper';
 import { pushNotificationOrderDetailChanged } from '@pages/api/helpers/orderDetailHelper';
+import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { fetchUserListing } from '@services/integrationHelper';
+import orderEditorChecker from '@services/permissionChecker/orderEditor';
 import { getIntegrationSdk, handleError } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
 import type {
@@ -502,11 +507,15 @@ const sendParticipantChangedNormalOrderFoodsSlackNotification = async (
   );
 };
 
-export interface PUTUpdateOrderDetailFromDraftBody {
+export type PUTUpdateOrderDetailFromDraftBody = {
   planId: string;
-  orderDetail: OrderDetail;
   isAdminFlow: boolean;
-}
+} & (
+  | { orderDetail: OrderDetail }
+  // Member removal is applied to the fresh plan, so picks made since the
+  // caller loaded the page are kept.
+  | { subOrderDate: number | string; removedMemberIds: string[] }
+);
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const apiMethod = req.method;
@@ -515,34 +524,65 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   switch (apiMethod) {
     case HttpMethod.PUT:
       try {
-        const { planId, orderDetail, isAdminFlow } =
-          req.body as PUTUpdateOrderDetailFromDraftBody;
+        const body = req.body as PUTUpdateOrderDetailFromDraftBody;
+        const { planId, isAdminFlow } = body;
         const { orderId } = req.query;
-
-        const oldPlanListing: WithFlexSDKData<PlanListing> =
-          await integrationSdk.listings.show({
-            id: planId,
-          });
-
-        const oldOrderDetail =
-          oldPlanListing.data.data.attributes?.metadata?.orderDetail;
-
-        if (!oldOrderDetail) {
-          throw new Error('Old order detail is not found');
-        }
 
         const orderListingResponse: WithFlexSDKData<OrderListing> =
           await integrationSdk.listings.show({
             id: orderId,
           });
 
-        const planListingResponse: WithFlexSDKData<PlanListing> =
-          await integrationSdk.listings.update({
-            id: planId,
-            metadata: {
-              orderDetail,
-            },
-          });
+        const {
+          oldPlanListing,
+          oldOrderDetail,
+          orderDetail,
+          planListingResponse,
+        } = await withPlanLock(planId, async () => {
+          const freshPlanListing: WithFlexSDKData<PlanListing> =
+            await integrationSdk.listings.show({
+              id: planId,
+            });
+          const freshOrderDetail =
+            freshPlanListing.data.data.attributes?.metadata?.orderDetail;
+
+          if (!freshOrderDetail) {
+            throw new Error('Old order detail is not found');
+          }
+
+          let nextOrderDetail: OrderDetail;
+          if ('removedMemberIds' in body) {
+            const { subOrderDate, removedMemberIds } = body;
+            const subOrder = freshOrderDetail[subOrderDate];
+            if (!subOrder) {
+              throw new Error(`Sub order ${subOrderDate} is not found`);
+            }
+            nextOrderDetail = {
+              ...freshOrderDetail,
+              [subOrderDate]: {
+                ...subOrder,
+                memberOrders: omit(subOrder.memberOrders, removedMemberIds),
+              },
+            };
+          } else {
+            nextOrderDetail = keepServerOwnedSubOrderFields(
+              body.orderDetail,
+              freshOrderDetail,
+            ) as OrderDetail;
+          }
+
+          return {
+            oldPlanListing: freshPlanListing,
+            oldOrderDetail: freshOrderDetail,
+            orderDetail: nextOrderDetail,
+            planListingResponse: (await integrationSdk.listings.update({
+              id: planId,
+              metadata: {
+                orderDetail: nextOrderDetail,
+              },
+            })) as WithFlexSDKData<PlanListing>,
+          };
+        });
 
         const orderListing =
           denormalisedResponseEntities(orderListingResponse)[0];
@@ -628,4 +668,4 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 };
 
-export default handler;
+export default cookies(orderEditorChecker(handler));

@@ -54,6 +54,7 @@ import logger from '@helpers/logger';
 import { pushNativeNotificationSubOrderDate } from '@pages/api/helpers/pushNotificationOrderDetailHelper';
 import createQuotation from '@pages/api/orders/[orderId]/quotation/create-quotation.service';
 import { createFoodRatingNotificationScheduler } from '@services/awsEventBrigdeScheduler';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import {
@@ -227,22 +228,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           orderDetail[startTimestamp];
         const { foodList = {} } = restaurant;
 
-        const updatePlanListing = async (lastTransition: string) => {
-          const newOrderDetail = {
-            ...orderDetail,
-            [startTimestamp]: {
-              ...orderDetail[startTimestamp],
-              lastTransition,
-            },
-          };
+        // Runs after the tx transition, notifications and quotation work, so
+        // the plan read above is stale; only lastTransition changes here.
+        const updatePlanListing = (lastTransition: string) =>
+          withPlanLock(planId, async () => {
+            const { orderDetail: freshOrderDetail = {} } = Listing(
+              await fetchListing(planId),
+            ).getMetadata();
 
-          await integrationSdk.listings.update({
-            id: planId,
-            metadata: {
-              orderDetail: newOrderDetail,
-            },
+            await integrationSdk.listings.update({
+              id: planId,
+              metadata: {
+                orderDetail: {
+                  ...freshOrderDetail,
+                  [startTimestamp]: {
+                    ...freshOrderDetail[startTimestamp],
+                    lastTransition,
+                  },
+                },
+              },
+            });
           });
-        };
 
         logger.info('Transition', transition);
 

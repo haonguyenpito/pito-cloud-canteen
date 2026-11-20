@@ -37,6 +37,7 @@ import {
 } from '@src/utils/data';
 import { formatTimestamp } from '@src/utils/dates';
 import {
+  EApiUpdateMode,
   ENotificationType,
   EPaymentType,
   ESubOrderTxStatus,
@@ -339,14 +340,21 @@ const fetchQuotations = createAsyncThunk(
 const updatePlanDetail = createAsyncThunk(
   'app/AdminManageOrder/UPDATE_PLAN_DETAIL',
   async (
-    { orderId, planId, orderDetail, skipRefetch = false }: TObject,
+    {
+      orderId,
+      planId,
+      orderDetail,
+      subOrderDate,
+      subOrderPatch,
+      skipRefetch = false,
+    }: TObject,
     { dispatch, fulfillWithValue, rejectWithValue },
   ) => {
     try {
       await updatePlanDetailsApi(orderId, {
-        orderDetail,
+        orderDetail: { [subOrderDate]: subOrderPatch },
         planId,
-        updateMode: 'direct_update',
+        updateMode: EApiUpdateMode.PATCH_SUB_ORDER,
       });
 
       if (skipRefetch) {
