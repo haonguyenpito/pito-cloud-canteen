@@ -2,16 +2,14 @@ import { difference, isEmpty } from 'lodash';
 import { DateTime } from 'luxon';
 
 import { parseThousandNumber } from '@helpers/format';
+import { clearPicksOutsideFoodList } from '@helpers/order/orderDetailHelper';
 import {
   getPCCFeeByMemberAmount,
   getPCCFeeByTiers,
 } from '@helpers/orderHelper';
 import { Listing } from '@src/utils/data';
 import { weekDayFormatFromDateTime } from '@src/utils/dates';
-import {
-  EEditOrderHistoryType,
-  EParticipantOrderStatus,
-} from '@src/utils/enums';
+import { EEditOrderHistoryType } from '@src/utils/enums';
 import type { TPlan } from '@src/utils/orderTypes';
 import type {
   TListing,
@@ -160,22 +158,14 @@ export const preparePickingOrderChangeNotificationData = ({
       }
     }
 
-    const normalizedMemberOrders = { ...memberOrders };
-    Object.entries(memberOrders).forEach(([memberId, pickingFoodData]) => {
-      const { foodId = '', ...restPickingData } = pickingFoodData || {};
-
-      if (foodId !== '' && isEmpty(foodList[foodId])) {
-        normalizedMemberOrders[memberId] = {
-          ...restPickingData,
-          foodId: '',
-          status: EParticipantOrderStatus.empty,
-        };
-        emailParamsForParticipantNotification.push({
-          orderId,
-          participantId: memberId,
-          timestamp,
-        });
-      }
+    const { memberOrders: normalizedMemberOrders, clearedMemberIds } =
+      clearPicksOutsideFoodList(memberOrders, foodList);
+    clearedMemberIds.forEach((memberId) => {
+      emailParamsForParticipantNotification.push({
+        orderId,
+        participantId: memberId,
+        timestamp,
+      });
     });
 
     if (!isEmpty(changeHistoryToNotifyBookerByMeal[timestamp])) {

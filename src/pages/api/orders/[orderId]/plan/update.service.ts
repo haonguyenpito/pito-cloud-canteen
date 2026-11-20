@@ -2,12 +2,21 @@ import isEmpty from 'lodash/isEmpty';
 import uniq from 'lodash/uniq';
 
 import { convertDateToVNTimezone } from '@helpers/dateHelpers';
+import {
+  keepServerOwnedSubOrderFields,
+  patchSubOrders,
+} from '@helpers/order/orderDetailHelper';
 import { isEnableUpdateBookingInfo } from '@helpers/orderHelper';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { createSlackNotification } from '@services/slackNotification';
 import type { OrderDetail, OrderListing, PlanListing } from '@src/types';
-import { EOrderType, ESlackNotificationType } from '@src/utils/enums';
+import {
+  EApiUpdateMode,
+  EOrderType,
+  ESlackNotificationType,
+} from '@src/utils/enums';
 import type { TPlan } from '@src/utils/orderTypes';
 import { denormalisedResponseEntities, Listing } from '@utils/data';
 import type { TObject } from '@utils/types';
@@ -62,12 +71,6 @@ const sendRestaurantChangedSlackNotification = async (
     },
   });
 };
-
-export enum EApiUpdateMode {
-  MERGE = 'merge',
-  REPLACE = 'replace',
-  DIRECT_UPDATE = 'direct_update',
-}
 
 const getMenuListFromOrderDetail = (orderDetail: TPlan['orderDetail']) => {
   const menuIds = Object.values(orderDetail).reduce<string[]>(
@@ -144,38 +147,65 @@ const updatePlan = async ({
     selectedGroups,
   });
 
-  let currPlan: PlanListing;
-
   const normalizeDetail = getNormalizeDetail({
     orderDetail,
     initialMemberOrder,
     isNormalOrder,
   });
 
-  let updatedOrderDetail = normalizeDetail;
-
   if (enabledToUpdateRelatedBookingInfo) {
-    currPlan = await fetchListing(planId as string);
-    const { orderDetail: oldOrderDetail = {}, menuIds = [] } = Listing(
-      currPlan as any,
-    ).getMetadata();
+    const { planListing, updateMenuIds } = await withPlanLock(
+      planId,
+      async () => {
+        const currPlan: PlanListing = await fetchListing(planId as string);
+        const { orderDetail: oldOrderDetail = {}, menuIds = [] } = Listing(
+          currPlan as any,
+        ).getMetadata();
 
-    if (updateMode === EApiUpdateMode.MERGE) {
-      updatedOrderDetail = getNormalizeDetail({
-        orderDetail: { ...oldOrderDetail, ...orderDetail },
-        initialMemberOrder,
-        isNormalOrder,
-      });
-    }
+        let updatedOrderDetail = normalizeDetail;
+        if (updateMode === EApiUpdateMode.MERGE) {
+          updatedOrderDetail = getNormalizeDetail({
+            orderDetail: { ...oldOrderDetail, ...orderDetail },
+            initialMemberOrder,
+            isNormalOrder,
+          });
+        }
+        if (updateMode === EApiUpdateMode.DIRECT_UPDATE) {
+          updatedOrderDetail = {
+            ...oldOrderDetail,
+            ...orderDetail,
+          };
+        }
+        if (updateMode === EApiUpdateMode.PATCH_SUB_ORDER) {
+          updatedOrderDetail = patchSubOrders(oldOrderDetail, orderDetail);
+        }
+        updatedOrderDetail = keepServerOwnedSubOrderFields(
+          updatedOrderDetail,
+          oldOrderDetail,
+        );
 
-    if (updateMode === EApiUpdateMode.DIRECT_UPDATE) {
-      updatedOrderDetail = {
-        ...oldOrderDetail,
-        ...orderDetail,
-      };
-    }
-    const updateMenuIds = uniq(
-      menuIds.concat(getMenuListFromOrderDetail(updatedOrderDetail)),
+        const nextMenuIds: string[] = uniq(
+          menuIds.concat(getMenuListFromOrderDetail(updatedOrderDetail)),
+        );
+        const planListingResponse = await integrationSdk.listings.update(
+          {
+            id: planId,
+            metadata: {
+              orderDetail: updatedOrderDetail,
+              menuIds: nextMenuIds,
+              partnerIds,
+            },
+          },
+          { expand: true },
+        );
+
+        return {
+          planListing: denormalisedResponseEntities(
+            planListingResponse,
+          )[0] as PlanListing,
+          updateMenuIds: nextMenuIds,
+        };
+      },
     );
 
     integrationSdk.listings.update({
@@ -184,20 +214,6 @@ const updatePlan = async ({
         menuIds: updateMenuIds,
       },
     });
-    const planListingResponse = await integrationSdk.listings.update(
-      {
-        id: planId,
-        metadata: {
-          orderDetail: updatedOrderDetail,
-          menuIds: updateMenuIds,
-          partnerIds,
-        },
-      },
-      { expand: true },
-    );
-
-    const planListing: PlanListing =
-      denormalisedResponseEntities(planListingResponse)[0];
 
     sendRestaurantChangedSlackNotification(
       orderListing,

@@ -2,9 +2,21 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
+import { withPlanLock } from '@services/distributedLock';
+import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import participantChecker from '@services/permissionChecker/participant';
-import { handleError } from '@services/sdk';
+import { getSdk, handleError } from '@services/sdk';
+import {
+  CurrentUser,
+  denormalisedResponseEntities,
+  Listing,
+} from '@utils/data';
+import type { TObject } from '@utils/types';
+
+export type TRecommendedMemberOrders = {
+  [planId: string]: { [subOrderDate: string]: TObject };
+};
 
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
@@ -14,18 +26,46 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
     switch (apiMethod) {
       case HttpMethod.PUT:
         {
-          const { mappedRecommendFoodToOrderDetail } = req.body;
+          const { recommendedMemberOrders = {} } = req.body as {
+            recommendedMemberOrders: TRecommendedMemberOrders;
+          };
+          const [currentUser] = denormalisedResponseEntities(
+            await getSdk(req, res).currentUser.show(),
+          );
+          const currentUserId = CurrentUser(currentUser).getId();
+
           await Promise.all(
-            Object.keys(mappedRecommendFoodToOrderDetail).map(
-              async (planId: string) => {
-                await integrationSdk.listings.update({
-                  id: planId,
-                  metadata: {
-                    orderDetail:
-                      mappedRecommendFoodToOrderDetail[planId].orderDetail,
-                  },
-                });
-              },
+            Object.entries(recommendedMemberOrders).map(
+              ([planId, memberOrderByDate]) =>
+                withPlanLock(planId, async () => {
+                  const { orderDetail = {} } = Listing(
+                    await fetchListing(planId),
+                  ).getMetadata();
+
+                  const newOrderDetail = Object.entries(
+                    memberOrderByDate,
+                  ).reduce<TObject>(
+                    (result, [subOrderDate, memberOrder]) =>
+                      result[subOrderDate]
+                        ? {
+                            ...result,
+                            [subOrderDate]: {
+                              ...result[subOrderDate],
+                              memberOrders: {
+                                ...result[subOrderDate].memberOrders,
+                                [currentUserId]: memberOrder,
+                              },
+                            },
+                          }
+                        : result,
+                    orderDetail,
+                  );
+
+                  await integrationSdk.listings.update({
+                    id: planId,
+                    metadata: { orderDetail: newOrderDetail },
+                  });
+                }),
             ),
           );
 

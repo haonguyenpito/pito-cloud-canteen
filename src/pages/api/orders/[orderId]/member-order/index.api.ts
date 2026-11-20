@@ -1,4 +1,5 @@
 import isEmpty from 'lodash/isEmpty';
+import pick from 'lodash/pick';
 import uniq from 'lodash/uniq';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
@@ -9,7 +10,9 @@ import { persistMemberOrderHistoryAfterDeadline } from '@helpers/order/subOrderH
 import orderServices from '@pages/api/apiServices/order/index.service';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing, fetchUserListing } from '@services/integrationHelper';
+import orderEditorChecker from '@services/permissionChecker/orderEditor';
 import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
 import type {
@@ -20,6 +23,7 @@ import type {
 } from '@src/types';
 import { Listing } from '@src/utils/data';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
+import type { EParticipantOrderStatus } from '@src/utils/enums';
 import { EOrderStates, ESlackNotificationType } from '@src/utils/enums';
 import type { TListing, TObject } from '@src/utils/types';
 
@@ -94,10 +98,18 @@ const mappingOrderDetailsToOrderAndTransaction = async (
   );
 };
 
+type TMemberOrderValues = {
+  foodId: string;
+  requirement?: string;
+  status?: EParticipantOrderStatus;
+  secondaryFoodId?: string;
+  secondaryRequirement?: string;
+};
+
 const sendParticipantFoodChangeSlackNotification = async (
   orderListing: OrderListing,
   planListing: PlanListing,
-  newMembersOrderValues: NewMembersOrderValues,
+  newMembersOrderValues: Record<string, TMemberOrderValues>,
   currentDate: number,
   by: 'admin' | 'booker',
 ) => {
@@ -203,15 +215,8 @@ const sendParticipantFoodChangeSlackNotification = async (
   );
 };
 
-type NewMembersOrderValues = {
-  [memberId: string]: {
-    foodId: string;
-    requirement: string;
-    status: 'joined';
-    secondaryFoodId?: string;
-    secondaryRequirement?: string;
-  };
-};
+// Patches merged into each member's fresh pick, so every field is optional.
+type NewMembersOrderValues = Record<string, Partial<TMemberOrderValues>>;
 
 export interface PUTMemberOrderBody {
   planId: string;
@@ -241,9 +246,60 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         const sdk = getSdk(req, res);
         const currentUser = await sdk.currentUser.show();
 
-        const currentPlan: PlanListing = await fetchListing(planId);
-        const currentPlanListing = Listing(currentPlan as TListing);
-        const { orderDetail = {} } = currentPlanListing.getMetadata();
+        const { currentPlan, orderDetail, newOrderDetail, planListing } =
+          await withPlanLock(planId, async () => {
+            const freshPlan: PlanListing = await fetchListing(planId);
+            const { orderDetail: freshOrderDetail = {} } = Listing(
+              freshPlan as TListing,
+            ).getMetadata();
+
+            // Values are patches merged into the fresh pick: the caller's copy
+            // may predate the participant's own latest pick.
+            const freshMemberOrders =
+              freshOrderDetail[currentViewDate].memberOrders || {};
+            const patches: TObject = {
+              ...newMembersOrderValues,
+              ...(participantId && { [participantId]: newMemberOrderValues }),
+            };
+            const mergedOrderDetail = {
+              ...freshOrderDetail,
+              [currentViewDate]: {
+                ...freshOrderDetail[currentViewDate],
+                memberOrders: {
+                  ...freshMemberOrders,
+                  ...Object.entries(patches).reduce<TObject>(
+                    (result, [memberId, patch]) => ({
+                      ...result,
+                      [memberId]: {
+                        ...freshMemberOrders[memberId],
+                        ...(patch as TObject),
+                      },
+                    }),
+                    {},
+                  ),
+                },
+              },
+            };
+
+            const response = await integrationSdk.listings.update(
+              {
+                id: planId,
+                metadata: {
+                  orderDetail: mergedOrderDetail,
+                },
+              },
+              { expand: true },
+            );
+
+            return {
+              currentPlan: freshPlan,
+              orderDetail: freshOrderDetail as TObject,
+              newOrderDetail: mergedOrderDetail as TObject,
+              planListing: denormalisedResponseEntities(
+                response,
+              )[0] as TListing,
+            };
+          });
 
         const orderListingResponse: WithFlexSDKData<OrderListing> =
           await integrationSdk.listings.show({
@@ -262,34 +318,6 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           orderDetail[currentViewDate]?.memberOrders || {};
         const foodList =
           orderDetail[currentViewDate]?.restaurant?.foodList || {};
-
-        const newOrderDetail = {
-          ...orderDetail,
-          [currentViewDate]: {
-            ...orderDetail[currentViewDate],
-            memberOrders: {
-              ...orderDetail[currentViewDate].memberOrders,
-              ...(newMembersOrderValues && {
-                ...newMembersOrderValues,
-              }),
-              ...(participantId && {
-                [participantId]: newMemberOrderValues,
-              }),
-            },
-          },
-        };
-
-        const response = await integrationSdk.listings.update(
-          {
-            id: planId,
-            metadata: {
-              orderDetail: newOrderDetail,
-            },
-          },
-          { expand: true },
-        );
-
-        const [planListing] = denormalisedResponseEntities(response);
 
         const newMemberOrdersForDate =
           newOrderDetail[currentViewDate]?.memberOrders || {};
@@ -325,7 +353,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           sendParticipantFoodChangeSlackNotification(
             orderListing,
             planListing,
-            newMembersOrderValues,
+            pick(newMemberOrdersForDate, Object.keys(newMembersOrderValues)),
             currentViewDate,
             authorRole,
           );
@@ -349,4 +377,4 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   }
 };
 
-export default cookies(handler);
+export default cookies(orderEditorChecker(handler));

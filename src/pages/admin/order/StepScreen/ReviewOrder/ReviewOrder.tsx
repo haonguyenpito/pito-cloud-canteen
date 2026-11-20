@@ -37,12 +37,13 @@ import Tooltip from '@components/Tooltip/Tooltip';
 import { Dialog, DialogContent, DialogTrigger } from '@components/ui/dialog';
 import { addCommas, parseThousandNumber } from '@helpers/format';
 import { preparePickingOrderChangeNotificationData } from '@helpers/order/orderChangeByAdminHelper';
+import type { TClearedPick } from '@helpers/order/orderDetailHelper';
+import { getPicksClearedByEdit } from '@helpers/order/orderDetailHelper';
 import { getTrackingLink } from '@helpers/order/prepareDataHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import useCheckListForm from '@hooks/useCheckListForm';
 import { AdminManageOrderThunks } from '@pages/admin/order/AdminManageOrder.slice';
-import { EApiUpdateMode } from '@pages/api/orders/[orderId]/plan/update.service';
 import { company } from '@redux/slices';
 import {
   changeStep4SubmitStatus,
@@ -52,14 +53,15 @@ import {
 } from '@redux/slices/Order.slice';
 import { adminPaths, companyPaths } from '@src/paths';
 import type { ChecklistListing, PlanListing, UserListing } from '@src/types';
-import { Listing, User } from '@utils/data';
-import { formatTimestamp } from '@utils/dates';
 import {
+  EApiUpdateMode,
   EOrderDraftStates,
   EOrderStates,
   EOrderType,
   EParticipantOrderStatus,
-} from '@utils/enums';
+} from '@src/utils/enums';
+import { Listing, User } from '@utils/data';
+import { formatTimestamp } from '@utils/dates';
 import type { TKeyValue, TListing, TObject } from '@utils/types';
 import { required } from '@utils/validators';
 
@@ -867,6 +869,10 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
   const router = useRouter();
   const formSubmitRef = useRef<any>();
   const [userRolesToNotify, setUserRolesToNotify] = useState<string[]>([]);
+  const [clearedPicks, setClearedPicks] = useState<TClearedPick[]>([]);
+  const [memberNameById, setMemberNameById] = useState<Record<string, string>>(
+    {},
+  );
   const orderDetail = useAppSelector(
     (state) => state.Order.orderDetail,
     shallowEqual,
@@ -980,9 +986,7 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
     oldOrderDetail: orderDetail,
     updateOrderData: draftEditOrderData,
   });
-  const shouldHideParticipantOption = isEmpty(
-    notificationData.emailParamsForParticipantNotification,
-  );
+  const shouldHideParticipantOption = isEmpty(clearedPicks);
 
   const { renderedOrderDetail } =
     useMemo(() => {
@@ -1160,8 +1164,21 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
     }
     if (planId && orderId) {
       const { normalizedOrderDetail } = notificationData;
+      // Participants keep picking while the admin edits, so a picking order
+      // only sends the edited dates; the server re-applies them on fresh picks.
+      const shouldPatchSubOrders =
+        isPickingOrder &&
+        isEqual(
+          Object.keys(draftEditOrderDetail!).sort(),
+          Object.keys(orderDetail).sort(),
+        );
 
-      const updateOrderDetail = isPickingOrder
+      const updateOrderDetail = shouldPatchSubOrders
+        ? pickBy(
+            draftEditOrderDetail,
+            (subOrder, date) => !isEqual(subOrder, orderDetail[date]),
+          )
+        : isPickingOrder
         ? normalizedOrderDetail
         : draftEditOrderDetail;
 
@@ -1171,7 +1188,9 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
             orderId,
             planId,
             orderDetail: updateOrderDetail,
-            updateMode: isPendingApprovalOrder
+            updateMode: shouldPatchSubOrders
+              ? EApiUpdateMode.PATCH_SUB_ORDER
+              : isPendingApprovalOrder
               ? EApiUpdateMode.MERGE
               : EApiUpdateMode.DIRECT_UPDATE,
           }),
@@ -1192,15 +1211,34 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
     }
   };
 
-  const handleEditFlowSubmitClick = () => {
-    if (isPickingOrder) {
-      confirmNotifyUserModalControl.setTrue();
-    } else {
+  const handleEditFlowSubmitClick = async () => {
+    if (!isPickingOrder) {
       handleEditFlowSubmit();
+
+      return;
     }
+
+    // Participants keep picking while the admin edits: list the picks this
+    // save will clear from the fresh plan, not the copy loaded at page open.
+    const latestOrderDetail = await dispatch(
+      orderAsyncActions.fetchLatestOrderDetail(planId!),
+    ).unwrap();
+    const picks = getPicksClearedByEdit(
+      latestOrderDetail || {},
+      draftEditOrderDetail!,
+    );
+    setMemberNameById(
+      await dispatch(
+        orderAsyncActions.fetchUserDisplayNames(
+          uniq(picks.map(({ memberId }) => memberId)),
+        ),
+      ).unwrap(),
+    );
+    setClearedPicks(picks);
+    confirmNotifyUserModalControl.setTrue();
   };
 
-  const handleCloseNotifyUserForPickingChangesModal = () => {
+  const handleSaveAndNotifyPickingChanges = () => {
     // eslint-disable-next-line unused-imports/no-unused-vars
     const { normalizedOrderDetail, ...restData } = notificationData;
 
@@ -1209,6 +1247,13 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
         orderId,
         params: {
           ...restData,
+          emailParamsForParticipantNotification: clearedPicks.map(
+            ({ date, memberId }) => ({
+              orderId,
+              participantId: memberId,
+              timestamp: date,
+            }),
+          ),
           userRoles: userRolesToNotify,
         },
       }),
@@ -1228,11 +1273,11 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
     confirmNotifyUserModalControl.setFalse();
     setUserRolesToNotify([]);
   };
-  const handleConfirmNotifyUserForPickingChanges = () => {
-    handleCloseNotifyUserForPickingChangesModal();
-  };
-  const handleCancelNotifyUserForPickingChanges = () => {
-    handleCloseNotifyUserForPickingChangesModal();
+  // Closing the modal aborts the save, so the admin can back out after seeing
+  // which picks would be cleared.
+  const handleCloseNotifyUserForPickingChangesModal = () => {
+    confirmNotifyUserModalControl.setFalse();
+    setUserRolesToNotify([]);
   };
 
   const onSubmit = async (values: any) => {
@@ -1476,12 +1521,18 @@ const ReviewOrder: React.FC<TReviewOrder> = (props) => {
       <ConfirmNotifyUserModal
         isOpen={confirmNotifyUserModalControl.value}
         onClose={handleCloseNotifyUserForPickingChangesModal}
-        onCancel={handleCancelNotifyUserForPickingChanges}
+        onCancel={handleSaveAndNotifyPickingChanges}
         setUserRoles={setUserRolesToNotify}
-        onConfirm={handleConfirmNotifyUserForPickingChanges}
+        onConfirm={handleSaveAndNotifyPickingChanges}
         confirmDisabled={isEmpty(userRolesToNotify)}
         initialValues={{ userRoles: userRolesToNotify }}
         shouldHideParticipantOption={shouldHideParticipantOption}
+        clearedPicks={clearedPicks.map(({ date, memberId, foodName }) => ({
+          key: `${date}-${memberId}`,
+          dateLabel: formatTimestamp(Number(date)),
+          memberName: memberNameById[memberId] || memberId,
+          foodName,
+        }))}
       />
 
       <ConfirmationModal

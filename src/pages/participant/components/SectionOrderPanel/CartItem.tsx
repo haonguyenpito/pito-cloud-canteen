@@ -16,6 +16,7 @@ type TCartItemProps = {
   subOrderDate?: string;
   onRemove: () => void;
   foodPosition?: 'first' | 'second';
+  isProcessing?: boolean;
 };
 
 const CartItem: React.FC<TCartItemProps> = ({
@@ -25,6 +26,7 @@ const CartItem: React.FC<TCartItemProps> = ({
   subOrderDate,
   onRemove,
   foodPosition,
+  isProcessing = false,
 }) => {
   const intl = useIntl();
   const dispatch = useAppDispatch();
@@ -50,10 +52,15 @@ const CartItem: React.FC<TCartItemProps> = ({
         <span className="flex items-center gap-2">
           {label && <span>{label}</span>}
         </span>
-        {!removeDisabled && (
+        {!removeDisabled && !isProcessing && (
           <IconClose onClick={onRemove} className={css.iconClose} />
         )}
       </div>
+      {isProcessing && (
+        <span className={css.processing} role="status">
+          {intl.formatMessage({ id: 'OrderEventCardStatus.processing' })}
+        </span>
+      )}
       {isAllowAddSecondaryFood && (
         <div>
           {foodPosition === 'first' &&

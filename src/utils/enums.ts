@@ -552,3 +552,11 @@ export enum EPartnerReply {
   approved = 'approved',
   rejected = 'rejected',
 }
+
+export enum EApiUpdateMode {
+  MERGE = 'merge',
+  REPLACE = 'replace',
+  DIRECT_UPDATE = 'direct_update',
+  /** `orderDetail` holds only the changed fields of existing dates. */
+  PATCH_SUB_ORDER = 'patch_sub_order',
+}

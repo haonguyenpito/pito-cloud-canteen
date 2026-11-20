@@ -4,7 +4,9 @@ import { createSlice } from '@reduxjs/toolkit';
 import get from 'lodash/get';
 import groupBy from 'lodash/groupBy';
 import isEmpty from 'lodash/isEmpty';
+import mapValues from 'lodash/mapValues';
 import omit from 'lodash/omit';
+import pickBy from 'lodash/pickBy';
 import set from 'lodash/set';
 
 import {
@@ -57,13 +59,14 @@ import type {
   OrderDetailValue,
 } from '@src/types';
 import type { DeepPartial } from '@src/types/utils';
-import type { TPlan } from '@src/utils/orderTypes';
-import { denormalisedResponseEntities, Listing, User } from '@utils/data';
 import {
+  EApiUpdateMode,
   EEditSubOrderHistoryType,
   ENotificationType,
   EParticipantOrderStatus,
-} from '@utils/enums';
+} from '@src/utils/enums';
+import type { TPlan } from '@src/utils/orderTypes';
+import { denormalisedResponseEntities, Listing, User } from '@utils/data';
 import { EHttpStatusCode, storableError } from '@utils/errors';
 import { removeParticipantFromOrderDetail } from '@utils/order';
 import type {
@@ -508,43 +511,28 @@ const addOrUpdateMemberOrder = createAsyncThunk(
         updateAnonymous = anonymous.concat(participantId);
       }
 
-      const memberOrderDetailOnUpdateDate =
+      const { status = EParticipantOrderStatus.empty } =
         metadata?.orderDetail[currentViewDate.toString()].memberOrders[
           memberId
-        ];
-      const { status = EParticipantOrderStatus.empty } =
-        memberOrderDetailOnUpdateDate || {};
+        ] || {};
+      const isFoodChanged =
+        foodId !== undefined && status !== EParticipantOrderStatus.expired;
 
-      let newMemberOrderValues = memberOrderDetailOnUpdateDate;
-
-      switch (status) {
-        case EParticipantOrderStatus.joined:
-        case EParticipantOrderStatus.notAllowed:
-          newMemberOrderValues = {
-            ...newMemberOrderValues,
-            foodId,
-            ...(secondaryFoodId && { secondaryFoodId }),
-          };
-          break;
-        case EParticipantOrderStatus.empty:
-        case EParticipantOrderStatus.notJoined:
-          newMemberOrderValues = {
-            ...newMemberOrderValues,
-            foodId,
-            ...(secondaryFoodId && { secondaryFoodId }),
-            status: EParticipantOrderStatus.joined,
-          };
-          break;
-        case EParticipantOrderStatus.expired:
-          break;
-        default:
-          break;
-      }
-      newMemberOrderValues = {
-        ...newMemberOrderValues,
-        requirement,
-        ...(secondaryRequirement ? { secondaryRequirement } : {}),
-      };
+      // Only the fields the editor changed: the server merges them into the
+      // member's fresh pick, so untouched fields are never rolled back.
+      const newMemberOrderValues = pickBy(
+        {
+          ...(isFoodChanged && { foodId, secondaryFoodId }),
+          requirement,
+          secondaryRequirement,
+          ...(isFoodChanged &&
+            [
+              EParticipantOrderStatus.empty,
+              EParticipantOrderStatus.notJoined,
+            ].includes(status) && { status: EParticipantOrderStatus.joined }),
+        },
+        (value) => value !== undefined,
+      );
       const updateParams = {
         currentViewDate,
         participantId,
@@ -562,6 +550,10 @@ const addOrUpdateMemberOrder = createAsyncThunk(
         planId,
         currentViewDate,
       );
+      const savedMemberOrder =
+        Listing(updatePlanListing.planListing).getMetadata().orderDetail?.[
+          currentViewDate
+        ]?.memberOrders?.[participantId] || {};
 
       const addDocumentMemberSuborder = async () => {
         const { data: firebaseSubOrderDocument } =
@@ -577,8 +569,8 @@ const addOrUpdateMemberOrder = createAsyncThunk(
           participantSubOrderUpdateDocumentApi({
             subOrderId,
             params: {
-              foodId,
-              secondaryFoodId,
+              foodId: savedMemberOrder.foodId ?? '',
+              secondaryFoodId: savedMemberOrder.secondaryFoodId ?? '',
             },
           });
         }
@@ -615,7 +607,6 @@ const disallowMember = createAsyncThunk(
     } = getState().OrderManagement.planData!;
 
     const { memberOrders = {} } = metadata?.orderDetail[currentViewDate] || {};
-    const memberOrderDetailOnUpdateDate = memberOrders?.[memberId];
     const { status } = memberOrders?.[memberId] || {};
 
     const validStatuses = [
@@ -628,7 +619,6 @@ const disallowMember = createAsyncThunk(
     }
 
     const newMemberOrderValues = {
-      ...memberOrderDetailOnUpdateDate,
       status: EParticipantOrderStatus.notAllowed,
     };
 
@@ -687,7 +677,12 @@ const restoredDisAllowedMember = createAsyncThunk(
       newMembersOrderValues: updateMemberOrders,
     };
 
-    await addUpdateMemberOrder(orderId, updateParams);
+    await addUpdateMemberOrder(orderId, {
+      ...updateParams,
+      newMembersOrderValues: mapValues(updateMemberOrders, ({ status }) => ({
+        status,
+      })),
+    });
 
     return updateParams;
   },
@@ -722,15 +717,16 @@ const deleteDisAllowedMember = createAsyncThunk(
       },
     };
 
-    const updateParams = {
+    const isAdminFlow = currentUser?.attributes?.profile?.metadata?.isAdmin;
+
+    await updateOrderDetailFromDraftApi(orderId, {
       planId,
-      orderDetail: updateOrderDetail,
-      isAdminFlow: currentUser?.attributes?.profile?.metadata?.isAdmin,
-    };
+      subOrderDate: currentViewDate,
+      removedMemberIds: memberIds,
+      isAdminFlow,
+    });
 
-    await updateOrderDetailFromDraftApi(orderId, updateParams);
-
-    return updateParams;
+    return { planId, orderDetail: updateOrderDetail, isAdminFlow };
   },
 );
 
@@ -985,13 +981,25 @@ const updatePlanOrderDetail = createAsyncThunk(
       orderId,
       planId,
       orderDetail,
-    }: { orderId: string; planId: string; orderDetail: TObject },
+      subOrderDate,
+      subOrderPatch,
+    }: {
+      orderId: string;
+      planId: string;
+      /** Full local copy, only used to refresh the UI. */
+      orderDetail: TObject;
+      subOrderDate: number | string;
+      subOrderPatch: TObject;
+    },
     { fulfillWithValue, rejectWithValue, dispatch },
   ) => {
     try {
+      // Send only the edited fields: the local copy is stale for every
+      // participant pick made since the page loaded.
       updatePlanDetailsApi(orderId, {
-        orderDetail,
+        orderDetail: { [subOrderDate]: subOrderPatch },
         planId,
+        updateMode: EApiUpdateMode.PATCH_SUB_ORDER,
       });
 
       // sync the order detail to order reducer

@@ -1,5 +1,36 @@
+@use '/src/styles/vars.scss' as *;
+
 .modalContainer.modalContainer {
   .modalChildrenContainer {
     padding-bottom: 20px;
   }
+}
+
+.clearedPicks {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid $labelOrange2;
+  background-color: $labelOrange1;
+  color: $neutralGray7;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.clearedPicksTitle {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.clearedPicksList {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.clearedPicksHint {
+  margin-top: 8px;
+  color: $neutralGray6;
+  font-size: 13px;
 }

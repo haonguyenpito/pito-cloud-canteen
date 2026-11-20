@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { getSdk, handleError } from '@services/sdk';
@@ -51,41 +52,39 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
             const planId = order.attributes?.metadata?.plans?.[0];
             if (planId) {
-              const planResponse = await integrationSdk.listings.show({
-                id: planId,
-              });
+              await withPlanLock(planId, async () => {
+                const plan: PlanListing = await fetchListing(planId);
 
-              const plan: PlanListing = planResponse.data.data;
-
-              const orderDetail = Object.entries(
-                plan.attributes?.metadata?.orderDetail || {},
-              )
-                .map(([subOrderDate, subOrderDateValue]) => {
-                  return {
-                    [subOrderDate]: {
-                      ...subOrderDateValue,
-                      memberOrders: {
-                        ...subOrderDateValue?.memberOrders,
-                        [currentUserId]: {
-                          foodId: '',
-                          requirement: '',
-                          status: 'empty',
-                          ...subOrderDateValue?.memberOrders?.[currentUserId],
+                const orderDetail = Object.entries(
+                  plan.attributes?.metadata?.orderDetail || {},
+                )
+                  .map(([subOrderDate, subOrderDateValue]) => {
+                    return {
+                      [subOrderDate]: {
+                        ...subOrderDateValue,
+                        memberOrders: {
+                          ...subOrderDateValue?.memberOrders,
+                          [currentUserId]: {
+                            foodId: '',
+                            requirement: '',
+                            status: 'empty',
+                            ...subOrderDateValue?.memberOrders?.[currentUserId],
+                          },
                         },
                       },
-                    },
-                  };
-                })
-                .reduce((_newOrderDetail, subOrderDateData) => {
-                  return {
-                    ..._newOrderDetail,
-                    ...subOrderDateData,
-                  };
-                }, {});
+                    };
+                  })
+                  .reduce((_newOrderDetail, subOrderDateData) => {
+                    return {
+                      ..._newOrderDetail,
+                      ...subOrderDateData,
+                    };
+                  }, {});
 
-              await integrationSdk.listings.update({
-                id: planId,
-                metadata: { orderDetail },
+                await integrationSdk.listings.update({
+                  id: planId,
+                  metadata: { orderDetail },
+                });
               });
             }
           }
