@@ -1,7 +1,11 @@
 import type { Job } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
+import { randomUUID } from 'crypto';
 import type { Redis } from 'ioredis';
 
+import { mergeParticipantOrder } from '@helpers/order/orderDetailHelper';
+import { setOrderJobStatus } from '@helpers/orderJobStatus';
+import { DistributedLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { defaultQueueConfig } from '@services/queues/config';
 import { redisConnection } from '@services/redis';
@@ -32,147 +36,12 @@ interface ProcessOrderJobData {
   orderDays?: string[];
   planData?: Record<string, Record<string, any>>;
   currentUserId: string;
+  /** Per-click id; the participant UI waits for this id's status in Firestore. */
+  submissionId?: string;
 }
 
 type AddToQueueData = Pick<ProcessOrderJobData, 'orderId' | 'currentUserId'> &
   Partial<ProcessOrderJobData>;
-
-const ACQUIRE_LOCK_SCRIPT = `
-  local key = KEYS[1]
-  local token = ARGV[1]
-  local ttl = tonumber(ARGV[2])
-  local current = redis.call('GET', key)
-  if current == false then
-    redis.call('SET', key, token, 'PX', ttl)
-    return 1
-  elseif current == token then
-    redis.call('PEXPIRE', key, ttl)
-    return 1
-  else
-    return 0
-  end
-`;
-
-const RELEASE_LOCK_SCRIPT = `
-  local key = KEYS[1]
-  local token = ARGV[1]
-  local current = redis.call('GET', key)
-  if current == token then
-    return redis.call('DEL', key)
-  else
-    return 0
-  end
-`;
-
-class DistributedLock {
-  private redis: Redis;
-
-  private lockKey: string;
-
-  private token: string;
-
-  private ttl: number;
-
-  private retryDelay: number;
-
-  private maxRetries: number;
-
-  constructor(
-    redis: Redis,
-    resource: string,
-    options: { ttl?: number; retryDelay?: number; maxRetries?: number } = {},
-  ) {
-    this.redis = redis;
-    this.lockKey = `lock:${resource}`;
-    this.token = `${Date.now()}-${Math.random()}`;
-    this.ttl = options.ttl || 30000;
-    this.retryDelay = options.retryDelay || 100;
-    this.maxRetries = options.maxRetries || 50;
-  }
-
-  private async tryAcquireLock(attempts = 0): Promise<boolean> {
-    const startTime = Date.now();
-    console.log(
-      `[RACE_DEBUG] Lock acquisition attempt ${attempts + 1}/${
-        this.maxRetries
-      } for ${this.lockKey}, token: ${this.token}`,
-    );
-
-    const result = (await this.redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-      this.ttl,
-    )) as number;
-
-    const duration = Date.now() - startTime;
-
-    if (result === 1) {
-      console.log(
-        `[RACE_DEBUG] Lock acquired successfully for ${this.lockKey} after ${
-          attempts + 1
-        } attempts, duration: ${duration}ms, token: ${this.token}`,
-      );
-
-      return true;
-    }
-
-    if (attempts >= this.maxRetries) {
-      console.error(
-        `[RACE_DEBUG] Lock acquisition failed after ${
-          attempts + 1
-        } attempts for ${this.lockKey}, total duration: ${duration}ms, token: ${
-          this.token
-        }`,
-      );
-
-      return false;
-    }
-
-    const delay = this.retryDelay * 1.5 ** Math.min(attempts, 10);
-    console.warn(
-      `[RACE_DEBUG] Lock busy for ${
-        this.lockKey
-      }, retrying in ${delay}ms (attempt ${attempts + 1}/${
-        this.maxRetries
-      }), token: ${this.token}`,
-    );
-
-    await new Promise((res) => {
-      setTimeout(res, delay);
-    });
-
-    return this.tryAcquireLock(attempts + 1);
-  }
-
-  async acquire(): Promise<boolean> {
-    return this.tryAcquireLock();
-  }
-
-  async release(): Promise<boolean> {
-    const result = (await this.redis.eval(
-      RELEASE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-    )) as number;
-
-    return result === 1;
-  }
-
-  async extend(additionalTtl: number = this.ttl): Promise<boolean> {
-    const result = (await this.redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-      additionalTtl,
-    )) as number;
-
-    return result === 1;
-  }
-}
 
 // Queue setup
 const processOrderQueue = new Queue<AddToQueueData>(queueName, {
@@ -203,6 +72,7 @@ const worker = new Worker<ProcessOrderJobData>(
       orderDays,
       planData,
       currentUserId,
+      submissionId,
     } = job.data;
 
     console.log('worker@@planData:', {
@@ -217,17 +87,41 @@ const worker = new Worker<ProcessOrderJobData>(
 
     const sdk = getIntegrationSdk();
     let originalOrderDetailBefore: Record<string, any> = {};
+    let isPersisted = false;
+    // ~90s of 300ms-capped retries: a burst of picks on one plan queues here
+    // rather than exhausting the job's attempts.
     const lock = new DistributedLock(
       redisConnection as Redis,
       `plan:${planId}`,
       {
         ttl: 30000,
         retryDelay: 100,
-        maxRetries: 100, // Maybe bug here
+        maxRetries: 300,
       },
     );
 
+    if (submissionId) {
+      await setOrderJobStatus({
+        planId,
+        userId: currentUserId,
+        submissionId,
+        status: 'processing',
+      }).catch((error) =>
+        console.error('[RACE_DEBUG] Order job status write failed:', error),
+      );
+    }
+
     try {
+      // Read outside the lock only to decide whether `anonymous` needs an
+      // update; the update itself re-reads the order under the lock.
+      const {
+        participants: knownParticipants = [],
+        anonymous: knownAnonymous = [],
+      } = Listing(await fetchListing(orderId as string)).getMetadata() ?? {};
+      const shouldAddToAnonymous =
+        !knownParticipants.includes(currentUserId) &&
+        !knownAnonymous.includes(currentUserId);
+
       console.log(
         `[RACE_DEBUG] Attempting to acquire lock for planId: ${planId}, userId: ${currentUserId}`,
       );
@@ -246,9 +140,6 @@ const worker = new Worker<ProcessOrderJobData>(
           lockAcquiredTime - jobStartTime
         }ms`,
       );
-      await job.updateProgress(25);
-
-      const orderListing = await fetchListing(orderId as string);
       await job.updateProgress(50);
 
       console.log(
@@ -257,46 +148,27 @@ const worker = new Worker<ProcessOrderJobData>(
 
       // Re-fetch fresh plan before mutation
       const updatingPlan = await fetchListing(planId as string);
-      const { participants = [], anonymous = [] } =
-        Listing(orderListing).getMetadata() ?? {};
       const currentMetadata = Listing(updatingPlan).getMetadata() ?? {};
-      const orderDetail = currentMetadata.orderDetail ?? {};
+      const currentOrderDetail = currentMetadata.orderDetail ?? {};
 
       // Log the current state before modification
       console.log(
         `[RACE_DEBUG] Current orderDetail state for planId: ${planId}, userId: ${currentUserId}:`,
-        JSON.stringify(orderDetail, null, 2),
+        JSON.stringify(currentOrderDetail, null, 2),
       );
 
-      const originalOrderDetail = JSON.parse(JSON.stringify(orderDetail));
+      const originalOrderDetail = JSON.parse(
+        JSON.stringify(currentOrderDetail),
+      );
       originalOrderDetailBefore = originalOrderDetail;
 
-      // Merge logic
-      if (orderDay && memberOrders) {
-        console.log(
-          `[RACE_DEBUG] Processing single day order - planId: ${planId}, userId: ${currentUserId}, orderDay: ${orderDay}`,
-        );
-        orderDetail[orderDay] = orderDetail[orderDay] || { memberOrders: {} };
-        orderDetail[orderDay].memberOrders =
-          orderDetail[orderDay].memberOrders || {};
-        orderDetail[orderDay].memberOrders[currentUserId] =
-          memberOrders[currentUserId];
-      } else if (orderDays && planData) {
-        console.log(
-          `[RACE_DEBUG] Processing multiple days order - planId: ${planId}, userId: ${currentUserId}, orderDays: ${orderDays?.join(
-            ', ',
-          )}`,
-        );
-        orderDays.forEach((day) => {
-          orderDetail[day] = orderDetail[day] || { memberOrders: {} };
-          orderDetail[day].memberOrders = orderDetail[day].memberOrders || {};
-          const userData = planData?.[day]?.[currentUserId];
-          console.log('worker@@userData:', { userData });
-          if (userData !== undefined) {
-            orderDetail[day].memberOrders[currentUserId] = userData;
-          }
-        });
-      }
+      const orderDetail = mergeParticipantOrder(originalOrderDetail, {
+        currentUserId,
+        orderDay,
+        memberOrders,
+        orderDays,
+        planData,
+      });
 
       // Log what changed
       console.log(
@@ -323,19 +195,23 @@ const worker = new Worker<ProcessOrderJobData>(
         { expand: true },
       );
 
-      if (
-        !participants.includes(currentUserId) &&
-        !anonymous.includes(currentUserId)
-      ) {
-        console.log(
-          `[RACE_DEBUG] Adding user ${currentUserId} to anonymous participants for orderId: ${orderId}`,
-        );
-        await sdk.listings.update({
-          id: orderId,
-          metadata: {
-            anonymous: [...anonymous, currentUserId],
-          },
-        });
+      if (shouldAddToAnonymous) {
+        const { participants = [], anonymous = [] } =
+          Listing(await fetchListing(orderId as string)).getMetadata() ?? {};
+        if (
+          !participants.includes(currentUserId) &&
+          !anonymous.includes(currentUserId)
+        ) {
+          console.log(
+            `[RACE_DEBUG] Adding user ${currentUserId} to anonymous participants for orderId: ${orderId}`,
+          );
+          await sdk.listings.update({
+            id: orderId,
+            metadata: {
+              anonymous: [...anonymous, currentUserId],
+            },
+          });
+        }
       }
 
       await job.updateProgress(100);
@@ -349,6 +225,8 @@ const worker = new Worker<ProcessOrderJobData>(
           planData ? Object.keys(planData).join(', ') : 'none'
         }`,
       );
+
+      isPersisted = true;
 
       return denormalisedResponseEntities(planResponse)[0];
     } catch (error) {
@@ -397,6 +275,16 @@ const worker = new Worker<ProcessOrderJobData>(
           `[RACE_DEBUG] Attempting to release lock for planId: ${planId}, userId: ${currentUserId}`,
         );
         const released = await lock.release();
+        if (isPersisted && submissionId) {
+          await setOrderJobStatus({
+            planId,
+            userId: currentUserId,
+            submissionId,
+            status: 'completed',
+          }).catch((error) =>
+            console.error('[RACE_DEBUG] Order job status write failed:', error),
+          );
+        }
         if (!released) {
           console.warn(
             `[RACE_DEBUG] WARNING: Failed to release lock for planId: ${planId}, userId: ${currentUserId} - lock may have been stolen or expired`,
@@ -513,6 +401,19 @@ worker.on('failed', (job, error) => {
     attemptsMade: job?.attemptsMade,
     timestamp: new Date().toISOString(),
   });
+
+  // Earlier attempts are retried; only the final failure reaches the UI.
+  if (job?.data.submissionId && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+    setOrderJobStatus({
+      planId: job.data.planId,
+      userId: job.data.currentUserId,
+      submissionId: job.data.submissionId,
+      status: 'failed',
+      error: error.message,
+    }).catch((statusError) =>
+      console.error('[RACE_DEBUG] Order job status write failed:', statusError),
+    );
+  }
 });
 
 // Add to queue
@@ -552,6 +453,12 @@ export const addToProcessOrderQueue = async (data: AddToQueueData) => {
       },
       priority: data.orderDays?.length || 1,
     });
+
+    // An active job cannot be removed, and add() then hands back that job
+    // instead of queueing this pick.
+    if (data.submissionId && job.data.submissionId !== data.submissionId) {
+      return null;
+    }
 
     const duration = Date.now() - startTime;
     console.log(
@@ -593,6 +500,29 @@ export const addToProcessOrderQueue = async (data: AddToQueueData) => {
     );
     throw error;
   }
+};
+
+/**
+ * Queues a participant pick and returns at once; the participant UI follows
+ * the job through its Firestore status doc. Returns null while a previous pick
+ * of the same user is still running.
+ */
+export const enqueueParticipantOrder = async (
+  data: Omit<AddToQueueData, 'submissionId'>,
+) => {
+  const submissionId = randomUUID();
+  // Written before queueing so a fast worker's later status is never
+  // overwritten by `queued`.
+  await setOrderJobStatus({
+    planId: data.planId,
+    userId: data.currentUserId,
+    submissionId,
+    status: 'queued',
+  });
+
+  const job = await addToProcessOrderQueue({ ...data, submissionId });
+
+  return job ? { jobId: job.id as string, submissionId } : null;
 };
 
 // Shutdown

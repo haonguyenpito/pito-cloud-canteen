@@ -1583,6 +1583,8 @@
   "ParticipantSubOrdersRoute.description": "Ordered dishes",
   "ParticipantSubOrdersRoute.title": "Ordered dishes",
   "OrderEventCardStatus.notPicked": "Not picked",
+  "OrderEventCardStatus.processing": "Processing, please wait",
+  "SectionOrderPanel.savingChanges": "Saving your changes, please wait",
   "ParticipantPlan.summary.currentDayText": "Choosing dishes for day: ",
   "PartnerAccountSettingsRoute.description": "Partner | Account settings",
   "PartnerAccountSettingsRoute.title": "Partner | Account settings",

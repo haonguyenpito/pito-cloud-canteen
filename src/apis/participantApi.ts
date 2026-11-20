@@ -1,4 +1,5 @@
 import type { VoucherInfo } from '@pages/api/participants/events/voucher/receive.api';
+import type { TRecommendedMemberOrders } from '@pages/api/participants/plans/recommend-food-for-sub-orders.api';
 import type { POSTParticipantRating } from '@pages/api/participants/ratings/index.api';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
 import type { TUpdateParticipantOrderBody } from '@src/types/order';
@@ -23,7 +24,7 @@ export const updateFirstTimeViewOrderApi = (orderId: string) =>
   putApi(`/participants/orders/${orderId}/update-first-time-view-order`);
 
 export const recommendFoodForSubOrdersApi = (body: {
-  mappedRecommendFoodToOrderDetail: any;
+  recommendedMemberOrders: TRecommendedMemberOrders;
 }) => putApi('/participants/plans/recommend-food-for-sub-orders', body);
 
 export type TFetchOrdersApiParams = {
@@ -41,13 +42,13 @@ export const receiveVoucherApi = () =>
  * Place order for participant
  * @param orderId - order id
  * @param body - body
- * @returns { orderMemberDocumentId: string } - document id
+ * @returns { jobId, submissionId } - follow the job via its Firestore status
  */
 export const placeOrderApi = (
   orderId: string,
   body: TUpdateParticipantOrderBody,
 ) =>
-  postApi<ApiResponse<{ orderMemberDocumentId: string }>>(
+  postApi<ApiResponse<{ jobId: string; submissionId: string }>>(
     `/participants/orders/${orderId}/place-order`,
     body,
   );

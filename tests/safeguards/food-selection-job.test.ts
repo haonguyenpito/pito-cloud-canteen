@@ -81,6 +81,10 @@ jest.mock('@services/integrationHelper', () => ({
   fetchListing: jest.fn(),
 }));
 
+jest.mock('@helpers/orderJobStatus', () => ({
+  setOrderJobStatus: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('@services/sdk', () => ({
   getIntegrationSdk: jest.fn(),
 }));
@@ -427,6 +431,8 @@ describe('worker job processor', () => {
       .mockReset()
       .mockResolvedValueOnce(makeOrderListing([], []))
       .mockResolvedValueOnce(makePlanListing())
+      // The anonymous update re-reads the order under the lock.
+      .mockResolvedValueOnce(makeOrderListing([], []))
       .mockResolvedValue(makePlanListing());
 
     await runProcessor();

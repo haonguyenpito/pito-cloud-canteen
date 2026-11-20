@@ -129,6 +129,8 @@ const OrderEventCardPopup: React.FC<TOrderEventCardPopupProps> = ({
           isFoodPicked={!!event.resource?.dishSelection?.dishSelection}
           status={status}
           lastTransition={lastTransition}
+          planId={planId}
+          subOrderDate={timestamp}
         />
       </div>
       <div className={css.mealType}>
