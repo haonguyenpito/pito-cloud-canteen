@@ -151,7 +151,30 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
       );
     }
 
-    await dispatch(orderManagementThunks.addOrUpdateMemberOrder(updateValues));
+    // Send only what the editor changed: the table may predate the member's
+    // own latest pick, and unchanged fields must not overwrite it.
+    const { foodData = {} } = currentMemberOrderData;
+    const isChanged = (key: string, value?: string) =>
+      (value || '') !== (foodData[key] || '');
+    await dispatch(
+      orderManagementThunks.addOrUpdateMemberOrder({
+        memberId: memberData?.id,
+        currentViewDate,
+        memberEmail: memberData?.email,
+        isAdminFlow,
+        ...((isChanged('foodId', foodId) ||
+          isChanged('secondaryFoodId', secondaryFoodId)) && {
+          foodId,
+          secondaryFoodId: secondaryFoodId || '',
+        }),
+        ...(isChanged('requirement', requirement) && {
+          requirement: requirement || '',
+        }),
+        ...(isChanged('secondaryRequirement', secondaryRequirement) && {
+          secondaryRequirement: secondaryRequirement || '',
+        }),
+      }),
+    );
     setIsEditSelectionModalOpen(false);
   };
 
