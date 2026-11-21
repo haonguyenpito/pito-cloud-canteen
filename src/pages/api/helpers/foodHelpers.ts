@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/no-loop-func */
+/* eslint-disable @typescript-eslint/no-loop-func, no-loop-func */
 /* eslint-disable no-await-in-loop */
+// pub_* are Sharetribe query parameter names.
+/* eslint-disable camelcase */
 import { mapLimit } from 'async';
 import { chunk, flatten, uniq } from 'lodash';
 
@@ -67,6 +69,47 @@ export const buildFoodFilterQuery = (
         }
       : {}),
   };
+};
+
+/**
+ * `foodsByDate` with the price and title of every updated dish taken from its
+ * listing, or null when no entry changed.
+ */
+export const syncFoodsByDate = (
+  foodsByDate: Record<string, Record<string, any>> | undefined,
+  updatedFoodList: TFoodList,
+) => {
+  if (!foodsByDate) return null;
+  let changed = false;
+  const synced = Object.fromEntries(
+    Object.entries(foodsByDate).map(([day, dayFoods]) => [
+      day,
+      Object.fromEntries(
+        Object.entries(dayFoods || {}).map(([foodId, food]) => {
+          const updatedFood = updatedFoodList[foodId];
+          if (
+            !updatedFood ||
+            (food?.price === updatedFood.foodPrice &&
+              food?.title === updatedFood.foodName)
+          ) {
+            return [foodId, food];
+          }
+          changed = true;
+
+          return [
+            foodId,
+            {
+              ...food,
+              price: updatedFood.foodPrice,
+              title: updatedFood.foodName,
+            },
+          ];
+        }),
+      ),
+    ]),
+  );
+
+  return changed ? synced : null;
 };
 
 export const fetchListingsByChunkedIds = async (ids: string[], sdk: any) => {
@@ -548,7 +591,7 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
       dayFoods.map((food: TIntegrationListing) => [food.id.uuid, food]),
     );
 
-    const updateMap: Record<string, any> = menuDays.reduce(
+    const dayUpdateMap: Record<string, any> = menuDays.reduce(
       (result: any, { menu, day, foodIdList }) => {
         const foods = foodIdList
           .map((foodId) => dayFoodById.get(foodId))
@@ -603,6 +646,30 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
         };
       },
       {},
+    );
+
+    // Menus keep a per-day copy of every dish (`foodsByDate`). Its price feeds
+    // the booker restaurant search and is what the next menu save recomputes
+    // `<day>MinFoodPrice` from, so it must follow the food listing.
+    const updateMap: Record<string, any> = menus.reduce(
+      (result: Record<string, any>, menu: TIntegrationListing) => {
+        const menuId = menu.id.uuid;
+        const { foodsByDate } = IntegrationListing(menu).getPublicData();
+        const syncedFoodsByDate = syncFoodsByDate(foodsByDate, updatedFoodList);
+        if (!syncedFoodsByDate) return result;
+
+        return {
+          ...result,
+          [menuId]: {
+            ...result[menuId],
+            publicData: {
+              ...(result[menuId]?.publicData || {}),
+              foodsByDate: syncedFoodsByDate,
+            },
+          },
+        };
+      },
+      dayUpdateMap,
     );
 
     const plans = await queryAllListings({
