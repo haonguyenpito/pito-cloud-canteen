@@ -17,7 +17,7 @@ type TEditOrderRowModalProps = {
   isOpen: boolean;
   onClose: () => void;
   foodOptions: any[];
-  onSubmit: (values: TEditOrderRowFormValues) => void;
+  onSubmit: (values: TEditOrderRowFormValues) => void | Promise<unknown>;
   currentMemberOrderData?: TObject;
   packagePerMember: number;
 };
@@ -67,7 +67,10 @@ const EditOrderRowModal: React.FC<TEditOrderRowModalProps> = (props) => {
       values.secondaryFoodId = '';
       values.secondaryRequirement = '';
     }
-    onSubmit(values);
+
+    // Returned so the form stays `submitting` (button spinner, submit
+    // disabled) until the save, which may wait for the plan lock, is done.
+    return onSubmit(values);
   };
 
   const modalTitle = intl.formatMessage({

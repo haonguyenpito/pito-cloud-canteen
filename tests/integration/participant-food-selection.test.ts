@@ -2,8 +2,8 @@
  * PARTICIPANT FOOD SELECTION — INTEGRATION SMOKE TESTS
  *
  * Covers the POST case of the participant orders API handler, which enqueues
- * a BullMQ job for food selection processing. The key concern is that
- * addToProcessOrderQueue receives the correct payload (including the resolved
+ * the pick for processOrder.job. The key concern is that
+ * enqueueParticipantOrder receives the correct payload (including the resolved
  * currentUserId) and that the response echoes the resulting job ID.
  *
  * Source file: src/pages/api/participants/orders/[orderId]/index.api.ts
@@ -15,13 +15,14 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+import { getParticipantPickClosedReason } from '@helpers/orderHelper';
 import handler from '@pages/api/participants/orders/[orderId]/index.api';
-import { addToProcessOrderQueue } from '@services/jobs/processOrder.job';
+import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
 import { getSdk, handleError } from '@services/sdk';
 import { CurrentUser, denormalisedResponseEntities } from '@utils/data';
 
 jest.mock('@services/jobs/processOrder.job', () => ({
-  addToProcessOrderQueue: jest.fn(),
+  enqueueParticipantOrder: jest.fn(),
 }));
 
 jest.mock('@services/sdk', () => ({
@@ -54,9 +55,13 @@ jest.mock('@utils/data', () => ({
   Listing: jest.fn(),
 }));
 
+jest.mock('@helpers/orderHelper', () => ({
+  getParticipantPickClosedReason: jest.fn(),
+}));
+
 // ── Typed aliases ──────────────────────────────────────────────────────────────
 
-const mockAddToProcessOrderQueue = addToProcessOrderQueue as jest.Mock;
+const mockEnqueueParticipantOrder = enqueueParticipantOrder as jest.Mock;
 const mockGetSdk = getSdk as jest.Mock;
 const mockHandleError = handleError as jest.Mock;
 const mockDenormalisedResponseEntities =
@@ -104,10 +109,16 @@ describe('POST /api/participants/orders/[orderId]', () => {
     mockCurrentUser.mockReturnValue({
       getId: () => 'user-123',
     });
+
+    // Order open for picking unless a test says otherwise.
+    (getParticipantPickClosedReason as jest.Mock).mockReturnValue(null);
   });
 
-  it('enqueues a BullMQ job with correct payload', async () => {
-    mockAddToProcessOrderQueue.mockResolvedValue({ id: 'job-123' });
+  it('queues the pick with the resolved currentUserId', async () => {
+    mockEnqueueParticipantOrder.mockResolvedValue({
+      jobId: 'job-123',
+      submissionId: 'sub-123',
+    });
 
     const req = makeReq(
       { orderId: 'order-abc' },
@@ -123,7 +134,7 @@ describe('POST /api/participants/orders/[orderId]', () => {
 
     await handler(req, res as NextApiResponse);
 
-    expect(mockAddToProcessOrderQueue).toHaveBeenCalledWith(
+    expect(mockEnqueueParticipantOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         orderId: 'order-abc',
         planId: 'plan-xyz',
@@ -132,8 +143,11 @@ describe('POST /api/participants/orders/[orderId]', () => {
     );
   });
 
-  it('responds with jobId from the queue', async () => {
-    mockAddToProcessOrderQueue.mockResolvedValue({ id: 'job-123' });
+  it('responds with the jobId and submissionId the UI waits on', async () => {
+    mockEnqueueParticipantOrder.mockResolvedValue({
+      jobId: 'job-123',
+      submissionId: 'sub-123',
+    });
 
     const req = makeReq(
       { orderId: 'order-abc' },
@@ -152,11 +166,12 @@ describe('POST /api/participants/orders/[orderId]', () => {
     expect(res.json).toHaveBeenCalledWith({
       message: 'Job queued',
       jobId: 'job-123',
+      submissionId: 'sub-123',
     });
   });
 
-  it('calls handleError when addToProcessOrderQueue throws', async () => {
-    mockAddToProcessOrderQueue.mockRejectedValue(new Error('queue full'));
+  it('calls handleError when enqueueParticipantOrder throws', async () => {
+    mockEnqueueParticipantOrder.mockRejectedValue(new Error('queue full'));
 
     const req = makeReq(
       { orderId: 'order-abc' },
@@ -173,5 +188,24 @@ describe('POST /api/participants/orders/[orderId]', () => {
     await handler(req, res as NextApiResponse);
 
     expect(mockHandleError).toHaveBeenCalledWith(res, expect.any(Error));
+  });
+
+  it('refuses with 400 and queues nothing once picking is closed', async () => {
+    (getParticipantPickClosedReason as jest.Mock).mockReturnValue(
+      'Food selection deadline has passed',
+    );
+    const req = makeReq(
+      { orderId: 'order-abc' },
+      { planId: 'plan-xyz', orderDays: [1], planData: {} },
+    );
+    const res = makeRes();
+
+    await handler(req, res as NextApiResponse);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Food selection deadline has passed',
+    });
+    expect(mockEnqueueParticipantOrder).not.toHaveBeenCalled();
   });
 });

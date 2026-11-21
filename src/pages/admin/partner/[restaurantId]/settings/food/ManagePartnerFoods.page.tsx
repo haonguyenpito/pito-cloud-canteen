@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop */
+// pub_* are Sharetribe query parameter names, mirrored in the URL.
+/* eslint-disable camelcase */
 import React, { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
 import { shallowEqual } from 'react-redux';
@@ -274,6 +276,7 @@ const ManagePartnerFoods = () => {
   const {
     restaurantId,
     page = 1,
+    perPage,
     keywords,
     pub_category = '',
     pub_foodType,
@@ -381,6 +384,7 @@ const ManagePartnerFoods = () => {
         ...values,
         pub_category: _pub_category?.join(','),
         restaurantId,
+        ...(perPage ? { perPage } : {}),
       },
     });
   };
@@ -409,6 +413,8 @@ const ManagePartnerFoods = () => {
     return dispatch(
       foodSliceThunks.queryFilteredPartnerFoods({
         restaurantId: restaurantId as string,
+        // The table's page-size picker puts it in the URL.
+        perPage: Number(perPage) || undefined,
         ...params,
       }),
     );
@@ -518,6 +524,7 @@ const ManagePartnerFoods = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
+    perPage,
     restaurantId,
     keywords,
     categoryString,

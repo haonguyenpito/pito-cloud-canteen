@@ -69,6 +69,7 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
   const [isEditSelectionModalOpen, setIsEditSelectionModalOpen] =
     useState(false);
   const [wannaDeleteMember, setWannaDeleteMember] = useState<TObject>({});
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
   const {
     value: isDeleteParticipantModalOpen,
     setFalse: turnOffDeleteParticipantModalOpen,
@@ -102,12 +103,11 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
     };
 
   const handleCancelDeleteOrderItem = () => {
+    if (isDeletingMember) return;
     turnOffDeleteParticipantModalOpen();
   };
 
-  const handleConfirmDeleteOrderItem = () => {
-    turnOffDeleteParticipantModalOpen();
-
+  const handleConfirmDeleteOrderItem = async () => {
     const updateValues = {
       memberId: wannaDeleteMember?.id,
       memberEmail: wannaDeleteMember?.email,
@@ -117,10 +117,20 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
     };
 
     if (isDraftEditing) {
+      turnOffDeleteParticipantModalOpen();
+
       return dispatch(OrderManagementsAction.draftDisallowMember(updateValues));
     }
 
-    dispatch(orderManagementThunks.disallowMember(updateValues));
+    // Kept open with a spinner until saved: the write may wait for the plan
+    // lock while participants are picking.
+    setIsDeletingMember(true);
+    try {
+      await dispatch(orderManagementThunks.disallowMember(updateValues));
+    } finally {
+      setIsDeletingMember(false);
+      turnOffDeleteParticipantModalOpen();
+    }
   };
 
   const handleCloseEditSelectionModal = () => {
@@ -193,7 +203,7 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
     await dispatch(
       orderManagementThunks.restoredDisAllowedMember({
         currentViewDate,
-        memberIds: members.map((member) => member.memberData?.id!),
+        memberIds: members.map((member) => member.memberData?.id as string),
       }),
     );
   };
@@ -248,9 +258,11 @@ const OrderDetailsTable: React.FC<TOrderDetailsTableProps> = (props) => {
       />
       <AlertConfirmDeleteParticipant
         isOpen={isDeleteParticipantModalOpen}
-        onClose={turnOffDeleteParticipantModalOpen}
+        onClose={handleCancelDeleteOrderItem}
         onCancel={handleCancelDeleteOrderItem}
         onConfirm={handleConfirmDeleteOrderItem}
+        confirmInProgress={isDeletingMember}
+        cancelDisabled={isDeletingMember}
       />
       {isEditSelectionModalOpen && (
         <EditOrderRowModal

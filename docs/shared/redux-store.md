@@ -34,6 +34,7 @@
 | `Order`             | `Order.slice.ts`             | Active order + plan + quotation                                                   |
 | `OrderManagement`   | `OrderManagement.slice.ts`   | Admin order list with filters                                                     |
 | `shoppingCart`      | `shoppingCart.slice.ts`      | Participant food cart: `{ [userId]: { [planId]: { [dayTimestamp]: CartItem } } }` |
+| `ParticipantOrderJob` | `ParticipantOrderJob.slice.ts` | Dates whose queued pick is in flight (`processingDaysByPlan`); `runParticipantOrderJob` submits and waits for the Firestore job status |
 | `Quiz`              | `Quiz.slice.ts`              | New order creation wizard multi-step state                                        |
 | `Notification`      | `notification.slice.ts`      | User notification feed                                                            |
 | `notificationPopup` | `notificationPopup.slice.ts` | In-app popup notification queue                                                   |

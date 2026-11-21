@@ -8,6 +8,7 @@ import css from './AlertConfirmDeleteParticipant.module.scss';
 type TAlertConfirmDeleteParticipantProps = {
   cancelDisabled?: boolean;
   confirmDisabled?: boolean;
+  confirmInProgress?: boolean;
   confirmText?: ReactNode;
   cancelText?: ReactNode;
   question?: ReactNode;
@@ -24,6 +25,7 @@ const AlertConfirmDeleteParticipant: React.FC<
   isOpen,
   title,
   confirmDisabled,
+  confirmInProgress,
   cancelDisabled,
   question,
   confirmText,
@@ -54,6 +56,7 @@ const AlertConfirmDeleteParticipant: React.FC<
       shouldFullScreenInMobile={false}
       cancelDisabled={cancelDisabled}
       confirmDisabled={confirmDisabled}
+      confirmInProgress={confirmInProgress}
       title={title || deleteParticipantPopupTitle}
       isOpen={isOpen}
       handleClose={onClose}

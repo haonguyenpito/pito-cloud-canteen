@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { calculatePaidAmountBySubOrderDate } from '@pages/admin/order/[orderId]/helpers/AdminOrderDetail';
 import cookies from '@services/cookie';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { queryPaymentRecordOnFirebase } from '@services/payment';
@@ -39,9 +40,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
     const planId = planIdFromBody || plans[0];
 
-    const plan = await fetchListing(planId);
-    const { orderDetail = {} } = Listing(plan).getMetadata();
-
     // get all client payment records
     const clientPaymentRecords = await queryPaymentRecordOnFirebase({
       paymentType: EPaymentType.CLIENT,
@@ -66,65 +64,81 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       'subOrderDate',
     );
 
-    const subOrderDatePaymentStatus = Object.keys(
-      groupPaymentRecordsBySubOrderDate,
-    ).reduce((result: any, subOrderDate: string) => {
-      if (isOrderDetailOnDateInActive(orderDetail[subOrderDate] || {})) {
-        return result;
-      }
-      const paymentRecords = groupPaymentRecordsBySubOrderDate[subOrderDate];
-      const totalPrice = paymentRecords?.[0]?.totalPrice || 0;
-      const paidAmount = calculatePaidAmountBySubOrderDate(paymentRecords);
+    // The payment records are read above, outside the lock; everything that
+    // reads orderDetail is computed from the plan re-read under it.
+    const { subOrderDatePaymentStatus, activeOrderDetail } = await withPlanLock(
+      planId,
+      async () => {
+        const plan = await fetchListing(planId);
+        const { orderDetail = {} } = Listing(plan).getMetadata();
 
-      return {
-        ...result,
-        [subOrderDate]: totalPrice - paidAmount === 0,
-      };
-    }, {});
+        const paymentStatusBySubOrderDate = Object.keys(
+          groupPaymentRecordsBySubOrderDate,
+        ).reduce((result: any, subOrderDate: string) => {
+          if (isOrderDetailOnDateInActive(orderDetail[subOrderDate] || {})) {
+            return result;
+          }
+          const paymentRecords =
+            groupPaymentRecordsBySubOrderDate[subOrderDate];
+          const totalPrice = paymentRecords?.[0]?.totalPrice || 0;
+          const paidAmount = calculatePaidAmountBySubOrderDate(paymentRecords);
 
-    const { newOrderDetail, activeOrderDetail } = Object.keys(
-      orderDetail,
-    ).reduce(
-      (result: any, subOrderDate: string) => {
-        const { isAdminPaymentConfirmed = false } =
-          orderDetail[subOrderDate] || {};
+          return {
+            ...result,
+            [subOrderDate]: totalPrice - paidAmount === 0,
+          };
+        }, {});
 
-        const isInActiveDate = isOrderDetailOnDateInActive(
-          orderDetail[subOrderDate],
+        const { newOrderDetail, activeOrderDetail: activeDetail } = Object.keys(
+          orderDetail,
+        ).reduce(
+          (result: any, subOrderDate: string) => {
+            const { isAdminPaymentConfirmed = false } =
+              orderDetail[subOrderDate] || {};
+
+            const isInActiveDate = isOrderDetailOnDateInActive(
+              orderDetail[subOrderDate],
+            );
+            const isPaid =
+              Boolean(paymentStatusBySubOrderDate[subOrderDate]) ||
+              isAdminPaymentConfirmed;
+
+            return {
+              newOrderDetail: {
+                ...result.newOrderDetail,
+                [subOrderDate]: {
+                  ...orderDetail[subOrderDate],
+                  isPaid,
+                },
+              },
+              activeOrderDetail: {
+                ...result.activeOrderDetail,
+                ...(!isInActiveDate && {
+                  [subOrderDate]: orderDetail[subOrderDate],
+                }),
+              },
+            };
+          },
+          {
+            newOrderDetail: {},
+            activeOrderDetail: {},
+          },
         );
-        const isPaid =
-          Boolean(subOrderDatePaymentStatus[subOrderDate]) ||
-          isAdminPaymentConfirmed;
+
+        // Update payment status for sub order date
+        await integrationSdk.listings.update({
+          id: planId,
+          metadata: {
+            orderDetail: newOrderDetail,
+          },
+        });
 
         return {
-          newOrderDetail: {
-            ...result.newOrderDetail,
-            [subOrderDate]: {
-              ...orderDetail[subOrderDate],
-              isPaid,
-            },
-          },
-          activeOrderDetail: {
-            ...result.activeOrderDetail,
-            ...(!isInActiveDate && {
-              [subOrderDate]: orderDetail[subOrderDate],
-            }),
-          },
+          subOrderDatePaymentStatus: paymentStatusBySubOrderDate,
+          activeOrderDetail: activeDetail,
         };
       },
-      {
-        newOrderDetail: {},
-        activeOrderDetail: {},
-      },
     );
-
-    // Update payment status for sub order date
-    await integrationSdk.listings.update({
-      id: planId,
-      metadata: {
-        orderDetail: newOrderDetail,
-      },
-    });
 
     const isPaymentNumberEqualToSubOrderDateNumber =
       Object.keys(activeOrderDetail).length ===

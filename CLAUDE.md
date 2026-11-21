@@ -54,7 +54,7 @@ When working in a role's source directory, the role-specific CLAUDE.md is auto-l
 @docs/shared/sensitive-areas.md
 
 Quick summary — never do these:
-- Bypass the BullMQ + Redis lock for **participant self-pick** writes to `plan.metadata.orderDetail` (admin/booker editing on someone's behalf via `PUT /api/orders/:orderId/member-order` does write directly — that path is intentional, but do not add new high-concurrency writers there)
+- Write `plan.metadata.orderDetail` outside the plan lock — participant picks via `enqueueParticipantOrder` (batched BullMQ job), every other writer via `withPlanLock`, merging into the plan read under the lock
 - Call `initiate-transaction` more than once per sub-order date
 - Expose `ENCRYPT_PASSWORD_SECRET_KEY` in logs or client code
 - Change VAT logic without verifying all 3 modes (`vat`, `noExportVat`, `direct`)
