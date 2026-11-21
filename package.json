@@ -20,6 +20,9 @@
     "prepare": "husky",
     "worker:updatePlan": "ts-node src/workers/updatePlanWorker.ts"
   },
+  "engines": {
+    "node": "24.x"
+  },
   "dependencies": {
     "@aws-sdk/client-ses": "3.723.0",
     "@hookform/resolvers": "^5.0.1",
