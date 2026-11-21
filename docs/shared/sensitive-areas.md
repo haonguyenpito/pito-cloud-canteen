@@ -116,22 +116,43 @@ All exported helpers (every one is load-bearing for billing):
 
 ## Category 3: Food Selection Persistence
 
-### BullMQ Job — Distributed Lock
+### Plan Lock — Every `orderDetail` Writer
 
 **Files:**
 
-- `src/services/jobs/processOrder.job.ts`
-- `src/services/jobs/processMemberOrder.job.ts`
+- `src/services/distributedLock.ts` — `DistributedLock` (Lua acquire/release, token-owned) and `withPlanLock(planId, criticalSection)`
+- `src/services/jobs/processOrder.job.ts` — batched participant writes
 
-**Risk:** The Redis Lua-script-based distributed lock (`lock:plan:{planId}`) serializes concurrent writes to `plan.metadata.orderDetail`. Removing or weakening this lock causes participant food selections to be silently overwritten. This is the "missing orders" problem monitored by the `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL` Slack channel.
+**Risk:** Sharetribe can only replace the whole `plan.metadata.orderDetail`, so every read-modify-write of it must run under `lock:plan:{planId}`. A writer outside the lock silently overwrites concurrent picks or rolls back server-owned fields (`transactionId`, `lastTransition`, `isPaid`, `isAdminPaymentConfirmed`). This is the "missing orders" problem monitored by the `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL` Slack channel.
+
+- API routes use `withPlanLock` around fetch → merge → update only (TTL 30 s; it throws after ~11 s of retries; nesting throws). Never await a job or another plan lock inside it.
+- Merge into the **fresh** plan read inside the lock; never write back a client copy (`patchSubOrders`, `keepServerOwnedSubOrderFields` in `src/helpers/order/orderDetailHelper.ts`).
+- The full list of writers is in `docs/roles/participant/food-selection.md` → "Admin / booker / partner / system writes". A new writer must be added there.
+- The external auto-pick Lambda (`PICK_FOOD_FOR_EMPTY_MEMBER_LAMBDA_ARN`) and the legacy `updateMemberOrders` Lambda write plans **without** the lock.
 
 ---
 
-### Food Selection API Entry Point
+### Participant Food Selection — Batched Job
+
+**Files:**
+
+- `src/pages/api/participants/orders/[orderId]/place-order.api.ts`, `src/pages/api/participants/orders/[orderId]/index.api.ts` (POST) — entry points
+- `src/services/jobs/processOrder.job.ts` — `enqueueParticipantOrder` + worker
+
+**Risk:** Participant picks wait in the Redis hash `pending:plan:{planId}` (field = `submissionId`, ordered by an `INCR` seq) and the lock holder writes all of them in one Sharetribe update. Never write `orderDetail` from the entry points. Keep these invariants:
+
+- A pick is removed from the hash (`HDEL`) only after the plan write that contains it succeeded.
+- Participant picks are refused once the order left `picking` or `deadlineDate` passed (`getParticipantPickClosedReason`): at the entry points (400) and again in the worker under the plan lock, so no pick lands in an order that already started. Booker/admin edits are not bound by this.
+- A retry writes only its own pick; a final failure reports `failed` only if its own `HDEL` returns 1.
+- Jobs keep carrying the pick plus `pending: true` (rolling-deploy compatibility with the pre-batching worker).
+
+---
+
+### Admin / Booker Member-Order Edit
 
 **File:** `src/pages/api/orders/[orderId]/member-order/index.api.ts`
 
-**Risk:** Must always route through BullMQ — never write directly to Sharetribe from this endpoint. The BullMQ job ID deduplication (`{orderId}-{planId}-{userId}`) ensures rapid successive submissions don't cause issues.
+**Risk:** Synchronous admin/booker edit of a member's pick under `withPlanLock`. Request values are **patches** merged into the member's fresh pick; the caller's copy may predate the participant's own latest pick.
 
 ---
 
@@ -207,7 +228,7 @@ All exported helpers (every one is load-bearing for billing):
 
 ## General Rules
 
-1. **Never write directly to `plan.metadata.orderDetail` from an API route** — always go through BullMQ + Redis lock.
+1. **Never write `plan.metadata.orderDetail` outside the plan lock** — participant picks go through `enqueueParticipantOrder` (BullMQ); every other writer wraps fetch → merge → update in `withPlanLock` and merges into the plan read under the lock.
 2. **Never call `initiate-transaction` more than once per sub-order date** — check if `transactionId` already exists before initiating.
 3. **Never expose `ENCRYPT_PASSWORD_SECRET_KEY`** in logs, errors, or client-side code.
 4. **Never change VAT calculation logic** without verifying all 3 VAT modes (`vat`, `noExportVat`, `direct`) still compute correctly.

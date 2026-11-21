@@ -2,169 +2,161 @@
 
 ## Overview
 
-During the `picking` phase, participants log in to choose their food for each delivery date. Because multiple participants can submit simultaneously, food selections go through a **BullMQ job queue with a Redis distributed lock** to prevent race conditions and data loss.
+During the `picking` phase, participants choose their food for each delivery date. Every pick ends up in `plan.metadata.orderDetail[timestamp].memberOrders[userId]`, and Sharetribe can only replace the whole `orderDetail` object, so **every writer of `orderDetail` must run under the Redis plan lock `lock:plan:{planId}`**.
+
+Participant picks are written **asynchronously and in batches**: the API stores the pick in a Redis hash and queues a BullMQ job; whichever job holds the plan lock writes _every_ pick waiting for that plan in one Sharetribe update. A burst of N simultaneous picks costs a few writes instead of N serialized ones.
+
+Admin/booker/partner/system writes are **synchronous**: the API route wraps its own read-merge-write in `withPlanLock`.
 
 ---
 
-## Flow Diagram
+## Participant flow
 
 ```mermaid
 sequenceDiagram
-    participant Browser as Browser (Participant)
-    participant Redux as Redux (shoppingCart.slice)
-    participant API as PUT /api/orders/:orderId/member-order
-    participant Queue as BullMQ Queue (processOrder)
-    participant Lock as Redis Lock
-    participant Sharetribe as Sharetribe (Plan Listing)
-    participant Slack
+    participant UI as Browser (ParticipantPlanPage)
+    participant API as POST /api/participants/orders/:orderId/place-order
+    participant Redis as Redis (pending:plan:{planId})
+    participant Queue as BullMQ processOrder
+    participant Lock as lock:plan:{planId}
+    participant ST as Sharetribe plan listing
+    participant FS as Firestore order_job_status
 
-    Browser->>Redux: User selects food item
-    Redux->>Redux: Update local shoppingCart state
-    Browser->>API: Submit food selection
-    API->>Queue: Add job { orderId, planId, userId, cartData }
-    Note over API: Job ID = "{orderId}-{planId}-{userId}"<br/>(deduplication: replaces existing job for same user)
-    Queue->>Lock: Acquire lock:plan:{planId} (TTL: 30s, maxRetries: 100)
-    Lock-->>Queue: Lock acquired
-    Queue->>Sharetribe: Read current plan.metadata.orderDetail
-    Queue->>Sharetribe: Update orderDetail[timestamp].memberOrders[userId] = { foodId, requirement }
-    Queue->>Lock: Release lock
-    Queue-->>API: Job complete
-    API-->>Browser: Success
-
-    alt Job fails after 3 retries
-        Queue->>Slack: Alert to SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL with diff data
-    end
+    UI->>API: Đặt món (cart for all days)
+    API->>FS: status=queued (submissionId)
+    API->>Redis: HSET pending pick {seq, ...pick}
+    API->>Queue: add job (jobId = submissionId)
+    API-->>UI: { jobId, submissionId }
+    UI->>FS: onSnapshot planId-userId, wait for this submissionId
+    Queue->>Redis: HEXISTS own pick? (no → already written, exit)
+    Queue->>Lock: acquire
+    Queue->>Redis: HGETALL pending picks (sorted by seq, ≤ 200)
+    Queue->>ST: read plan once, merge every pick, write once
+    Queue->>Redis: HDEL written picks
+    Queue->>Lock: release
+    Queue->>FS: status=completed for every submission in the batch
+    FS-->>UI: completed → success modal, cart unlocked
 ```
 
----
+### Entry points
 
-## Key Components
+| Endpoint                                                   | Used by                                                        |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `POST /api/participants/orders/[orderId]/place-order`      | Plan page "Đặt món" (validates the cart, incl. secondary food) |
+| `POST /api/participants/orders/[orderId]` (`index.api.ts`) | Calendar / sub-order edits (`updateParticipantOrderApi`)       |
 
-### 1. Client-Side — Redux `shoppingCart` Slice
+Both call `enqueueParticipantOrder` (`src/services/jobs/processOrder.job.ts`) and return at once with `{ jobId, submissionId }`. **Never write `orderDetail` from these routes.**
 
-**File:** `src/redux/slices/shoppingCart.slice.ts`
+Both first refuse with **400** when `getParticipantPickClosedReason(order)` (`src/helpers/orderHelper.ts`) returns a reason: the order is no longer `picking`, or `metadata.deadlineDate` has passed. This is the same rule the participant UI uses to disable picking. It binds participants only; booker/admin edits (`member-order`) are not checked.
 
-```typescript
-{
-  [userId]: {
-    [planId]: {
-      [dayId (timestamp)]: CartItem
-    }
-  }
-}
-```
+### Pending picks in Redis
 
-Updated optimistically as the user selects food. On submission, `updateMemberOrderApi` is called.
+| Key                     | Type   | Content                                                                                                                |
+| ----------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `pending:plan:{planId}` | hash   | field `submissionId` → JSON `{ seq, orderId, planId, currentUserId, orderDay?, memberOrders?, orderDays?, planData? }` |
+| `pending:seq:{planId}`  | string | `INCR` counter giving each pick its `seq`                                                                              |
 
-### 2. API Route
+- One field per **submission**, not per user: two clicks of one user can cover different days, and both must be applied.
+- Picks are applied in `seq` order, so a later pick of the same user wins on a shared day. `seq` comes from Redis, not a clock, because ECS tasks can disagree on the time.
+- Both keys expire after 24 h (refreshed on every pick).
 
-**File:** `src/pages/api/orders/[orderId]/member-order/index.api.ts`
+### Worker (`processOrder.job.ts`)
 
-- Validates the request
-- Enqueues a BullMQ job with `jobId = {orderId}-{planId}-{userId}`
-- The `jobId` deduplicates — if the user submits again before the previous job completes, the old job is replaced
+- Queue `processOrder`, concurrency 5 per process, 3 attempts with exponential backoff (2 s base), job `delay` 500 ms (also the window in which a burst gathers into one batch).
+- Job data carries `pending: true` plus the pick itself, so a pre-batching worker still alive during a rolling deploy writes it the old way. A job **without** `pending` was queued by such a worker; the new worker first moves its pick into the hash (`HSETNX`).
+- A job whose pick is no longer in the hash exits without taking the lock (another batch wrote it).
+- Inside the lock: `HGETALL` → sort by `seq` → read order + plan → `mergeParticipantOrder` per pick → one `listings.update` → `HDEL` the batch.
+- The order is re-checked with `getParticipantPickClosedReason` **under the lock**. `start-order` moves the order to `inProgress` before `initiate-transaction` takes the plan lock, so a batch that reaches the lock after the order started (or after the deadline) is refused whole: every pick `failed` with the reason, plan untouched, no Slack alert.
+- A pick whose merge throws is dropped from the batch and marked `failed` alone. Users who are neither `participants` nor `anonymous` are added to `order.metadata.anonymous` once per batch.
+- **Retry** (attempt ≥ 2) writes only the job's own pick, so a pick Sharetribe rejects cannot keep failing every batch it lands in.
+- **Final failure** (`worker.on('failed')`, last attempt): `HDEL` the job's own pick. `1` → the pick was never written: status `failed` + one Slack alert. `0` → another batch already wrote it: no failure reported.
+- After the lock is released: Firestore statuses, then `verifyOrderPersistence` for every written pick (Slack on mismatch).
 
-**Rule:** Never write directly to Sharetribe from this endpoint. Always route through BullMQ.
+Measured on `pito-dev` (local `next dev`, 1 worker): 51 participants clicking within the same second → **1** plan write (`written: 51`, 3.7 s), every user `completed` within 10 s, 250/250 picks persisted.
 
-### 3. BullMQ Queue
+### Participant UI
 
-**Queue name:** `processOrder`
-**Worker concurrency:** 5
-**Retry:** 3 attempts, exponential backoff (2s, 4s, 8s)
-**Stall threshold:** 30s; `maxStalledCount: 1`
-**Job retention:** Last 10 completed, last 5 failed
+- `runParticipantOrderJob` (`src/redux/slices/ParticipantOrderJob.slice.ts`) calls the API, then `waitForOrderJobStatus` (`src/helpers/orderJobStatus.ts`) listens on `order_job_status/{planId}-{userId}` for the submission's `completed`/`failed` (timeout 120 s). It returns `jobStatus: 'completed' | 'timeout'` and throws on `failed`.
+- Plan page (`ParticipantPlanPage.slice.ts → placeOrder`):
+  - `submitDataInprogress` is the single busy flag: the "Đặt món" button shows "Đang xử lý, vui lòng đợi" with a spinner, and "Xoá toàn bộ giỏ hàng", "Chọn giúp tôi", "Chọn giúp tôi cả tuần", "Bỏ chọn ngày này", the cart's change/remove icons and the dish cards are disabled.
+  - `completed`: the job wrote exactly this cart, so the loaded plan is patched locally (`applyOwnMemberOrders`) instead of reloading it. `timeout`: the outcome is unknown, so `reloadData` refetches the plan.
+  - The Firestore sub-order history documents (`participantSubOrderAddDocumentApi`, one per day) start after the job succeeded but are not awaited.
+- Calendar (`OrderEventCardStatus`) shows "Đang xử lý, vui lòng đợi" per date via `useIsSubOrderProcessing` while a pick for that date is in flight.
 
-Two near-identical job files:
-
-- `src/services/jobs/processOrder.job.ts` — original async (fire-and-forget)
-- `src/services/jobs/processMemberOrder.job.ts` — uses `QueueEvents.waitUntilFinished` for synchronous API response (newer, preferred)
-
-### 4. Redis Distributed Lock
-
-**Lock key:** `lock:plan:{planId}`
-**TTL:** 30 seconds
-**Max retries to acquire:** 100
-**Retry backoff:** Exponential — `1.5^attempt × 100ms`
-
-Implemented using **Redis Lua scripts** for atomicity:
-- **Acquire:** `SET key token PX ttl NX`
-- **Release:** Validates token before deleting (prevents removing another job's lock)
-
-**Why this lock is critical:** Sharetribe doesn't support atomic partial updates — you must read the full `plan.metadata.orderDetail` object, modify it, and write it back. Without the lock, two concurrent jobs silently overwrite each other.
-
-Lock is always released in `finally` block. If release fails, the 30s TTL auto-expires it.
-
-### 5. Post-Release Verification
-
-After lock release, the job re-fetches the plan and compares expected vs. actual data. A mismatch (another job overwrote) is captured in the diff.
-
-### 6. Failure Alerting
-
-Job failures after all retries send a Slack alert to `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL` with:
-- `orderId`, `planId`, `userId`
-- Food selection diff (expected vs. actual)
-- BullMQ queue metrics
-- Error details
-
-This is the "missing orders" problem — food picks accepted by the API but not persisted.
+The status doc is one per user per plan, keyed `planId-userId`. If a second submission overwrites it before the UI saw the first one's `completed`, the first waiter falls back to its 120 s timeout (data is still correct).
 
 ---
 
-## Participant Removal & orderDetail Cleanup
+## Admin / booker / partner / system writes
 
-When a participant is deleted from an order (`DELETE /api/orders/[orderId]/participant`), their food selections are removed from all dates using:
+`withPlanLock(planId, criticalSection)` (`src/services/distributedLock.ts`) takes the same `lock:plan:{planId}` (TTL 30 s, ~11 s of retries, then it throws). Keep the critical section to fetch + merge + update; never await a job or another plan lock inside it (nesting throws).
 
-**Utility:** `removeParticipantFromOrderDetail(orderDetail, participantId)` in `src/utils/order.ts`
+Writers using it:
 
-```typescript
-export type TOrderDetail = TPlan['orderDetail'];
+| File                                                                                                                                   | Write                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `api/orders/[orderId]/member-order/index.api.ts`                                                                                       | Admin/booker edits a member's pick (values are patches on the fresh pick)  |
+| `api/orders/[orderId]/participant/index.api.ts`                                                                                        | Add / remove participants                                                  |
+| `api/orders/[orderId]/plan/update.service.ts`                                                                                          | Plan edits (`patchSubOrders`: never takes `memberOrders` from the client)  |
+| `api/orders/[orderId]/update-order-detail-from-draft.api.ts`                                                                           | Admin order edit from draft                                                |
+| `api/helpers/foodHelpers.ts`                                                                                                           | Food list changes                                                          |
+| `api/orders/[orderId]/publish-order.service.ts`, `request-approval-order.api.ts`                                                       | Order lifecycle                                                            |
+| `api/orders/[orderId]/plan/[planId]/initiate-transaction.service.ts`                                                                   | `transactionId` per date                                                   |
+| `api/admin/plan/transit.api.ts`, `api/partner/[partnerId]/orders/[orderId]/transit.api.ts`                                             | `lastTransition`                                                           |
+| `api/admin/payment/confirm-partner-payment.api.ts`, `disapprove-partner-payment.api.ts`                                                | `isAdminPaymentConfirmed` (check + Firebase record + write under the lock) |
+| `api/admin/payment/transition-order-payment-status.api.ts`                                                                             | `isPaid` (payment records read before the lock)                            |
+| `api/webhook/onwheel/index.api.ts`                                                                                                     | `isOnWheelOrderCreated`, `trackingLink`, `lastTransition`                  |
+| `api/apiServices/company/addMembersToCompanyFn.service.ts`                                                                             | New company members added to open group orders                             |
+| `api/participants/orders/[orderId]/update-first-time-view-order.api.ts`, `api/participants/plans/recommend-food-for-sub-orders.api.ts` | Participant-side system writes                                             |
 
-export function removeParticipantFromOrderDetail(
-  orderDetail: TOrderDetail,
-  participantId: string,
-): TOrderDetail {
-  return Object.entries(orderDetail).reduce<TOrderDetail>((result, [date, dayDetail]) => {
-    const memberOrders = dayDetail.memberOrders ?? {};
-    return {
-      ...result,
-      [date]: { ...dayDetail, memberOrders: omit(memberOrders, participantId) },
-    };
-  }, {});
-}
-```
+Merge helpers (`src/helpers/order/orderDetailHelper.ts`):
 
-Flow:
-1. Fetch current plan listing from Sharetribe
-2. Call `removeParticipantFromOrderDetail(plan.metadata.orderDetail, participantId)`
-3. Write cleaned `orderDetail` back to plan listing
-
----
-
-## Auto-Pick Food Feature
-
-If `order.metadata.isAutoPickFood === true`, an AWS EventBridge scheduler fires at the food selection deadline:
-
-1. Lambda identifies participants with no selection
-2. Auto-picks the default food for each empty slot
-3. Updates `plan.metadata.orderDetail[timestamp].memberOrders[userId]` via Integration SDK
-
-**Lambda:** `PICK_FOOD_FOR_EMPTY_MEMBER_LAMBDA_ARN`
+- `keepServerOwnedSubOrderFields` — a client-built orderDetail never rolls back `transactionId`, `lastTransition`, `isPaid`, nor un-cancels a date.
+- `patchSubOrders` / `clearPicksOutsideFoodList` — a restaurant change clears only the fresh picks the new food list no longer offers.
+- `getPicksClearedByEdit` — lists those picks so the admin is warned before saving.
 
 ---
 
-## Data Storage
+## Failure alerting
+
+`PARTICIPANT_ORDER_PERSISTENCE_FAILED` → `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL`:
+
+- `failedAt: 'job-exception'` — a pick given up after the last attempt (one alert per pick).
+- `failedAt: 'merge-rejected'` — picks dropped from a batch because their merge threw.
+- `verify-after-release` mismatches from `verifyOrderPersistence`.
+
+This channel is the only observable signal for silent data loss — check it after any change to this flow.
+
+---
+
+## Participant removal & orderDetail cleanup
+
+When a participant is deleted from an order (`DELETE /api/orders/[orderId]/participant`), their picks are removed from all dates with `removeParticipantFromOrderDetail(orderDetail, participantId)` (`src/utils/order.ts`), under `withPlanLock`.
+
+---
+
+## Auto-pick food
+
+If `order.metadata.isAutoPickFood === true`, an AWS EventBridge scheduler fires at the selection deadline and the Lambda `PICK_FOOD_FOR_EMPTY_MEMBER_LAMBDA_ARN` picks food for empty slots via the Integration SDK. **It runs outside this repository and does not take the plan lock.**
+
+---
+
+## Data storage
 
 ```
 plan.metadata.orderDetail = {
-  "1711929600000": {              // Unix timestamp in ms (delivery date)
-    "restaurant": { id, name },
+  "1711929600000": {              // delivery date, ms
+    "restaurant": { id, restaurantName, foodList: { [foodId]: { foodName, foodPrice, numberOfMainDishes, ... } } },
     "memberOrders": {
       "userId-123": {
+        "status": "joined",       // joined | notJoined | empty
         "foodId": "food-listing-id",
-        "requirement": "No spicy"
+        "requirement": "No spicy",
+        "secondaryFoodId": "...", // companies in NEXT_PUBLIC_SECONDARY_FOOD_ALLOWED_COMPANIES
+        "secondaryRequirement": ""
       }
     },
-    "transactionId": null,        // filled in after start-order
+    "transactionId": null,        // set by initiate-transaction
     "lastTransition": null
   }
 }
@@ -172,10 +164,9 @@ plan.metadata.orderDetail = {
 
 ---
 
-## Known Issues / Watch Points
+## Known issues / watch points
 
-1. **`maxRetries: 100`** in the Redis lock — noted as potentially too high; reducing it risks failures under load, but it's intentional for now.
-
-2. **Two job files** — `processOrder.job.ts` and `processMemberOrder.job.ts` are nearly identical. Check which is actually wired in `member-order/index.api.ts` before modifying either.
-
-3. **Job deduplication timing** — BullMQ job ID deduplication only works for jobs not yet started. If two submissions race and the first is already running, both may execute. The Redis lock handles write serialization in this case.
+1. **Legacy Firestore path** — `NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME` is drained by the external `updateMemberOrders` Lambda, which writes plans **without** the lock. Nothing in this repo writes to it any more; `api/participants/plans/[planId]` still reads its `pending` docs. Retire the Lambda once the collection is empty.
+2. **`processMemberOrder.job.ts` is dead code** using the same queue name `processOrder`. Importing it would start a second worker competing for jobs. Delete it.
+3. **`place-order` latency** dominates under load (≈ 6.4 s p50 with 50 simultaneous requests on `next dev`): the route reads order and plan sequentially and makes several Upstash round-trips.
+4. **Sub-order history documents** are created in the background after success; closing the tab within ~2 s can skip them.

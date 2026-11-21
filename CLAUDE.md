@@ -43,7 +43,7 @@ When working in a role's source directory, the role-specific CLAUDE.md is auto-l
 - `docs/shared/notification-flow.md` — All 4 channels: Firebase, OneSignal, Slack, SES (full enum tables)
 - `docs/shared/transaction-flow.md` — Sharetribe transaction state machine (`sub-order-transaction-process/release-2`)
 - `docs/shared/services.md` — All external service integrations + Lambda ARN map
-- `docs/shared/redux-store.md` — All 54 Redux slices inventory
+- `docs/shared/redux-store.md` — All 55 Redux slices inventory
 - `docs/shared/sensitive-areas.md` — **Read before touching money, order state, auth, or food selection**
 
 ---
@@ -53,7 +53,7 @@ When working in a role's source directory, the role-specific CLAUDE.md is auto-l
 @docs/shared/sensitive-areas.md
 
 Quick summary — never do these:
-- Write directly to `plan.metadata.orderDetail` outside BullMQ + Redis lock
+- Write `plan.metadata.orderDetail` outside the plan lock — participant picks via `enqueueParticipantOrder` (batched BullMQ job), every other writer via `withPlanLock`, merging into the plan read under the lock
 - Call `initiate-transaction` more than once per sub-order date
 - Expose `ENCRYPT_PASSWORD_SECRET_KEY` in logs or client code
 - Change VAT logic without verifying all 3 modes (`vat`, `noExportVat`, `direct`)
