@@ -1,9 +1,30 @@
+import { toast } from 'react-toastify';
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import axios from 'axios';
 import type { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
 
 import cookies from '@services/cookie';
 import type { TObject } from '@utils/types';
+
+const SERVER_ERROR_TOAST_ID = 'api-server-error';
+
+// One toast for any failed call to our API that the screen may not report
+// itself: no response (network, timeout, gateway) or a 5xx. 4xx are business
+// errors the caller handles, so they are left alone.
+if (typeof window !== 'undefined') {
+  axios.interceptors.response.use(undefined, (error) => {
+    const { config, response } = error || {};
+    const isOwnApi = String(config?.url || '').includes('/api/');
+    const isServerError = !response || response.status >= 500;
+    if (isOwnApi && isServerError && !axios.isCancel(error)) {
+      toast.error('Hệ thống đang bận hoặc gặp sự cố. Vui lòng thử lại sau.', {
+        toastId: SERVER_ERROR_TOAST_ID,
+      });
+    }
+
+    return Promise.reject(error);
+  });
+}
 
 const inFlightRequests = new Map<string, Promise<any>>();
 

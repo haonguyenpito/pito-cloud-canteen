@@ -10,6 +10,10 @@ import { withPlanLock } from '@services/distributedLock';
 const store = new Map<string, string>();
 
 jest.mock('@services/redis', () => ({
+  // Lock and pending picks use their own fail-fast connection; same fake here.
+  get lockRedisConnection() {
+    return this.redisConnection;
+  },
   redisConnection: {
     eval: jest.fn(
       async (script: string, _keys: number, key: string, token: string) => {
