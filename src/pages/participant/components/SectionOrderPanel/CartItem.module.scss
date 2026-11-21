@@ -27,16 +27,6 @@
   flex-shrink: 0;
 }
 
-.processing {
-  @include textTemplate(12px, 500, 18px, '');
-  display: inline-block;
-  margin-bottom: 6px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: $neutralGray7;
-  background-color: $labelOrange1;
-}
-
 .iconClose {
   cursor: pointer;
   width: 12px;

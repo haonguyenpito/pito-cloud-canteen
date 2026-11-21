@@ -4,6 +4,7 @@ import classNames from 'classnames';
 
 import Button from '@components/Button/Button';
 import IconRefreshing from '@components/Icons/IconRefreshing/IconRefreshing';
+import { useAppSelector } from '@hooks/reduxHooks';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
 
 import CartItemList from './CartItemList';
@@ -28,6 +29,10 @@ const OrderPanelBody: React.FC<TOrderPanelBody> = ({
   handleRemoveItem,
   onAutoSelect,
 }) => {
+  const submitDataInprogress = useAppSelector(
+    (state) => state.ParticipantPlanPage.submitDataInprogress,
+  );
+
   return (
     <div
       className={classNames(css.sectionBody, {
@@ -35,6 +40,7 @@ const OrderPanelBody: React.FC<TOrderPanelBody> = ({
       })}>
       <Button
         variant="secondary"
+        disabled={submitDataInprogress}
         onClick={onAutoSelect}
         className={css.autoSelect}>
         <IconRefreshing className={css.iconRefresh} />
