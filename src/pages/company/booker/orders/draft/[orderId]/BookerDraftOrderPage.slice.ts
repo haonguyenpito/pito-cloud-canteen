@@ -12,6 +12,7 @@ import { setNonAccountEmails } from '@redux/slices/Order.slice';
 import { EOrderType } from '@src/utils/enums';
 import { denormalisedResponseEntities, Listing } from '@utils/data';
 import type { TListing, TObject, TUser } from '@utils/types';
+import { normalizeInviteEmailList } from '@utils/validators';
 
 // ================ Initial states ================ //
 type TBookerDraftOrderPageState = {
@@ -124,17 +125,20 @@ const addOrderParticipants = createAsyncThunk(
     },
     { dispatch },
   ) => {
+    const normalizedNonAccountEmails =
+      normalizeInviteEmailList(nonAccountEmails);
+
     const bodyParams = {
       orderId,
-      nonAccountEmails,
+      nonAccountEmails: normalizedNonAccountEmails,
       userIds: newUserIds,
     };
 
     await addParticipantToOrderApi(orderId, bodyParams);
 
-    dispatch(setNonAccountEmails(nonAccountEmails));
+    dispatch(setNonAccountEmails(normalizedNonAccountEmails));
 
-    return { newUsers, nonAccountEmails };
+    return { newUsers, nonAccountEmails: normalizedNonAccountEmails };
   },
 );
 

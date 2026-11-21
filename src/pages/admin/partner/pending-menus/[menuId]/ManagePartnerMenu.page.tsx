@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo } from 'react';
-import { FormattedMessage } from 'react-intl';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { shallowEqual } from 'react-redux';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import Button from '@components/Button/Button';
+import ConfirmationModal from '@components/ConfirmationModal/ConfirmationModal';
 import IconArrow from '@components/Icons/IconArrow/IconArrow';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
@@ -21,10 +22,14 @@ import {
 
 const ManagePartnerMenuPage = () => {
   const router = useRouter();
+  const intl = useIntl();
   const dispatch = useAppDispatch();
   const { menuId } = router.query;
 
   const [isRejectModalOpen, setIsRejectModalOpen] = React.useState(false);
+  // Approval freezes the menu's extra fees for good (there is no edit path
+  // afterwards), so the admin must acknowledge that before approving.
+  const [isApproveConfirmOpen, setIsApproveConfirmOpen] = React.useState(false);
 
   const {
     currentMenu,
@@ -60,6 +65,16 @@ const ManagePartnerMenuPage = () => {
     router.push(adminRoutes.ManagePartnersMenus.path);
   };
 
+  const handleOpenApproveConfirm = () => {
+    setIsApproveConfirmOpen(true);
+  };
+
+  const handleCloseApproveConfirm = () => {
+    if (approveMenuInProgress) return;
+
+    setIsApproveConfirmOpen(false);
+  };
+
   const handleApprove = async () => {
     if (!menuId) return;
 
@@ -75,6 +90,8 @@ const ManagePartnerMenuPage = () => {
     } catch (error) {
       const errorMessage = (error as Error).message;
       toast.error(errorMessage);
+    } finally {
+      setIsApproveConfirmOpen(false);
     }
   };
 
@@ -202,7 +219,7 @@ const ManagePartnerMenuPage = () => {
                 <FormattedMessage id="ManagePartnerMenuApproval.reject" />
               </Button>
               <Button
-                onClick={handleApprove}
+                onClick={handleOpenApproveConfirm}
                 inProgress={approveMenuInProgress}
                 disabled={rejectMenuInProgress}>
                 <FormattedMessage id="ManagePartnerMenuApproval.approve" />
@@ -211,6 +228,28 @@ const ManagePartnerMenuPage = () => {
           )}
         </div>
       </div>
+
+      {/* Approve Confirmation */}
+      <ConfirmationModal
+        id="ApproveMenuConfirmationModal"
+        isOpen={isApproveConfirmOpen}
+        onClose={handleCloseApproveConfirm}
+        onCancel={handleCloseApproveConfirm}
+        onConfirm={handleApprove}
+        isConfirmButtonLoading={approveMenuInProgress}
+        title={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approveConfirm.title',
+        })}
+        description={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approveConfirm.description',
+        })}
+        confirmText={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approveConfirm.confirm',
+        })}
+        cancelText={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approveConfirm.cancel',
+        })}
+      />
 
       {/* Reject Modal */}
       <RejectMenuModal

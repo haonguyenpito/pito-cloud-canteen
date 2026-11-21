@@ -9,16 +9,20 @@ After an order is published to `picking`, the lifecycle progresses through food 
 ## Order States (Full Reference)
 
 ```
-bookerDraft → pendingApproval → draft → picking → inProgress → pendingPayment → completed → reviewed
+                                  ┌── canceledByBooker (booker withdraws)
                                   │
-                                  ▼
-                          canceled / expiredStart / canceledByBooker
+bookerDraft  ──>  draft  ──>  pendingApproval  ──>  picking  ──>  inProgress  ──>  pendingPayment  ──>  completed  ──>  reviewed
+                                                       │
+                                                       └── canceled (admin) at any pre-inProgress state
+                                                       └── expiredStart (auto-start scheduler missed)
 ```
 
 Defined across 3 TypeScript enums in `src/utils/enums.ts`:
 - `EBookerOrderDraftStates` — `bookerDraft`
 - `EOrderDraftStates` — `draft`, `pendingApproval`
 - `EOrderStates` — `picking`, `inProgress`, `pendingPayment`, `completed`, `reviewed`, `canceled`, `canceledByBooker`, `expiredStart`
+
+The full transition map lives in `ORDER_STATE_TRANSIT_FLOW` (`src/utils/constants.ts`) — see `docs/roles/admin/order-management.md` for the canonical list.
 
 ---
 

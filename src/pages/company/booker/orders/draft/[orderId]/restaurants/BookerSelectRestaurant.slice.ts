@@ -97,6 +97,10 @@ type TOrderInitialState = {
   restaurantFood: {
     [restaurantId: string]: TListing[];
   };
+  /** Menu-scoped extra fees, keyed by the menu the food list was fetched from. */
+  menuFoodExtraFees: {
+    [menuId: string]: Record<string, number>;
+  };
   fetchRestaurantFoodInProgress: boolean;
   fetchRestaurantFoodError: any;
 
@@ -146,6 +150,7 @@ const initialState: TOrderInitialState = {
   fetchCompanyAccountError: null,
 
   restaurantFood: {},
+  menuFoodExtraFees: {},
   fetchRestaurantFoodInProgress: false,
   fetchRestaurantFoodError: null,
 
@@ -436,7 +441,7 @@ const fetchFoodListFromRestaurant = createAsyncThunk(
         (item: TObject) => item.restaurantId === restaurantId,
       )?.menuId;
 
-    const { data: foodList } = await fetchFoodListFromMenuApi({
+    const { data } = await fetchFoodListFromMenuApi({
       menuId,
       subOrderDate: timestamp,
       favoriteFoodIdList,
@@ -448,10 +453,14 @@ const fetchFoodListFromRestaurant = createAsyncThunk(
 
     const newRestaurantFood = {
       ...restaurantFood,
-      [restaurantId]: foodList,
+      [restaurantId]: data?.foodList || [],
     };
 
-    return newRestaurantFood;
+    return {
+      restaurantFood: newRestaurantFood,
+      menuId,
+      foodExtraFees: data?.foodExtraFees || {},
+    };
   },
 );
 
@@ -670,7 +679,11 @@ const BookerSelectRestaurantSlice = createSlice({
         state.fetchRestaurantFoodError = null;
       })
       .addCase(fetchFoodListFromRestaurant.fulfilled, (state, action) => {
-        state.restaurantFood = action.payload;
+        state.restaurantFood = action.payload.restaurantFood;
+        state.menuFoodExtraFees = {
+          ...state.menuFoodExtraFees,
+          [action.payload.menuId]: action.payload.foodExtraFees,
+        };
         state.fetchRestaurantFoodInProgress = false;
       })
       .addCase(fetchFoodListFromRestaurant.rejected, (state, { payload }) => {

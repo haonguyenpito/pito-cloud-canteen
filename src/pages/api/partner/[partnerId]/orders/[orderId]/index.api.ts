@@ -4,7 +4,9 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import { EHttpStatusCode } from '@apis/errors';
+import cookies from '@services/cookie';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
+import partnerChecker from '@services/permissionChecker/partner';
 import { getIntegrationSdk, handleError } from '@services/sdk';
 import { denormalisedResponseEntities, Listing } from '@src/utils/data';
 import { EOrderType } from '@src/utils/enums';
@@ -32,19 +34,22 @@ const fetchUsersByIds = async (sdk: any, ids: string[]) => {
 async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
     const { orderId, JSONParams } = req.query;
-    const { date } = JSON.parse(JSONParams as string);
+    const { date } = JSONParams ? JSON.parse(JSONParams as string) : {};
     const apiMethod = req.method;
+    const { date: dateFromBody } = req.body;
+    const subOrderDate = dateFromBody || date;
 
     const integrationSdk = getIntegrationSdk();
 
-    if (isEmpty(date) || isEmpty(orderId)) {
+    if (isEmpty(subOrderDate) || isEmpty(orderId)) {
       return res
         .status(EHttpStatusCode.BadRequest)
         .json({ error: 'Missing order date or order ID' });
     }
 
     switch (apiMethod) {
-      case HttpMethod.GET: {
+      case HttpMethod.GET:
+      case HttpMethod.POST: {
         const order = await fetchListing(orderId as string);
         const {
           plans = [],
@@ -108,7 +113,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       }
 
       default:
-        break;
+        return res
+          .status(EHttpStatusCode.MethodNotAllowed)
+          .json({ error: 'Method not allowed' });
     }
   } catch (error) {
     console.error(error);
@@ -116,4 +123,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   }
 }
 
-export default handler;
+export default cookies(partnerChecker(handler));

@@ -18,7 +18,7 @@ All exported helpers (every one is load-bearing for billing):
 | `calculateTotalPriceAndDishes`             | Sums `(foodPrice + foodExtraFee) × frequency` across `plan.orderDetail` — booker-side billing total                                                                                                                                              |
 | `calculatePCCFeeByDate`                    | Computes per-date PITO service fee. Precedence when `hasSpecificPCCFee=true`: (1) `specificPCCFeeTiers` range lookup → (2) legacy flat `specificPCCFee` → (3) 0. Default (`hasSpecificPCCFee=false`): `getPCCFeeByMemberAmount` hardcoded tiers. A tier/flat price of `0` is a valid, intentional override (charges nothing) — distinct from `hasSpecificPCCFee=false` (falls back to the hardcoded schedule). |
 | `calculatePriceQuotationInfoFromOrder`     | Full client-side total from order + plan (food + PCC fee + VAT)                                                                                                                                                                                  |
-| `calculatePriceQuotationPartner`           | Per-partner payout from the quotation listing — base food price only, never sees `extraFee`                                                                                                                                                      |
+| `calculatePriceQuotationPartner`           | Per-partner payout from the quotation listing — base food price only, never sees the extra fee                                                                                                                                                   |
 | `calculatePriceQuotationInfoFromQuotation` | Recomputes totals from a finalised quotation listing (used after quotation is locked)                                                                                                                                                            |
 
 **Risk:** Incorrect price calculation results in wrong payment amounts charged to companies or paid to restaurants. VAT logic has 3 modes (`vat`, `noExportVat`, `direct`) and PCC service fee overrides per company.
@@ -32,6 +32,27 @@ All exported helpers (every one is load-bearing for billing):
 | `specificPCCFee`      | `company.metadata`, `order.metadata` (snapshot) | Legacy flat fee (VND per day). Used as fallback when `specificPCCFeeTiers` is absent. Do not remove — existing order snapshots and not-yet-migrated companies depend on it. No longer settable via the admin UI (superseded by `specificPCCFeeTiers`); `updateCompany.service.ts` always writes it as `null` on every "Other Settings" tab save. |
 
 **Snapshot invariant:** both `specificPCCFeeTiers` and `specificPCCFee` are snapshotted into `order.metadata` at `start-order` time (see `start-order.service.ts:57-81`). Fee changes to a company **never retroactively affect started orders**.
+
+### Menu Extra Fee (phí phụ thu)
+
+**Storage:** `menu.publicData.foodExtraFees: Record<foodId, number>` — scoped to a **(menu, dish) pair**.
+
+**Risk:** A dish listing is shared across many menus (`food.publicData.menuIdList`). Reading or writing the fee on the dish reprices it in every menu serving that dish — silently overcharging or undercharging companies. This is why the fee moved to the menu.
+
+**Things to preserve:**
+
+- Read only through `getMenuExtraFeeMap` / `getMenuFoodExtraFee` (`src/helpers/menuExtraFee.ts`). Never read a fee from a food listing.
+- A fee of `0` is valid and means "no surcharge" — never use a truthiness check on it.
+- `updateMenuExtraFees.service.ts` is the only writer. It rejects menus that are not `draft` / `pendingApproval`: approval freezes the fee.
+- Its fan-out into draft-stage plans must stay scoped to `restaurant.menuId === menuId`. A plan spans several menus; an unscoped rewrite reintroduces the cross-menu bug.
+- The fan-out (`syncSubOrderExtraFees`) rewrites both snapshots: `restaurant.foodList[*].foodExtraFee` (group orders) and `lineItems[*].unitExtraFee` (normal orders). For dual-selection companies (`canAddSecondaryFood`) a multi-dish food gets **half** the fee, mirroring `adjustFoodListPrice`.
+- `<day>MinFoodPrice` on a menu is **fee-inclusive** (`getMinBillablePrice`): it drives the restaurant search budget filter `pub_<day>MinFoodPrice <= packagePerMember`, and the package is fee-inclusive. Every writer must pass the menu's fee map — `updateMenu`, `updateMenuExtraFees`, and the three recompute paths in `foodHelpers.ts`. Production backfill: `scripts/backfill-menu-min-food-price.js`.
+- Normal orders: `lineItems[*].unitPrice` / `price` are the partner's base amount; the surcharge is `unitExtraFee` (written by `buildLineItem` in `orderHelper.ts`). Never fold the fee into `unitPrice` — line items also feed the partner quotation.
+- Started orders are never re-priced — `plan.metadata.orderDetail[...].foodExtraFee` is the billed value.
+- `calculatePriceQuotationPartner` must never see the fee; partner payout is base price only.
+- The fee is client-only on every side of the ledger: client totals (`calculatePriceQuotationInfoFromOrder`, and the client flow of `calculatePriceQuotationInfoFromQuotation` used to rewrite the client payment record on sub-order cancel) include it; partner-facing totals (`isPartner`, the partner flow `date + partnerId`, or `includeExtraFee: false`) exclude it. Covered by `tests/safeguards/menu-extra-fee-billing-sides.test.ts`.
+
+---
 
 **Default schedule (never modify without a release):** `getPCCFeeByMemberAmount` in `src/helpers/orderHelper.ts` — hardcoded 8-tier step function. Not configurable via admin UI.
 
@@ -159,9 +180,13 @@ All exported helpers (every one is load-bearing for billing):
 
 - `order.ts` — `CompanyPermissions` role check for order operations
 - `admin.ts` — Admin-only endpoint guards
-- `company.ts` — Company portal guards
+- `company.ts` — Company portal guards (booker)
 - `partner.ts` — Partner portal guards
 - `participant.ts` — Participant portal guards
+- `validOrderParams.ts` — validates `orderId`/`planId` query params before downstream order endpoints
+- `external/onwheel.ts` — validates the `EXTERNAL_API_KEY_SALT`-hashed key for the OnWheel delivery integration (`/api/external/onwheel/*`)
+
+Composition: Most API handlers wrap multiple checkers via `composeApiCheckers(...)` from `@apis/configs`. Removing or reordering checkers can silently expose endpoints — always inspect the wrapper at the bottom of an API file before changing it.
 
 **Risk:** Removing or loosening permission checks exposes admin and financial operations to wrong user roles.
 

@@ -21,7 +21,9 @@
 
 ---
 
-## All Redux Slices (54 total)
+## All Redux Slices (~55 `*.slice.ts` files)
+
+> The exact count drifts — `find src/redux/slices src/pages -name "*.slice.ts" | wc -l` returns ≈55 as of the last audit. The categorised list below is curated, not auto-generated; new page-scoped slices may not appear here until the next sweep. Treat this as a navigation index, not a registry.
 
 ### Core Application Slices
 

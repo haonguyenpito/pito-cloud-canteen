@@ -3,6 +3,7 @@
 import compact from 'lodash/compact';
 import isEmpty from 'lodash/isEmpty';
 import toPairs from 'lodash/toPairs';
+import uniq from 'lodash/uniq';
 
 import { removeNonNumeric } from '@helpers/format';
 
@@ -114,6 +115,13 @@ export const autocompletePlaceSelected = (message: string) => (value: any) => {
 // Source: http://www.regular-expressions.info/email.html
 // See the link above for an explanation of the tradeoffs.
 export const EMAIL_RE = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+
+export const normalizeInviteEmail = (email: string) =>
+  email.trim().toLowerCase();
+
+export const normalizeInviteEmailList = (emails: string[]) =>
+  uniq(compact(emails.map(normalizeInviteEmail)));
+
 const PHONE_NUMBER_RE = /^(0[3|5|7|8|9])+([0-9]{8})$/;
 const PWD_RE =
   /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$ %^&*-]).{8,16}$/;

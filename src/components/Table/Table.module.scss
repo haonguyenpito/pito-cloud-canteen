@@ -71,6 +71,24 @@
       display: table-row-group;
     }
 
+    .expandedRow {
+      display: block;
+      width: 100%;
+      @include viewportLarge {
+        display: table-row;
+      }
+
+      .expandedCell {
+        display: block;
+        width: 100%;
+        padding: 0;
+        border-bottom: 1px solid $neutralGray3;
+        @include viewportLarge {
+          display: table-cell;
+        }
+      }
+    }
+
     .bodyRow {
       display: block;
       width: 100%;

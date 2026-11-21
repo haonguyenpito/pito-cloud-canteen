@@ -55,6 +55,14 @@ export const updatePartnerMenuApi = (id: string, body: TBodyParams) => {
   return putApi(`/admin/listings/menus/${id}`, body);
 };
 
+/** Menu-scoped extra fee (phí phụ thu) — never writes to food listings. */
+export const updateMenuExtraFeesApi = (
+  id: string,
+  body: { extraFees: Record<string, number>; mode?: 'replace' | 'merge' },
+) => {
+  return putApi(`/admin/listings/menus/${id}/extra-fee`, body);
+};
+
 export const deletePartnerMenuApi = (body: TBodyParams) => {
   return postApi(`/admin/listings/menus/delete`, body);
 };

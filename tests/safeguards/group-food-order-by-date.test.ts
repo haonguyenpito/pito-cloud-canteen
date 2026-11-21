@@ -175,6 +175,50 @@ describe('groupFoodOrderByDate', () => {
       expect(result[0].foodDataList).toHaveLength(2);
     });
 
+    it('carries unitExtraFee into foodDataList without touching base totals', () => {
+      const orderDetail = {
+        '1700000000000': {
+          restaurant: {
+            id: 'restaurant-1',
+            restaurantName: 'Test Restaurant',
+            foodList: {},
+          },
+          lineItems: [
+            {
+              id: 'food-1',
+              name: 'Cơm gà',
+              quantity: 2,
+              unitPrice: 50_000,
+              unitExtraFee: 15_000,
+              price: 100_000,
+            },
+            {
+              id: 'food-2',
+              name: 'Canh chua',
+              quantity: 3,
+              unitPrice: 20_000,
+              price: 60_000,
+            },
+          ],
+        },
+      };
+
+      const [result] = groupFoodOrderByDate({
+        orderDetail,
+        isGroupOrder: false,
+      });
+
+      // The fee travels as its own field, exactly like a group order's
+      // foodDataList, so the partner side can keep reading base `foodPrice`.
+      expect(result.foodDataList[0]).toMatchObject({
+        foodPrice: 50_000,
+        foodExtraFee: 15_000,
+        frequency: 2,
+      });
+      expect(result.foodDataList[1].foodExtraFee).toBe(0);
+      expect(result.totalPrice).toBe(160_000);
+    });
+
     it('skips a normal-order sub-order whose status is canceled', () => {
       const orderDetail = {
         '1700000000000': {

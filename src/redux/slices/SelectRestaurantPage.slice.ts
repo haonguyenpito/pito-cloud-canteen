@@ -20,6 +20,8 @@ type TSelectRestaurantPageSliceInitialState = {
 
   foodOfRestaurant: string | null;
   foodList: any[];
+  /** Menu-scoped extra fees for the menu the food list came from. */
+  foodExtraFees: Record<string, number>;
   fetchFoodPending: boolean;
   fetchFoodError: any;
 
@@ -35,6 +37,7 @@ const initialState: TSelectRestaurantPageSliceInitialState = {
   selectRestaurantPageError: null,
   foodOfRestaurant: null,
   foodList: [],
+  foodExtraFees: {},
   fetchFoodPending: false,
   fetchFoodError: null,
   selectedRestaurant: null,
@@ -154,13 +157,16 @@ const getRestaurants = createAsyncThunk(
 const getRestaurantFood = createAsyncThunk(
   QUERY_RESTAURANT_FOOD,
   async ({ menuId, subOrderDate, favoriteFoodIdList = [] }: any) => {
-    const { data: foodList } = await fetchFoodListFromMenuApi({
+    const { data } = await fetchFoodListFromMenuApi({
       menuId,
       subOrderDate,
       favoriteFoodIdList,
     });
 
-    return { foodList };
+    return {
+      foodList: data?.foodList || [],
+      foodExtraFees: data?.foodExtraFees || {},
+    };
   },
 );
 
@@ -219,15 +225,18 @@ const SelectRestaurantPageSlice = createSlice({
         state.fetchFoodPending = true;
         state.fetchFoodError = null;
         state.foodList = [];
+        state.foodExtraFees = {};
       })
       .addCase(getRestaurantFood.fulfilled, (state, { payload }) => {
         state.fetchFoodPending = false;
         state.foodList = payload.foodList;
+        state.foodExtraFees = payload.foodExtraFees;
       })
       .addCase(getRestaurantFood.rejected, (state, { error }) => {
         state.fetchFoodPending = false;
         state.fetchFoodError = error;
         state.foodList = [];
+        state.foodExtraFees = {};
       })
 
       .addCase(fetchSelectedRestaurant.pending, (state) => {

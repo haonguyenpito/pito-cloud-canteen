@@ -1,6 +1,7 @@
 import isEqual from 'lodash/isEqual';
 import uniq from 'lodash/uniq';
 
+import { sanitizeExtraFeeMap } from '@helpers/menuExtraFee';
 import {
   createFoodAveragePriceByDaysOfWeekField,
   createFoodByDateByDaysOfWeekField,
@@ -19,6 +20,53 @@ import { EListingStates, EMenuType } from '@src/utils/enums';
 import type { TObject, TUpdateMenuApiParams } from '@src/utils/types';
 
 import updateMenuIdListAndMenuWeekDayListForFood from './updateMenuIdListAndMenuWeekDayListForFood.service';
+
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+const collectMenuFoodIds = (foodIdListsByDay: TObject = {}): string[] =>
+  uniq(DAY_KEYS.flatMap((day) => foodIdListsByDay[`${day}FoodIdList`] || []));
+
+/**
+ * The menu-scoped extra fee is keyed by foodId. A fee may only survive a menu
+ * save for a dish that was in the menu BEFORE the save and is still in it
+ * AFTER. Anything else is an orphan:
+ *  - a dish removed by this save — its fee must not lie in wait;
+ *  - a dish (re-)added by this save — any fee already stored for it was left
+ *    over from an earlier removal, and must not silently come back. A newly
+ *    added dish always starts with no fee until an admin sets one.
+ *
+ * Returns `undefined` when nothing needs to change, so the save does not
+ * rewrite `foodExtraFees` needlessly.
+ */
+export const pruneExtraFeesOnMenuSave = ({
+  foodExtraFees,
+  previousFoodIds,
+  nextFoodIds,
+}: {
+  foodExtraFees?: TObject | null;
+  previousFoodIds: string[];
+  nextFoodIds: string[];
+}): TObject | undefined => {
+  if (!foodExtraFees) {
+    return undefined;
+  }
+
+  const previous = new Set(previousFoodIds);
+  const next = new Set(nextFoodIds);
+  const feeFoodIds = Object.keys(foodExtraFees);
+  const keptFoodIds = feeFoodIds.filter(
+    (foodId) => previous.has(foodId) && next.has(foodId),
+  );
+
+  if (keptFoodIds.length === feeFoodIds.length) {
+    return undefined;
+  }
+
+  return keptFoodIds.reduce<TObject>(
+    (result, foodId) => ({ ...result, [foodId]: foodExtraFees[foodId] }),
+    {},
+  );
+};
 
 const updateMenu = async (
   menuId: string,
@@ -63,6 +111,7 @@ const updateMenu = async (
     satMinFoodPrice: satMinFoodPriceFromMenu = 0,
     sunMinFoodPrice: sunMinFoodPriceFromMenu = 0,
     draftFoodByDate: currentDraftFoodByDate,
+    foodExtraFees: currentFoodExtraFees,
   } = IntegrationListing(menu).getPublicData();
 
   const isDaysOfWeekChanged = !isEqual(daysOfWeekFromMenu, daysOfWeek);
@@ -107,6 +156,26 @@ const updateMenu = async (
       : foodsByDate
       ? createListFoodIdsByFoodsByDate(foodsByDate)
       : {};
+  // Metadata updates merge top-level keys, so day lists absent from
+  // `listFoodIdsByDate` keep their current value.
+  const currentFoodIdListsByDay = {
+    monFoodIdList: monFoodIdListFromMenu,
+    tueFoodIdList: tueFoodIdListFromMenu,
+    wedFoodIdList: wedFoodIdListFromMenu,
+    thuFoodIdList: thuFoodIdListFromMenu,
+    friFoodIdList: friFoodIdListFromMenu,
+    satFoodIdList: satFoodIdListFromMenu,
+    sunFoodIdList: sunFoodIdListFromMenu,
+  };
+  const prunedFoodExtraFees = pruneExtraFeesOnMenuSave({
+    foodExtraFees: currentFoodExtraFees,
+    previousFoodIds: collectMenuFoodIds(currentFoodIdListsByDay),
+    nextFoodIds: collectMenuFoodIds({
+      ...currentFoodIdListsByDay,
+      ...listFoodIdsByDate,
+    }),
+  });
+
   const foodTypesByDayOfWeek = await createListFoodTypeByFoodIds(
     listFoodIdsByDate,
   );
@@ -188,7 +257,17 @@ const updateMenu = async (
               ),
             }
           : {}),
-        ...(foodsByDate ? { ...createMinPriceByDayOfWeek(foodsByDate) } : {}),
+        ...(foodsByDate
+          ? {
+              ...createMinPriceByDayOfWeek(
+                foodsByDate,
+                sanitizeExtraFeeMap(
+                  prunedFoodExtraFees ?? currentFoodExtraFees,
+                ),
+              ),
+            }
+          : {}),
+        ...(prunedFoodExtraFees ? { foodExtraFees: prunedFoodExtraFees } : {}),
       },
       metadata: {
         ...(menuType ? { menuType } : {}),

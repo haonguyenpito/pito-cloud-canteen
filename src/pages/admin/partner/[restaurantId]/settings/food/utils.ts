@@ -46,19 +46,30 @@ export type TEditPartnerFoodFormValues = {
   isDraft?: boolean;
 };
 
+/**
+ * Food listings created before the fee moved onto the menu still carry
+ * `publicData.extraFee`, and the edit form spreads that publicData into its
+ * initial values. Typing it here lets the serializers strip the key instead of
+ * letting it ride back into Sharetribe through `...rest`.
+ */
+type TLegacyExtraFee = { extraFee?: string | number };
+
 export const getSubmitFoodData = (values: TEditPartnerFoodFormValues) => {
   const {
     images,
     title,
     description,
     price,
+    // Legacy dish-level fee: pulled out of `...rest` so editing an old food
+    // listing cannot re-persist it. The fee now lives on the menu.
+    extraFee: _legacyExtraFee,
     addImages,
     tempValue,
     restaurantId,
     adminApproval,
     isDraft,
     ...rest
-  } = values;
+  } = values as TEditPartnerFoodFormValues & TLegacyExtraFee;
   const priceRemoveComma = price.toString().split('.');
   const mergeWithoutComma = priceRemoveComma.join('');
   const parsePrice = Number(mergeWithoutComma);
@@ -88,10 +99,13 @@ export const getUpdateFoodData = (values: TEditPartnerFoodFormValues) => {
     title,
     description,
     price,
+    // Legacy dish-level fee: pulled out of `...rest` so editing an old food
+    // listing cannot re-persist it. The fee now lives on the menu.
+    extraFee: _legacyExtraFee,
     addImages,
     tempValue,
     ...rest
-  } = values;
+  } = values as TEditPartnerFoodFormValues & TLegacyExtraFee;
 
   return {
     ...(id ? { id } : {}),
@@ -111,11 +125,14 @@ export const getDuplicateData = (values: TEditPartnerFoodFormValues) => {
     title,
     description,
     price,
+    // Legacy dish-level fee: pulled out of `...rest` so editing an old food
+    // listing cannot re-persist it. The fee now lives on the menu.
+    extraFee: _legacyExtraFee,
     addImages,
     tempValue,
     restaurantId,
     ...rest
-  } = values;
+  } = values as TEditPartnerFoodFormValues & TLegacyExtraFee;
 
   return {
     ...(images ? { images: images.filter((i: TImage) => !!i) } : {}),

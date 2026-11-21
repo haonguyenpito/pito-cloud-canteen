@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import RenderWhen from '@components/RenderWhen/RenderWhen';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
+import { addCommas } from '@helpers/format';
 import { useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useDualFoodSelection } from '@hooks/useDualFoodSelection';
@@ -32,6 +33,11 @@ type TListCardProps = {
     foodName?: string;
     timestamp: string;
   }) => void;
+  /**
+   * Menu-scoped extra fee for this dish, taken from the plan snapshot so the
+   * participant sees exactly what will be billed. Defaults to 0.
+   */
+  extraFee?: number;
 };
 
 const ListingCard: React.FC<TListCardProps> = ({
@@ -43,6 +49,7 @@ const ListingCard: React.FC<TListCardProps> = ({
   selectDisabled,
   isOrderAlreadyStarted,
   onAddedToCart,
+  extraFee = 0,
 }) => {
   const detailModalController = useBoolean();
   const isAllowAddSecondaryFood = useAppSelector(
@@ -54,12 +61,13 @@ const ListingCard: React.FC<TListCardProps> = ({
   const foodList = planData?.foodList || [];
 
   const mealId = listing?.id?.uuid;
-  const { title, description } = Listing(listing).getAttributes();
+  const { title, description, price } = Listing(listing).getAttributes();
   const {
     allergicIngredients = [],
     foodType,
     numberOfMainDishes,
   } = Listing(listing).getPublicData();
+  const displayPrice = (price?.amount || 0) + extraFee;
 
   const listingImages = Listing(listing).getImages() || [];
 
@@ -280,6 +288,9 @@ const ListingCard: React.FC<TListCardProps> = ({
               )}
             </div>
             <p className={css.description}>{description}</p>
+            {displayPrice > 0 && (
+              <p className={css.price}>{addCommas(displayPrice)} ₫ / phần</p>
+            )}
             <div className="flex items-center gap-2 mt-1">
               {isAllowAddSecondaryFood &&
                 dualFoodSelection.isFirstFoodSelected && (

@@ -128,7 +128,7 @@ const UpdateCompanyGroupFormComponent: React.FC<
             onRemoveMember={onRemoveMember}
             hideRemoveConfirmModal
             companyId={companyId}
-            hiddenColumnNames={['groupName']}
+            hiddenColumnNames={['groupName', 'allergy', 'nutritions']}
             canRemoveOwner
           />
           <InlineTextButton

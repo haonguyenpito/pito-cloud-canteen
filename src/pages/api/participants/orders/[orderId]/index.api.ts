@@ -43,6 +43,14 @@ const fetchSubOrder = async (orderDetail: any) => {
       [planKey]: {
         foodList: foodListData,
         restaurant: restaurantData,
+        // Menu-scoped fee, taken from the snapshot rather than the dish.
+        foodExtraFees: Object.entries(foodList).reduce<Record<string, number>>(
+          (result, [foodId, food]: [string, any]) => ({
+            ...result,
+            [foodId]: food?.foodExtraFee ?? 0,
+          }),
+          {},
+        ),
         transactionId,
       },
     };

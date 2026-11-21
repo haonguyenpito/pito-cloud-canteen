@@ -94,10 +94,18 @@ const groupFoodForNormal = (orderDetail: TObject, date?: number | string) => {
           name: foodName,
           quantity = 1,
           unitPrice: foodPrice = 0,
+          unitExtraFee: foodExtraFee = 0,
         } = lineItem;
         const { foodUnit = '' } = foodListOfDate[foodId] || {};
 
-        return { foodId, foodName, foodUnit, foodPrice, frequency: quantity };
+        return {
+          foodId,
+          foodName,
+          foodUnit,
+          foodPrice,
+          foodExtraFee,
+          frequency: quantity,
+        };
       });
 
       const summary = lineItems.reduce(
@@ -258,6 +266,10 @@ export const groupPickingOrderByFood = ({
           const participantName = buildFullName(firstName, lastName, {
             compareToGetLongerWith: displayName,
           });
+          const { allergies = [] } =
+            User(
+              (participantMaybe || anonymousUserMaybe) as TUser,
+            ).getPublicData() || {};
 
           // Helper function to add food to foodDataMap
           const addFoodToMap = (
@@ -277,6 +289,7 @@ export const groupPickingOrderByFood = ({
               note: foodRequirement,
               name: participantName,
               memberId,
+              allergies,
               ...(planId && {
                 barcode: generateScannerBarCode(planId, memberId, `${date}`),
               }),
@@ -413,6 +426,10 @@ export const groupPickingOrderByFoodLevels = ({
             const participantName = buildFullName(firstName, lastName, {
               compareToGetLongerWith: displayName,
             });
+            const { allergies = [] } =
+              User(
+                (participantMaybe || anonymousUserMaybe) as TUser,
+              ).getPublicData() || {};
 
             const addFoodToResult = (
               targetMap: TObject,
@@ -431,6 +448,7 @@ export const groupPickingOrderByFoodLevels = ({
                 note: foodRequirement,
                 name: participantName,
                 memberId,
+                allergies,
                 ...(planId && {
                   barcode: generateScannerBarCode(planId, memberId, `${date}`),
                 }),
@@ -538,6 +556,10 @@ export const groupPickingOrderByFoodLevels = ({
             const participantName = buildFullName(firstName, lastName, {
               compareToGetLongerWith: displayName,
             });
+            const { allergies = [] } =
+              User(
+                (participantMaybe || anonymousUserMaybe) as TUser,
+              ).getPublicData() || {};
 
             const addFoodToResult = (
               targetMap: TObject,
@@ -556,6 +578,7 @@ export const groupPickingOrderByFoodLevels = ({
                 note: foodRequirement,
                 name: participantName,
                 memberId,
+                allergies,
               };
 
               const updatedNotes = [...notes];

@@ -55,7 +55,7 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
 
   const orderDays = Object.keys(plan);
   const cartListKeys = Object.keys(cartList || []).filter(
-    (cartKey) => !!cartList[Number(cartKey)],
+    (cartKey) => !!cartList[Number(cartKey)]?.foodId,
   );
 
   const isOrderDeadlineOver = isOrderOverDeadline(order);
@@ -112,7 +112,7 @@ const SectionOrderPanel: React.FC<TSectionOrderPanelProps> = ({
   const handleConfirmDeleteAll = () => {
     dispatch(shoppingCartThunks.removeAllFromPlanCart({ planId }));
     setIsOpenConfirmDeleteAll(false);
-    dispatch(ParticipantPlanThunks.updateOrder({ orderId, planId }));
+    dispatch(ParticipantPlanThunks.placeOrder({ orderId, planId }));
   };
 
   const handleCloseConfirmDeleteAll = () => {

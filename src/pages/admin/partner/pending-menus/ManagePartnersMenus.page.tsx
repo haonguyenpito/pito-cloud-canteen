@@ -1,19 +1,31 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { shallowEqual } from 'react-redux';
+import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import Button from '@components/Button/Button';
+import IconArrow from '@components/Icons/IconArrow/IconArrow';
 import IconEye from '@components/Icons/IconEye/IconEye';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
-import type { TColumn } from '@components/Table/Table';
+import type { TColumn, TRowData } from '@components/Table/Table';
 import { TableForm } from '@components/Table/Table';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import type { MenuListing } from '@src/types';
 import { formatTimestamp } from '@utils/dates';
 import { EListingStates, EMenuMealType, EMenuType } from '@utils/enums';
+import { parsePrice } from '@utils/validators';
 
+import ApplyExtraFeeModal from './components/ApplyExtraFeeModal/ApplyExtraFeeModal';
+import MenuExtraFeePanel from './components/MenuExtraFeePanel/MenuExtraFeePanel';
+import {
+  applyFeeToFoods,
+  buildExtraFeeLabel,
+  buildExtraFeeRows,
+  hasUnsavedExtraFeeChanges,
+  toAmount,
+} from './components/MenuExtraFeePanel/utils';
 import { ManagePartnersMenusThunks } from './ManagePartnersMenus.slice';
 
 const getMealTypeLabel = (mealType: string) => {
@@ -36,7 +48,29 @@ const getMenuTypeLabel = (menuType: string) => {
   return labels[menuType] || menuType;
 };
 
+/** Menu states in which the fee may still be edited — mirrors the API guard. */
+const EDITABLE_MENU_STATES: string[] = [
+  EListingStates.draft,
+  EListingStates.pendingApproval,
+];
+
 const TABLE_COLUMNS: TColumn[] = [
+  {
+    key: 'expand',
+    label: '',
+    render: (data: any) => (
+      <button
+        type="button"
+        aria-label="Xem phụ phí theo món"
+        className="p-1 rounded hover:bg-gray-100 transition-colors"
+        onClick={() => data?.onToggleExpand(data?.id)}>
+        <IconArrow
+          direction={data?.isExpanded ? 'down' : 'right'}
+          className="w-4 h-4"
+        />
+      </button>
+    ),
+  },
   {
     key: 'order',
     label: 'STT',
@@ -125,6 +159,18 @@ const TABLE_COLUMNS: TColumn[] = [
     },
   },
   {
+    key: 'appliedExtraFee',
+    label: 'Phụ phí',
+    render: (data: any) =>
+      data?.appliedExtraFee ? (
+        <span className="text-amber-600 font-semibold text-sm whitespace-nowrap">
+          +{data.appliedExtraFee}
+        </span>
+      ) : (
+        <span className="text-gray-400 text-sm">—</span>
+      ),
+  },
+  {
     key: 'actions',
     label: '',
     render: (data: any) => (
@@ -142,7 +188,15 @@ const TABLE_COLUMNS: TColumn[] = [
 
 const parseMenusToTableData = (
   menus: (MenuListing & { restaurantName: string })[],
-  { onViewDetail }: { onViewDetail: (menuId: string) => void },
+  {
+    onViewDetail,
+    onToggleExpand,
+    expandedMenuId,
+  }: {
+    onViewDetail: (menuId: string) => void;
+    onToggleExpand: (menuId: string) => void;
+    expandedMenuId: string | null;
+  },
 ) => {
   return menus.map((menu, index) => {
     const menuId = menu?.id?.uuid || '';
@@ -168,7 +222,13 @@ const parseMenusToTableData = (
         startDate,
         endDate,
         status,
+        appliedExtraFee: buildExtraFeeLabel(
+          publicData?.foodExtraFees,
+          metadata as Record<string, unknown>,
+        ),
+        isExpanded: expandedMenuId === menuId,
         onViewDetail,
+        onToggleExpand,
       },
     };
   });
@@ -179,21 +239,27 @@ const ManagePartnersMenusPage = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  // Redux selectors
+  const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
+  const [isExtraFeeModalOpen, setIsExtraFeeModalOpen] = useState(false);
+  // Only one panel is open at a time, so at most one can hold unsaved edits.
+  const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
+  // Drafts live here (not in the panel) so collapsing does not discard them.
+  const [feeDrafts, setFeeDrafts] = useState<
+    Record<string, Record<string, string>>
+  >({});
+
   const {
     pendingMenus,
     pagination,
     fetchPendingMenusInProgress,
     fetchPendingMenusError,
+    applyExtraFeeInProgress,
+    saveMenuExtraFeesInProgress,
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
-  // Fetch pending menus on mount
   useEffect(() => {
     dispatch(
-      ManagePartnersMenusThunks.fetchPendingMenus({
-        page: 1,
-        perPage: 20,
-      }),
+      ManagePartnersMenusThunks.fetchPendingMenus({ page: 1, perPage: 20 }),
     );
   }, [dispatch]);
 
@@ -202,6 +268,8 @@ const ManagePartnersMenusPage = () => {
   };
 
   const handlePageChange = (page: number, pageSize?: number) => {
+    setExpandedMenuId(null);
+    setFeeDrafts({});
     dispatch(
       ManagePartnersMenusThunks.fetchPendingMenus({
         page,
@@ -209,8 +277,158 @@ const ManagePartnersMenusPage = () => {
       }),
     );
   };
+
+  const handleExposeValues = ({ values }: { values: any; valid: boolean }) => {
+    setSelectedMenuIds(values?.rowCheckbox || []);
+  };
+
+  const handleApplyExtraFee = async (extraFee: number) => {
+    await dispatch(
+      ManagePartnersMenusThunks.applyExtraFeeToMenus({
+        selectedMenuIds,
+        menus: pendingMenus,
+        extraFee,
+      }),
+    );
+    setIsExtraFeeModalOpen(false);
+    toast.success(
+      `Đã áp dụng phụ phí ${extraFee.toLocaleString('vi-VN')}đ cho ${
+        selectedMenuIds.length
+      } menu`,
+    );
+  };
+
+  const getMenuById = (menuId: string) =>
+    pendingMenus.find((menu) => menu.id?.uuid === menuId);
+
+  const getSavedExtraFees = (menuId: string) =>
+    getMenuById(menuId)?.attributes?.publicData?.foodExtraFees || {};
+
+  /** Seeds the draft from what is stored, so an untouched panel is not dirty. */
+  const getDraftForMenu = (menuId: string, rows: { foodId: string }[]) => {
+    if (feeDrafts[menuId]) {
+      return feeDrafts[menuId];
+    }
+
+    const saved = getSavedExtraFees(menuId);
+
+    return rows.reduce<Record<string, string>>((result, row) => {
+      const fee = saved[row.foodId];
+
+      return {
+        ...result,
+        [row.foodId]: fee ? parsePrice(String(fee)) : '',
+      };
+    }, {});
+  };
+
+  const handleToggleExpand = (menuId: string) => {
+    setExpandedMenuId((current) => (current === menuId ? null : menuId));
+  };
+
+  const handleFeeChange = (
+    menuId: string,
+    rows: { foodId: string }[],
+    foodId: string,
+    value: string,
+  ) => {
+    const current = getDraftForMenu(menuId, rows);
+
+    setFeeDrafts((drafts) => ({
+      ...drafts,
+      [menuId]: { ...current, [foodId]: value },
+    }));
+  };
+
+  /**
+   * One fee for the dishes ticked in the open panel, as a single state update.
+   * Nothing is written here — the values land in the draft and the admin still
+   * commits them with "Lưu phụ phí", which submits the complete map.
+   */
+  const handleApplySelectedFees = (
+    menuId: string,
+    rows: { foodId: string }[],
+    foodIds: string[],
+    value: string,
+  ) => {
+    setFeeDrafts((drafts) => ({
+      ...drafts,
+      [menuId]: applyFeeToFoods(
+        drafts[menuId] ?? getDraftForMenu(menuId, rows),
+        foodIds,
+        value,
+      ),
+    }));
+  };
+
+  const handleSaveMenuExtraFees = async (
+    menuId: string,
+    rows: { foodId: string }[],
+  ) => {
+    const draft = getDraftForMenu(menuId, rows);
+    const extraFees = rows.reduce<Record<string, number>>(
+      (result, row) => ({
+        ...result,
+        [row.foodId]: toAmount(draft[row.foodId] || ''),
+      }),
+      {},
+    );
+
+    try {
+      await dispatch(
+        ManagePartnersMenusThunks.saveMenuExtraFees({ menuId, extraFees }),
+      ).unwrap();
+
+      // The store now matches the draft; drop it so the panel reads from state.
+      setFeeDrafts((drafts) => {
+        const { [menuId]: _saved, ...rest } = drafts;
+
+        return rest;
+      });
+      toast.success('Đã lưu phụ phí cho menu');
+    } catch (error) {
+      toast.error((error as Error).message || 'Lưu phụ phí thất bại');
+    }
+  };
+
+  const renderExpandedContent = (row: TRowData) => {
+    const menuId = String(row.key);
+    const menu = getMenuById(menuId);
+
+    if (!menu) {
+      return null;
+    }
+
+    const rows = buildExtraFeeRows(menu.attributes?.publicData?.foodsByDate);
+    const draft = getDraftForMenu(menuId, rows);
+    const listingState = menu.attributes?.metadata?.listingState ?? '';
+
+    return (
+      <MenuExtraFeePanel
+        rows={rows}
+        draft={draft}
+        isDirty={hasUnsavedExtraFeeChanges(
+          draft,
+          getSavedExtraFees(menuId),
+          rows.map((item) => item.foodId),
+        )}
+        isEditable={EDITABLE_MENU_STATES.includes(listingState)}
+        inProgress={saveMenuExtraFeesInProgress}
+        onChange={(foodId, value) =>
+          handleFeeChange(menuId, rows, foodId, value)
+        }
+        onApplySelected={(foodIds, value) =>
+          handleApplySelectedFees(menuId, rows, foodIds, value)
+        }
+        onSave={() => handleSaveMenuExtraFees(menuId, rows)}
+      />
+    );
+  };
+
   const tableData = parseMenusToTableData(pendingMenus, {
     onViewDetail: handleViewDetail,
+    onToggleExpand: handleToggleExpand,
+    expandedMenuId,
   });
 
   const title = intl.formatMessage({
@@ -226,13 +444,35 @@ const ManagePartnersMenusPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
-          <span className="text-xl font-bold text-amber-600">
-            {pagination.totalItems}
-          </span>
-          <span className="text-gray-700">
-            <FormattedMessage id="ManagePartnersMenusApproval.pendingCount" />
-          </span>
+        <div className="flex items-center gap-3">
+          {selectedMenuIds.length > 0 && (
+            <Button
+              variant="primary"
+              className="flex items-center gap-2"
+              onClick={() => setIsExtraFeeModalOpen(true)}>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Thêm phụ phí ({selectedMenuIds.length})
+            </Button>
+          )}
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-lg">
+            <span className="text-xl font-bold text-amber-600">
+              {pagination.totalItems}
+            </span>
+            <span className="text-gray-700">
+              <FormattedMessage id="ManagePartnersMenusApproval.pendingCount" />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -253,6 +493,10 @@ const ManagePartnersMenusPage = () => {
             data={tableData}
             pagination={pagination}
             onCustomPageChange={handlePageChange}
+            hasCheckbox
+            exposeValues={handleExposeValues}
+            expandedRowKey={expandedMenuId}
+            renderExpandedContent={renderExpandedContent}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
@@ -279,6 +523,14 @@ const ManagePartnersMenusPage = () => {
           </div>
         )}
       </div>
+
+      <ApplyExtraFeeModal
+        isOpen={isExtraFeeModalOpen}
+        selectedCount={selectedMenuIds.length}
+        onClose={() => setIsExtraFeeModalOpen(false)}
+        onApply={handleApplyExtraFee}
+        isApplying={applyExtraFeeInProgress}
+      />
     </div>
   );
 };

@@ -29,6 +29,11 @@
  *                  Used when the partner cannot issue a VAT invoice.
  *   - direct:      No VAT: vatPercentage = 0. totalWithVAT = totalWithoutVAT.
  *
+ * WHY THE MENU SURCHARGE (foodExtraFee / unitExtraFee) IS CLIENT-ONLY:
+ *   - It is PITO's markup on top of the partner's base price. Client totals add
+ *     it; partner totals (isPartner / isPartnerFlow) must never include it,
+ *     neither in what the partner is paid nor in what the partner is shown.
+ *
  * SERVICE FEE vs PITOFee:
  *   - serviceFee: deducted from partner payment (percentage of totalPrice)
  *   - PITOFee (PCCFee): added to client invoice per delivery day (tiered by headcount)
@@ -37,6 +42,7 @@
 import isEmpty from 'lodash/isEmpty';
 import pick from 'lodash/pick';
 
+import { getLineItemExtraFeeTotal } from '@helpers/menuExtraFee';
 import {
   getFoodDataMap,
   getOrderParticipantNumber,
@@ -95,10 +101,13 @@ export const calculateTotalPriceAndDishes = ({
   orderDetail = {},
   isGroupOrder,
   date,
+  includeExtraFee = true,
 }: {
   orderDetail: TObject;
   isGroupOrder: boolean;
   date?: number | string;
+  /** false for partner-facing totals — see the contract at the top. */
+  includeExtraFee?: boolean;
 }) => {
   return isGroupOrder
     ? Object.entries<TObject>(orderDetail).reduce<TObject>(
@@ -124,7 +133,7 @@ export const calculateTotalPriceAndDishes = ({
 
           const foodDataMap = getFoodDataMap({ foodListOfDate, memberOrders });
           const foodDataList = Object.values(foodDataMap);
-          const totalInfo = getTotalInfo(foodDataList);
+          const totalInfo = getTotalInfo(foodDataList, { includeExtraFee });
           const totalParticipantOrdered =
             getOrderParticipantNumber(memberOrders);
 
@@ -170,7 +179,10 @@ export const calculateTotalPriceAndDishes = ({
               const { quantity = 1, price = 0 } = item || {};
 
               return {
-                totalPrice: res.totalPrice + price,
+                totalPrice:
+                  res.totalPrice +
+                  price +
+                  (includeExtraFee ? getLineItemExtraFeeTotal(item) : 0),
                 totalDishes: res.totalDishes + quantity,
                 totalParticipantOrdered: res.totalDishes + quantity,
               };
@@ -250,6 +262,7 @@ export const calculatePriceQuotationInfoFromOrder = ({
   specificPCCFeeTiers,
   isPartner = false,
   vatSetting = EPartnerVATSetting.vat,
+  includeExtraFee,
 }: {
   planOrderDetail: TObject;
   order: TObject;
@@ -262,6 +275,12 @@ export const calculatePriceQuotationInfoFromOrder = ({
   specificPCCFeeTiers?: TPccFeeTier[];
   isPartner?: boolean;
   vatSetting?: EPartnerVATSetting;
+  /**
+   * Whether the menu surcharge counts towards `totalPrice`. Defaults to
+   * `!isPartner`; set it explicitly for partner-facing callers that do not
+   * pass `isPartner` (it also switches VAT semantics).
+   */
+  includeExtraFee?: boolean;
 }) => {
   const {
     packagePerMember = 0,
@@ -314,6 +333,7 @@ export const calculatePriceQuotationInfoFromOrder = ({
     orderDetail: planOrderDetail,
     isGroupOrder,
     date,
+    includeExtraFee: includeExtraFee ?? !isPartner,
   });
 
   const PITOPoints = Math.floor(totalPrice / 100000);
@@ -468,11 +488,16 @@ export const calculatePriceQuotationInfoFromQuotation = ({
     (result: any, subOrder: any) => {
       const { subOrderTotalPrice, subOrderTotalDished } = subOrder.reduce(
         (subOrderResult: any, item: any) => {
-          const { foodPrice, frequency } = item;
+          const { foodPrice, foodExtraFee = 0, frequency } = item;
+          // The partner quotation is base price only; the surcharge is billed
+          // to the client alone.
+          const unitPrice = isPartnerFlow
+            ? foodPrice
+            : foodPrice + (Number(foodExtraFee) || 0);
 
           return {
             subOrderTotalPrice:
-              subOrderResult.subOrderTotalPrice + foodPrice * frequency,
+              subOrderResult.subOrderTotalPrice + unitPrice * frequency,
             subOrderTotalDished: subOrderResult.subOrderTotalDished + frequency,
           };
         },

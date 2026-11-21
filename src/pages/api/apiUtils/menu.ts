@@ -1,22 +1,30 @@
 import isEmpty from 'lodash/isEmpty';
 
+import { getMinBillablePrice } from '@helpers/menuExtraFee';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/sdk';
 import { getUniqueString, Listing } from '@src/utils/data';
 import type { EMenuMealType } from '@src/utils/enums';
 import type { TListing, TObject } from '@src/utils/types';
 
-export const createMinPriceByDayOfWeek = (foodsByDate: TObject = {}) => {
+/**
+ * `<day>MinFoodPrice` = the lowest fee-inclusive price of the day (see
+ * `getMinBillablePrice`). Pass the menu's extra fee map; without it the value
+ * is the base price, which is only correct for a menu with no surcharge.
+ */
+export const createMinPriceByDayOfWeek = (
+  foodsByDate: TObject = {},
+  extraFeeByFoodId: Record<string, number> = {},
+) => {
   let averagePriceByDayOfWeek = {};
   Object.keys(foodsByDate).forEach((keyAsDayOfWeek) => {
-    let minPriceByDate = 0;
-    Object.keys(foodsByDate[keyAsDayOfWeek]).forEach((foodId, index) => {
-      const { price = 0 } = foodsByDate[keyAsDayOfWeek][foodId] || {};
-      if (index === 0) minPriceByDate = price;
-      else {
-        minPriceByDate = price < minPriceByDate ? price : minPriceByDate;
-      }
-    });
+    const minPriceByDate = getMinBillablePrice(
+      Object.keys(foodsByDate[keyAsDayOfWeek]).map((foodId) => ({
+        foodId,
+        price: (foodsByDate[keyAsDayOfWeek][foodId] || {}).price,
+      })),
+      extraFeeByFoodId,
+    );
     averagePriceByDayOfWeek = {
       ...averagePriceByDayOfWeek,
       [`${keyAsDayOfWeek}MinFoodPrice`]: minPriceByDate || 0,

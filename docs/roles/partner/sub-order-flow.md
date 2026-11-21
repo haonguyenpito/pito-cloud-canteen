@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each delivery date within an order is a "sub-order" backed by a Sharetribe transaction. Although PITO admin drives all Sharetribe transitions (as operator), partners communicate their actions through the PITO portal — admin reads and triggers the corresponding transition on their behalf.
+Each delivery date within an order is a "sub-order" backed by a Sharetribe transaction. In `process.edn`, **every** post-initiation transition uses `actor: :actor.role/operator` — so PITO's server is always the Sharetribe actor. From the partner's perspective, however, two transitions (`partner-confirm-sub-order`, `partner-reject-sub-order`) are triggered from the **partner portal** itself; the partner portal calls a PITO-side endpoint which then performs the operator transition on Sharetribe.
 
 ---
 
@@ -11,28 +11,46 @@ Each delivery date within an order is a "sub-order" backed by a Sharetribe trans
 ```
 Sub-order assigned to partner (state: initiated)
     │
-    ├──► Partner confirms → admin triggers partner-confirm-sub-order
+    ├──► Partner clicks Confirm in portal
+    │         → PUT /api/partner/:partnerId/orders/:orderId/transit
+    │         → server runs partner-confirm-sub-order (operator)
     │         │
     │         ▼
     │    PARTNER_CONFIRMED
     │         │
-    │    Admin starts delivery → start-delivery
+    │    Admin clicks Start delivery
+    │         → PUT /api/admin/plan/transit (START_DELIVERY)
     │         │
     │         ▼
     │    DELIVERING
     │         │
-    │    Admin marks delivered → complete-delivery
+    │    Admin clicks Complete
+    │         → PUT /api/admin/plan/transit (COMPLETE_DELIVERY)
     │         │
     │         ▼
-    │    COMPLETED → (food rating prompt sent to participants)
+    │    COMPLETED → (food-rating scheduler created → notifications to participants)
     │
-    └──► Partner rejects → admin triggers partner-reject-sub-order
+    └──► Partner clicks Reject in portal
+              → PUT /api/partner/:partnerId/orders/:orderId/transit
+              → server runs partner-reject-sub-order (operator)
               │
               ▼
-         PARTNER_REJECTED → admin cancels → CANCELED
+         PARTNER_REJECTED
+              │
+         Admin clicks Cancel → PUT /api/admin/plan/transit (OPERATOR_CANCEL_AFTER_PARTNER_REJECTED)
+              │
+              ▼
+         CANCELED
 ```
 
-**All Sharetribe transitions are triggered by admin** via `POST /api/admin/plan/transit`. Partners cannot call Sharetribe transitions directly.
+**Two transit endpoints exist** (both ultimately call Sharetribe as operator):
+
+| Endpoint                                                      | Transitions handled                                                                                                                       |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /api/partner/:partnerId/orders/:orderId/transit`         | `PARTNER_CONFIRM_SUB_ORDER`, `PARTNER_REJECT_SUB_ORDER` — passed via `newTransition` body field                                            |
+| `PUT /api/admin/plan/transit`                                 | `START_DELIVERY`, `COMPLETE_DELIVERY`, `OPERATOR_CANCEL_PLAN`, `OPERATOR_CANCEL_AFTER_PARTNER_CONFIRMED`, `OPERATOR_CANCEL_AFTER_PARTNER_REJECTED` |
+
+Partners cannot bypass PITO's server — Sharetribe's `process.edn` rejects any non-operator actor on these transitions.
 
 ---
 

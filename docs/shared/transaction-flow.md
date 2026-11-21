@@ -28,7 +28,7 @@ Each delivery date (sub-order) within an order is backed by a **Sharetribe Flex 
         │           │               │                             │
 [operator-    [partner-reject-  [expired-start-                   │
 cancel-plan]  sub-order]        delivery]                         │
- (operator)   (operator)        (time-based)                      │
+ (operator)   (operator)        (operator)                        │
         │           │               │                             │
         ▼           ▼               ▼                             │
     CANCELED  PARTNER_REJECTED FAILED_DELIVERY                    │
@@ -57,7 +57,7 @@ confirmed]     ▼                                                   │
         ▼       ├──────────────────┐                              │
     CANCELED    │                  │                              │
          [complete-delivery]  [expired-delivery]                  │
-          (operator)          (time-based)                        │
+          (operator)          (operator)                          │
                 │              │                                   │
                 ▼              ▼          [cancel-delivery]       │
            COMPLETED    FAILED_DELIVERY   (operator)              │
@@ -74,6 +74,8 @@ restaurant] review-time]                                           │
                                   expire-time] (operator) ────────┘
 ```
 
+> **Note on "expired" transitions:** The names `expired-start-delivery` and `expired-delivery` are historical — both are operator-triggered in `process.edn` (no `:at` clause). Only `expired-review-time` has a Sharetribe-managed `:at` clause (fires automatically 14 days after `state/completed`).
+
 ---
 
 ## All Transitions
@@ -86,9 +88,9 @@ restaurant] review-time]                                           │
 | `operator-cancel-after-partner-rejected`  | operator              | `partner-rejected`  | `canceled`          | `decline-booking`                              |
 | `partner-confirm-sub-order`               | operator              | `initiated`         | `partner-confirmed` | `accept-booking`                               |
 | `operator-cancel-after-partner-confirmed` | operator              | `partner-confirmed` | `canceled`          | `cancel-booking`                               |
-| `expired-start-delivery`                  | time-based            | `initiated`         | `failed-delivery`   | —                                              |
+| `expired-start-delivery`                  | operator              | `initiated`         | `failed-delivery`   | —                                              |
 | `start-delivery`                          | operator              | `partner-confirmed` | `delivering`        | —                                              |
-| `expired-delivery`                        | time-based            | `delivering`        | `failed-delivery`   | `decline-booking`                              |
+| `expired-delivery`                        | operator              | `delivering`        | `failed-delivery`   | `decline-booking`                              |
 | `cancel-delivery`                         | operator              | `delivering`        | `failed-delivery`   | `cancel-booking`                               |
 | `complete-delivery`                       | operator              | `delivering`        | `completed`         | —                                              |
 | `review-restaurant`                       | operator              | `completed`         | `reviewed`          | `post-review-by-customer`, `publish-reviews`   |
@@ -140,15 +142,20 @@ PUT /api/orders/:orderId/plan/:planId/start-order
 
 ---
 
-## Transition Triggers (Admin Portal)
+## Transition Triggers — Three Entry Points
 
-Admin triggers sub-order transitions via:
+All Sharetribe transitions are issued by PITO's server (operator role); the only difference between entry points is **who calls PITO's server**.
 
-**API:** `POST /api/admin/plan/transit`
+| Caller            | API                                                              | File                                                                | Transitions handled                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Admin portal      | `PUT /api/admin/plan/transit`                                    | `src/pages/api/admin/plan/transit.api.ts`                           | `START_DELIVERY`, `COMPLETE_DELIVERY`, `OPERATOR_CANCEL_PLAN`, `OPERATOR_CANCEL_AFTER_PARTNER_CONFIRMED`, `OPERATOR_CANCEL_AFTER_PARTNER_REJECTED` |
+| Partner portal    | `PUT /api/partner/:partnerId/orders/:orderId/transit`            | `src/pages/api/partner/[partnerId]/orders/[orderId]/transit.api.ts` | `PARTNER_CONFIRM_SUB_ORDER`, `PARTNER_REJECT_SUB_ORDER` (passed via `newTransition` body field)                                            |
+| Booker (post-completion review) | (internal, via summarize-reviews service)              | `src/pages/api/participants/plans/summarize-reviews.service.ts`     | `REVIEW_RESTAURANT`, `REVIEW_RESTAURANT_AFTER_EXPIRE_TIME`                                                                                |
+| Initiate (only)   | `PUT /api/orders/:orderId/plan/:planId/start-order`              | `src/pages/api/orders/[orderId]/plan/[planId]/initiate-transaction.service.ts` | `INITIATE_TRANSACTION` (one per delivery date, via sub-account trusted SDK — privileged)                              |
 
-**File:** `src/pages/api/admin/plan/transit.api.ts`
+After admin's `transit.api.ts` runs `START_DELIVERY` or `COMPLETE_DELIVERY`, `transition-order-status.service.ts` is called to check if the overall order state should change (e.g., all sub-orders completed → move order to `pendingPayment`). The partner-side transit endpoint also writes `lastTransition` back to `plan.metadata.orderDetail` and triggers Slack notifications on confirm/reject.
 
-After each transition, `transition-order-status.service.ts` is called to check if the overall order state should change (e.g., all sub-orders completed → move order to `pendingPayment`).
+The external `/api/external/onwheel/sub-orders` endpoint is **read-only** — it queries transactions for a delivery window and never triggers transitions.
 
 ---
 

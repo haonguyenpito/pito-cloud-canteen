@@ -45,7 +45,7 @@ const adminChecker =
 | ---------------- | ------------------------------ | --------------------------------- |
 | Order management | `/admin/orders/*`              | View and drive all orders         |
 | Plan transit     | `/admin/plan/*`                | Sub-order state transitions       |
-| Partner menus    | `/admin/partner/pending-menus` | Approve/reject pending menus      |
+| Partner menus    | `/admin/partner/pending-menus` | Approve/reject pending menus; bulk-apply extra fee |
 | Client payments  | `/admin/payment-client/*`      | Confirm client payments           |
 | Partner payments | `/admin/payment-partner/*`     | Confirm partner payments          |
 | Personalization  | `/admin/pcc-personalization`   | Algolia participant segmentation  |
@@ -63,6 +63,30 @@ const adminChecker =
 | `PaymentPartner`            | `src/pages/admin/payment-partner/PaymentPartner.slice.ts`  | Partner payment confirmation             |
 | `AdminAttributes`           | `src/pages/admin/AdminAttributes.slice.ts`                 | Admin attribute management               |
 | `OrderManagement`           | `src/redux/slices/OrderManagement.slice.ts`                | Shared order list slice                  |
+
+---
+
+## Menu Extra Fee (phụ phí)
+
+Admin markup added on top of a partner's dish price. Invisible to partners, but
+included for booker, participant, and billing purposes.
+
+The fee is scoped to a **(menu, dish) pair**, not to a dish. A dish listing is
+shared by many menus, so the same dish can be 15,000đ in one menu and 20,000đ in
+another. It is never read from the food listing.
+
+- **Edit per dish:** `/admin/partner/pending-menus` → expand a menu row → "Phụ phí theo món"
+- **Bulk apply:** select pending menus → "Thêm phụ phí" → one fee for every dish in those menus
+- **When editable:** only while the menu is `draft` / `pendingApproval`. Approval freezes the map and the endpoint rejects further writes
+- **Visibility:** booker and participant see `base + fee`; partner sees base price only
+- **Billing:** company is billed at `base + fee`; partner is paid at base price
+- **Started orders:** unaffected — the `foodExtraFee` snapshot in `plan.metadata.orderDetail` wins. A fee change fans out only to `draft` / `pendingApproval` / `bookerDraft` orders, and only for dates served by that menu
+
+**Storage:** `menu.publicData.foodExtraFees: Record<foodId, number>` (VND). A value of `0` is valid and means "no surcharge".
+
+**Read path:** everything goes through `getMenuExtraFeeMap` / `getMenuFoodExtraFee` in `src/helpers/menuExtraFee.ts`.
+
+**Write path:** `PUT /api/admin/listings/menus/:menuId/extra-fee` → `src/pages/api/apiServices/menu/updateMenuExtraFees.service.ts`.
 
 ---
 

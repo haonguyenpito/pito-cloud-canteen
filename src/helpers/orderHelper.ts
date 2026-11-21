@@ -36,6 +36,7 @@ import {
   findMinDeadlineDate,
   findMinStartDate,
 } from './order/prepareDataHelper';
+import { getLineItemExtraFeeTotal } from './menuExtraFee';
 
 export const isCompletePickFood = ({
   participantId,
@@ -268,6 +269,7 @@ export const getFoodDataMap = ({
           const {
             foodName,
             foodPrice,
+            foodExtraFee,
             numberOfMainDishes,
             requirement = '',
           } = foodListOfDate[id] || {};
@@ -285,6 +287,7 @@ export const getFoodDataMap = ({
               foodId: id,
               foodName,
               foodPrice,
+              foodExtraFee: foodExtraFee || 0,
               numberOfMainDishes,
               notes,
               frequency: nextFrequency,
@@ -302,7 +305,7 @@ export const getFoodDataMap = ({
   }
 
   return lineItems.reduce((result: any, item: any) => {
-    const { id, name, quantity, unitPrice } = item;
+    const { id, name, quantity, unitPrice, unitExtraFee } = item;
 
     return {
       ...result,
@@ -310,25 +313,34 @@ export const getFoodDataMap = ({
         foodId: id,
         foodName: name,
         foodPrice: unitPrice,
+        foodExtraFee: unitExtraFee || 0,
         frequency: quantity,
       },
     };
   }, {} as TFoodDataMap) as TFoodDataMap;
 };
 
-export const getTotalInfo = (foodDataList: TFoodDataValue[]) => {
+/**
+ * `includeExtraFee` is false for partner-facing totals: the menu surcharge is
+ * PITO's markup and is never part of what the partner is shown or paid.
+ */
+export const getTotalInfo = (
+  foodDataList: TFoodDataValue[],
+  { includeExtraFee = true }: { includeExtraFee?: boolean } = {},
+) => {
   return foodDataList.reduce<{
     totalPrice: number;
     totalDishes: number;
   }>(
     (previousResult, current: TObject) => {
       const { totalPrice, totalDishes } = previousResult;
-      const { frequency, foodPrice } = current;
+      const { frequency, foodPrice, foodExtraFee = 0 } = current;
+      const billedExtraFee = includeExtraFee ? foodExtraFee : 0;
 
       return {
         ...previousResult,
         totalDishes: totalDishes + frequency,
-        totalPrice: totalPrice + foodPrice * frequency,
+        totalPrice: totalPrice + (foodPrice + billedExtraFee) * frequency,
       };
     },
     {
@@ -409,7 +421,7 @@ export const calculateSubOrderPrice = ({
       const { quantity = 1, price = 0 } = item || {};
 
       return {
-        totalPrice: res.totalPrice + price,
+        totalPrice: res.totalPrice + price + getLineItemExtraFeeTotal(item),
         totalDishes: res.totalDishes + quantity,
       };
     },
@@ -481,10 +493,16 @@ export const getSelectedRestaurantAndFoodList = ({
   foodList = [],
   foodIds = [],
   currentRestaurant,
+  extraFeeByFoodId = {},
 }: {
   foodList: TObject[];
   foodIds: string[];
   currentRestaurant: TObject;
+  /**
+   * Menu-scoped fees (`menu.publicData.foodExtraFees`). Passed in rather than
+   * read off the dish, so the same dish can cost differently in another menu.
+   */
+  extraFeeByFoodId?: Record<string, number>;
 }) => {
   const submitFoodListData = foodIds.reduce((result, foodId) => {
     const item = foodList.find((food) => food?.id?.uuid === foodId);
@@ -503,6 +521,7 @@ export const getSelectedRestaurantAndFoodList = ({
           [id?.uuid]: {
             foodName: title,
             foodPrice: price?.amount || 0,
+            foodExtraFee: extraFeeByFoodId[id.uuid] ?? 0,
             foodUnit,
             numberOfMainDishes,
           },
@@ -541,7 +560,34 @@ export const getPickFoodParticipants = (orderDetail: TObject) => {
   return shouldSendNativeNotificationParticipantIdList;
 };
 
-export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
+/**
+ * A normal order's line item for one food. `unitPrice` / `price` stay at the
+ * partner's base amount because line items also feed the partner quotation;
+ * the menu surcharge rides alongside as `unitExtraFee` and is billed to the
+ * company only (see `getLineItemExtraFeeTotal`).
+ */
+export const buildLineItem = (
+  foodId: string,
+  {
+    foodName,
+    foodPrice,
+    foodExtraFee,
+  }: { foodName: string; foodPrice: number; foodExtraFee?: number },
+  quantity = 1,
+) => ({
+  id: foodId,
+  name: foodName,
+  unitPrice: foodPrice,
+  price: foodPrice * quantity,
+  quantity,
+  unitExtraFee: foodExtraFee ?? 0,
+});
+
+export const getUpdateLineItems = (
+  foodList: any[],
+  foodIds: string[],
+  extraFeeByFoodId: Record<string, number> = {},
+) => {
   const updateFoodList = foodIds.reduce((acc: any, foodId: string) => {
     const food = foodList?.find((item) => item.id?.uuid === foodId);
     if (food) {
@@ -550,6 +596,7 @@ export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
       acc[foodId] = {
         foodName: foodListingGetter.title,
         foodPrice: foodListingGetter.price?.amount || 0,
+        foodExtraFee: extraFeeByFoodId[foodId] ?? 0,
         foodUnit: foodListingGetter.publicData?.unit || '',
       };
     }
@@ -560,15 +607,8 @@ export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
   const updateLineItems = Object.entries<{
     foodName: string;
     foodPrice: number;
-  }>(updateFoodList).map(([foodId, { foodName, foodPrice }]) => {
-    return {
-      id: foodId,
-      name: foodName,
-      unitPrice: foodPrice,
-      price: foodPrice,
-      quantity: 1,
-    };
-  });
+    foodExtraFee: number;
+  }>(updateFoodList).map(([foodId, food]) => buildLineItem(foodId, food));
 
   return updateLineItems;
 };
@@ -689,15 +729,8 @@ export const initLineItemsFromFoodList = (
     ? Object.entries<{
         foodName: string;
         foodPrice: number;
-      }>(foodList).map(([foodId, { foodName, foodPrice }]) => {
-        return {
-          id: foodId,
-          name: foodName,
-          unitPrice: foodPrice,
-          price: foodPrice,
-          quantity: 1,
-        };
-      })
+        foodExtraFee?: number;
+      }>(foodList).map(([foodId, food]) => buildLineItem(foodId, food))
     : [];
 };
 
@@ -786,7 +819,10 @@ export const adjustFoodListPrice = (
   return Object.entries(foodList).reduce(
     (
       acc: TObject,
-      [foodId, { foodName, foodPrice, foodUnit, numberOfMainDishes }],
+      [
+        foodId,
+        { foodName, foodPrice, foodExtraFee = 0, foodUnit, numberOfMainDishes },
+      ],
     ) => {
       const isSingleSelectionFood =
         numberOfMainDishes !== undefined &&
@@ -798,6 +834,9 @@ export const adjustFoodListPrice = (
           [foodId]: {
             foodName,
             foodPrice: foodPrice / 2,
+            // Halved alongside the base price so splitting one package across
+            // two dishes does not charge the menu's markup twice.
+            foodExtraFee: foodExtraFee / 2,
             foodUnit,
             numberOfMainDishes,
           },
@@ -809,6 +848,7 @@ export const adjustFoodListPrice = (
         [foodId]: {
           foodName,
           foodPrice,
+          foodExtraFee,
           foodUnit,
           numberOfMainDishes,
         },

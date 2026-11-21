@@ -2,6 +2,8 @@ import isEmpty from 'lodash/isEmpty';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
+import logger from '@helpers/logger';
+import promoteNonAccountEmailToOrders from '@pages/api/apiServices/order/promoteNonAccountEmailToOrders.service';
 import cookies from '@services/cookie';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { getSdk, handleError } from '@services/sdk';
@@ -20,13 +22,30 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           const [currentUser] = denormalisedResponseEntities(currentUserRes);
 
           if (currentUser !== null && !isEmpty(currentUser)) {
-            const currentUserId = CurrentUser(currentUser).getId();
+            const currentUserGetter = CurrentUser(currentUser);
+            const currentUserId = currentUserGetter.getId();
+            const { email } = currentUserGetter.getAttributes();
+
             await integrationSdk.users.updateProfile({
               id: currentUserId,
               metadata: {
                 id: currentUserId,
               },
             });
+
+            if (email) {
+              try {
+                await promoteNonAccountEmailToOrders({
+                  userId: currentUserId,
+                  email,
+                });
+              } catch (promoteError) {
+                logger.error(
+                  'post-sign-up: promoteNonAccountEmailToOrders failed',
+                  String(promoteError),
+                );
+              }
+            }
 
             return res.status(200).json('Successfully update user id');
           }

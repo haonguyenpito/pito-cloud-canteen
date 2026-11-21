@@ -26,6 +26,7 @@ import { getItem } from '@helpers/localStorageHelpers';
 import { findSuitableAnchorDate } from '@helpers/order/prepareDataHelper';
 import {
   adjustFoodListPrice,
+  buildLineItem,
   getIsAllowAddSecondaryFood,
   getRestaurantListFromOrderDetail,
   getSelectedRestaurantAndFoodList,
@@ -141,6 +142,10 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   );
   const currentRestaurant = useAppSelector(
     (state) => state.SelectRestaurantPage.selectedRestaurant,
+  );
+  const foodExtraFees = useAppSelector(
+    (state) => state.SelectRestaurantPage.foodExtraFees,
+    shallowEqual,
   );
   const foodList = useAppSelector(
     (state) => state.SelectRestaurantPage.foodList,
@@ -352,15 +357,8 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
           Object.entries<{
             foodName: string;
             foodPrice: number;
-          }>(_foodList).map(([foodId, { foodName, foodPrice }]) => {
-            return {
-              id: foodId,
-              name: foodName,
-              unitPrice: foodPrice,
-              price: foodPrice,
-              quantity: 1,
-            };
-          });
+            foodExtraFee?: number;
+          }>(_foodList).map(([foodId, food]) => buildLineItem(foodId, food));
         const removeDeletedFoodLineItems = currentSubOrderLineItems.filter(
           (lineItem: TObject) => has(selectedFoodList, lineItem.id),
         );
@@ -403,17 +401,9 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
       );
       const lineItems = isOrderAllowAddSecondaryFood
         ? Object.entries(adjustedFoodList).map(
-            ([foodId, { foodName, foodPrice }]: [string, any]) => {
-              return {
-                id: foodId,
-                name: foodName,
-                unitPrice: foodPrice,
-                price: foodPrice,
-                quantity: 1,
-              };
-            },
+            ([foodId, food]: [string, any]) => buildLineItem(foodId, food),
           )
-        : getUpdateLineItems(foodList, foodIds);
+        : getUpdateLineItems(foodList, foodIds, foodExtraFees);
 
       await dispatch(
         orderAsyncActions.updatePlanDetail({
@@ -682,13 +672,18 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   const handleSelectFood = async (values: TSelectFoodFormValues) => {
     dispatch(setCanNotGoAfterOderDetail(true));
     const { food: foodIds } = values;
-    const updateLineItems = getUpdateLineItems(foodList, foodIds);
+    const updateLineItems = getUpdateLineItems(
+      foodList,
+      foodIds,
+      foodExtraFees,
+    );
 
     const { submitRestaurantData, submitFoodListData } =
       getSelectedRestaurantAndFoodList({
         foodList,
         foodIds,
         currentRestaurant,
+        extraFeeByFoodId: foodExtraFees,
       });
     await handleSubmitRestaurant({
       restaurant: { ...submitRestaurantData, menuId: currentSelectedMenuId },

@@ -20,6 +20,9 @@
     "prepare": "husky",
     "worker:updatePlan": "ts-node src/workers/updatePlanWorker.ts"
   },
+  "engines": {
+    "node": "24.x"
+  },
   "dependencies": {
     "@aws-sdk/client-ses": "3.723.0",
     "@hookform/resolvers": "^5.0.1",
@@ -173,6 +176,7 @@
     "stylelint-prettier": "2.0.0",
     "stylelint-processor-styled-components": "1.10.0",
     "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.4.9",
     "typescript": "6.0.2"
   },
   "browser": {

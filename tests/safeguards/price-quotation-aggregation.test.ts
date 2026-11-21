@@ -205,6 +205,96 @@ describe('calculateTotalPriceAndDishes — non-group order', () => {
   });
 });
 
+// ── Normal order — menu surcharge on line items ───────────────────────────────
+
+/**
+ * A normal order's line item keeps `price` / `unitPrice` at the partner's base
+ * amount (the same line items feed the partner quotation) and carries the menu
+ * surcharge separately as `unitExtraFee`. The company is billed
+ * `price + unitExtraFee × quantity`.
+ */
+describe('normal order — unitExtraFee is billed to the company', () => {
+  const withFee = (
+    price: number,
+    quantity: number,
+    unitExtraFee?: unknown,
+  ) => ({
+    lineItems: [{ price, quantity, unitExtraFee }],
+    status: ESubOrderStatus.inProgress,
+    lastTransition: ETransition.INITIATE_TRANSACTION,
+  });
+
+  const total = (entry: object) =>
+    calculateTotalPriceAndDishes({
+      orderDetail: { [DATE_A]: entry },
+      isGroupOrder: false,
+    }).totalPrice;
+
+  it('adds the fee once per serving', () => {
+    // 2 servings: base 2 × 75,000 = 150,000, fee 2 × 25,000 = 50,000
+    expect(total(withFee(150_000, 2, 25_000))).toBe(200_000);
+  });
+
+  it('leaves a line item written before the field existed at base price', () => {
+    expect(total(withFee(150_000, 2))).toBe(150_000);
+  });
+
+  it('treats an explicit 0 as no surcharge', () => {
+    expect(total(withFee(150_000, 2, 0))).toBe(150_000);
+  });
+
+  it('ignores junk and negative fees instead of corrupting the total', () => {
+    expect(total(withFee(150_000, 2, 'abc'))).toBe(150_000);
+    expect(total(withFee(150_000, 2, -5_000))).toBe(150_000);
+    expect(total(withFee(150_000, 2, null))).toBe(150_000);
+  });
+
+  it('does not count the fee of a canceled sub-order', () => {
+    const result = calculateTotalPriceAndDishes({
+      orderDetail: {
+        [DATE_A]: withFee(150_000, 2, 25_000),
+        [DATE_B]: {
+          ...withFee(90_000, 1, 10_000),
+          status: ESubOrderStatus.canceled,
+        },
+      },
+      isGroupOrder: false,
+    });
+
+    expect(result.totalPrice).toBe(200_000);
+    expect(result.totalDishes).toBe(2);
+  });
+
+  // The customer-side VAT rate does not depend on the partner's VAT setting,
+  // so all three modes must tax the same fee-inclusive total.
+  describe('flows through every VAT mode', () => {
+    const order = makeOrder({
+      packagePerMember: 0,
+      orderState: EOrderStates.picking,
+      orderType: EOrderType.normal,
+    });
+
+    it.each([
+      EPartnerVATSetting.vat,
+      EPartnerVATSetting.noExportVat,
+      EPartnerVATSetting.direct,
+    ])('%s — VAT is charged on the fee-inclusive total', (vatSetting) => {
+      const result = calculatePriceQuotationInfoFromOrder({
+        planOrderDetail: { [DATE_A]: withFee(150_000, 2, 25_000) },
+        order,
+        orderVATPercentage: 0.1,
+        vatSetting,
+        hasSpecificPCCFee: true,
+        specificPCCFee: 0,
+      });
+
+      expect(result.totalPrice).toBe(200_000);
+      expect(result.VATFee).toBe(20_000);
+      expect(result.totalWithVAT).toBe(220_000);
+    });
+  });
+});
+
 // ── calculateTotalPriceAndDishes — group (memberOrders) path ──────────────────
 
 describe('calculateTotalPriceAndDishes — group order', () => {

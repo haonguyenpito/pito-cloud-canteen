@@ -12,6 +12,7 @@ import IconPlus from '@components/Icons/IconPlus/IconPlus';
 import IconWarning from '@components/Icons/IconWarning/IconWarning';
 import RenderWhen from '@components/RenderWhen/RenderWhen';
 import { parseThousandNumber } from '@helpers/format';
+import { getLineItemExtraFeeTotal } from '@helpers/menuExtraFee';
 import { useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useViewport } from '@hooks/useViewport';
@@ -80,7 +81,8 @@ export const LineItemsTableComponent: React.FC<
 
           return {
             ...result,
-            totalPrice: result.totalPrice + price,
+            totalPrice:
+              result.totalPrice + price + getLineItemExtraFeeTotal(lineItem),
             totalQuantity: result.totalQuantity + quantity,
             formInitialValues: {
               ...result.formInitialValues,
@@ -109,9 +111,18 @@ export const LineItemsTableComponent: React.FC<
     <>
       {lineItems.map((lineItem: TObject) => {
         const { id: foodId, quantity = 1, name, price, unitPrice } = lineItem;
+        // Admin and booker only (never partner-facing): show what the company
+        // is billed, i.e. base price plus the menu surcharge.
+        const billableUnitPrice =
+          Number(unitPrice || 0) +
+          getLineItemExtraFeeTotal({ ...lineItem, quantity: 1 });
+        const billablePrice =
+          Number(price || 0) + getLineItemExtraFeeTotal(lineItem);
 
-        const formattedFoodUnitPrice = `${parseThousandNumber(unitPrice)}đ`;
-        const formattedFoodPrice = `${parseThousandNumber(price)}đ`;
+        const formattedFoodUnitPrice = `${parseThousandNumber(
+          billableUnitPrice,
+        )}đ`;
+        const formattedFoodPrice = `${parseThousandNumber(billablePrice)}đ`;
 
         const handleChangeQuantity =
           // eslint-disable-next-line @typescript-eslint/no-shadow
@@ -184,7 +195,7 @@ export const LineItemsTableComponent: React.FC<
             </td>
             <td title={formattedFoodUnitPrice}>{formattedFoodUnitPrice}</td>
             <td>
-              <RenderWhen condition={Number(price) > 0}>
+              <RenderWhen condition={billablePrice > 0}>
                 <>{formattedFoodPrice}</>
               </RenderWhen>
             </td>

@@ -9,6 +9,7 @@
  */
 
 import {
+  buildLineItem,
   calculateSubOrderPrice,
   checkIsOrderHasInProgressState,
   combineOrderDetailWithPriceInfo,
@@ -173,6 +174,29 @@ describe('getTotalInfo', () => {
   it('returns zeros for empty list', () => {
     expect(getTotalInfo([])).toEqual({ totalDishes: 0, totalPrice: 0 });
   });
+
+  it('includes foodExtraFee in totalPrice when set', () => {
+    const data = [
+      { foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 10_000 },
+      { foodId: 'f2', frequency: 1, foodPrice: 80_000, foodExtraFee: 5_000 },
+    ];
+    const result = getTotalInfo(data as any);
+    // f1: (50,000 + 10,000) × 2 = 120,000; f2: (80,000 + 5,000) × 1 = 85,000
+    expect(result.totalPrice).toBe(120_000 + 85_000);
+    expect(result.totalDishes).toBe(3);
+  });
+
+  it('falls back to base price only when foodExtraFee is 0', () => {
+    const data = [
+      { foodId: 'f1', frequency: 2, foodPrice: 50_000, foodExtraFee: 0 },
+    ];
+    expect(getTotalInfo(data as any).totalPrice).toBe(100_000);
+  });
+
+  it('falls back to base price only when foodExtraFee is undefined', () => {
+    const data = [{ foodId: 'f1', frequency: 2, foodPrice: 50_000 }];
+    expect(getTotalInfo(data as any).totalPrice).toBe(100_000);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -195,6 +219,33 @@ describe('getFoodDataMap', () => {
       const result = getFoodDataMap({ foodListOfDate, memberOrders });
       expect(result.f1.frequency).toBe(2);
       expect(result.f2.frequency).toBe(1);
+    });
+
+    it('propagates foodExtraFee from foodListOfDate into result entries', () => {
+      const foodListWithFee = {
+        f1: {
+          foodName: 'Cơm gà',
+          foodPrice: 50_000,
+          foodExtraFee: 15_000,
+          numberOfMainDishes: 1,
+        },
+      };
+      const memberOrders = {
+        u1: { foodId: 'f1', status: EParticipantOrderStatus.joined },
+      };
+      const result = getFoodDataMap({
+        foodListOfDate: foodListWithFee,
+        memberOrders,
+      });
+      expect(result.f1.foodExtraFee).toBe(15_000);
+    });
+
+    it('defaults foodExtraFee to 0 when not present in foodListOfDate', () => {
+      const memberOrders = {
+        u1: { foodId: 'f1', status: EParticipantOrderStatus.joined },
+      };
+      const result = getFoodDataMap({ foodListOfDate, memberOrders });
+      expect(result.f1.foodExtraFee).toBe(0);
     });
 
     it('excludes members who have not joined', () => {
@@ -227,6 +278,28 @@ describe('getFoodDataMap', () => {
       });
       expect(result.f1.frequency).toBe(5);
       expect(result.f1.foodName).toBe('Cơm');
+      expect(result.f1.foodExtraFee).toBe(0);
+    });
+
+    it('propagates unitExtraFee so getTotalInfo bills it', () => {
+      const lineItems = [
+        {
+          id: 'f1',
+          name: 'Cơm',
+          quantity: 5,
+          unitPrice: 50_000,
+          unitExtraFee: 10_000,
+        },
+      ];
+      const result = getFoodDataMap({
+        foodListOfDate: {},
+        memberOrders: {},
+        orderType: EOrderType.normal,
+        lineItems,
+      });
+      expect(result.f1.foodPrice).toBe(50_000);
+      expect(result.f1.foodExtraFee).toBe(10_000);
+      expect(getTotalInfo(Object.values(result)).totalPrice).toBe(300_000);
     });
   });
 });
@@ -270,6 +343,28 @@ describe('calculateSubOrderPrice', () => {
     });
     expect(result.totalDishes).toBe(3);
     expect(result.totalPrice).toBe(180_000);
+  });
+
+  it('adds unitExtraFee per serving for a normal order', () => {
+    const data = {
+      memberOrders: {},
+      restaurant: { foodList: {} },
+      lineItems: [
+        {
+          quantity: 2,
+          price: 120_000,
+          unitPrice: 60_000,
+          unitExtraFee: 15_000,
+        },
+        { quantity: 1, price: 60_000, unitPrice: 60_000 },
+      ],
+    };
+    const result = calculateSubOrderPrice({
+      data,
+      orderType: EOrderType.normal,
+    });
+    expect(result.totalDishes).toBe(3);
+    expect(result.totalPrice).toBe(210_000);
   });
 });
 
@@ -496,6 +591,68 @@ describe('initLineItemsFromFoodList', () => {
 
   it('returns empty array when isNormalOrder=false', () => {
     expect(initLineItemsFromFoodList(foodList as any, false)).toEqual([]);
+  });
+
+  it('carries the snapshotted foodExtraFee as unitExtraFee', () => {
+    const [lineItem] = initLineItemsFromFoodList(
+      {
+        f1: { foodName: 'Cơm gà', foodPrice: 75_000, foodExtraFee: 25_000 },
+      } as any,
+      true,
+    );
+    expect(lineItem).toMatchObject({
+      unitPrice: 75_000,
+      price: 75_000,
+      unitExtraFee: 25_000,
+    });
+    // initLineItemsFromFoodList is fed the dual-selection-adjusted food list,
+    // so a halved fee stays halved — never re-read from the menu here.
+    const [halved] = initLineItemsFromFoodList(
+      {
+        f1: { foodName: 'Cơm gà', foodPrice: 37_500, foodExtraFee: 12_500 },
+      } as any,
+      true,
+    );
+    expect(halved.unitExtraFee).toBe(12_500);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildLineItem
+// ---------------------------------------------------------------------------
+
+describe('buildLineItem', () => {
+  it('keeps price at base × quantity and the fee per serving', () => {
+    expect(
+      buildLineItem(
+        'f1',
+        { foodName: 'Cơm gà', foodPrice: 75_000, foodExtraFee: 25_000 },
+        3,
+      ),
+    ).toEqual({
+      id: 'f1',
+      name: 'Cơm gà',
+      unitPrice: 75_000,
+      price: 225_000,
+      quantity: 3,
+      unitExtraFee: 25_000,
+    });
+  });
+
+  it('defaults to one serving and a 0 fee', () => {
+    expect(
+      buildLineItem('f1', { foodName: 'Cơm gà', foodPrice: 75_000 }),
+    ).toMatchObject({ price: 75_000, quantity: 1, unitExtraFee: 0 });
+  });
+
+  it('keeps an explicit 0 fee as 0', () => {
+    expect(
+      buildLineItem('f1', {
+        foodName: 'Cơm gà',
+        foodPrice: 75_000,
+        foodExtraFee: 0,
+      }).unitExtraFee,
+    ).toBe(0);
   });
 });
 

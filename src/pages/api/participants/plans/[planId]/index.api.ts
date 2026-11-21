@@ -112,6 +112,15 @@ const fetchSubOrder = async (
       [planKey]: {
         foodList: foodListData,
         restaurant: restaurantData,
+        // Live food listings carry no fee — the fee is menu-scoped. Ship the
+        // snapshot's value so the participant sees exactly what gets billed.
+        foodExtraFees: Object.entries(foodList).reduce<Record<string, number>>(
+          (result, [foodId, food]: [string, any]) => ({
+            ...result,
+            [foodId]: food?.foodExtraFee ?? 0,
+          }),
+          {},
+        ),
         memberOrder: { [currentUserId]: memberOrders[currentUserId] },
       },
     };

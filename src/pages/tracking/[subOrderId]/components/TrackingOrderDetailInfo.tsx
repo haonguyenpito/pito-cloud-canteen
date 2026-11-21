@@ -18,6 +18,7 @@ import {
   type SubOrderHighlightEntry,
   countHighlightedMembers,
 } from '@helpers/order/subOrderHighlightHelper';
+import { getAllergyLabels } from '@helpers/specialDemandHelper';
 import { useAppSelector } from '@hooks/reduxHooks';
 import { Listing } from '@src/utils/data';
 import { EOrderType } from '@src/utils/enums';
@@ -239,7 +240,13 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
       if (!Array.isArray(notes) || notes.length === 0) return null;
 
       return notes.map((noteItem: TObject, noteIndex: number) => {
-        const { note, name: noteName, memberId } = noteItem || {};
+        const {
+          note,
+          name: noteName,
+          memberId,
+          allergies = [],
+        } = noteItem || {};
+        const allergyLabels = getAllergyLabels(allergies as string[]);
         const highlight = memberId
           ? highlightedMembersMap[memberId as string]
           : undefined;
@@ -259,7 +266,14 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
               {foodIndex + 1}.{noteIndex + 1}
             </TableCell>
             <TableCell className="text-xs">{noteName || '-'}</TableCell>
-            <TableCell className="text-xs">{note || '-'}</TableCell>
+            <TableCell className="text-xs">
+              {allergyLabels.length > 0 && (
+                <div className="font-semibold text-red-600">
+                  Dị ứng: {allergyLabels.join(', ')}
+                </div>
+              )}
+              <div>{note || '-'}</div>
+            </TableCell>
             <TableCell></TableCell>
           </TableRow>
         );
@@ -273,7 +287,7 @@ const TrackingOrderDetailInfo: React.FC<TTrackingOrderDetailInfoProps> = ({
       foodData: TObject,
       foodIndex: number,
       globalIndex: number,
-      showGroupNumber: boolean = false,
+      showGroupNumber = false,
     ) => {
       const { foodName, frequency, notes = [] } = foodData || {};
       const isCollapsedFood = isCollapsed[globalIndex] || false;

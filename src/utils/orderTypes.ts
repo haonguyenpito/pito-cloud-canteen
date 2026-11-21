@@ -5,6 +5,8 @@ export type TFoodList = {
   [foodId: string]: {
     foodName: string;
     foodPrice: number;
+    /** Menu-scoped extra fee snapshotted at pick time — part of the billed total. */
+    foodExtraFee?: number;
     foodUnit?: string;
     numberOfMainDishes: number | string;
   };
@@ -41,6 +43,7 @@ export type TPlan = {
         quantity: number;
         price: number;
         unitPrice: number;
+        unitExtraFee?: number;
       }[];
     };
   };

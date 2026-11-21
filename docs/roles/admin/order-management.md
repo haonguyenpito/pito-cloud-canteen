@@ -3,10 +3,12 @@
 ## Sub-Order State Machine Hub: `transit.api.ts`
 
 **File:** `src/pages/api/admin/plan/transit.api.ts`
-**Endpoint:** `POST /api/admin/plan/transit`
+**Endpoint:** `PUT /api/admin/plan/transit`
 **Input:** `{ txId: string, transition: ETransition }`
 
-This is the **central hub** for all sub-order delivery state transitions. Every step after a sub-order is initiated flows through this endpoint. The **behavioral contract** for this file is documented as a block comment at the top of `transit.api.ts` (lines 1–44) — always read it before modifying.
+This is the admin-side hub for the post-confirmation half of the sub-order lifecycle (start delivery, complete delivery, cancel). The **behavioral contract** lives as a block comment at the top of `transit.api.ts` (lines 1–44) — always read it before modifying.
+
+> **Not the only transit endpoint.** Partners use a parallel endpoint at `PUT /api/partner/:partnerId/orders/:orderId/transit` to confirm or reject incoming sub-orders (`PARTNER_CONFIRM_SUB_ORDER`, `PARTNER_REJECT_SUB_ORDER`). At the Sharetribe level both endpoints call `integrationSdk.transactions.transition` as the operator role — the actor is always operator in `process.edn` regardless of who initiated the request. See `docs/shared/transaction-flow.md` for the full transition map.
 
 ### Transitions Handled
 
@@ -26,36 +28,54 @@ After `COMPLETE_DELIVERY`, an AWS EventBridge scheduler (`createFoodRatingNotifi
 
 Beyond the sub-order transit hub, admin has direct order state controls:
 
-| Action                | API                                                   | Notes                                           |
-| --------------------- | ----------------------------------------------------- | ----------------------------------------------- |
-| Approve pending order | `PUT /api/admin/listings/order/:orderId/update-state` | `pendingApproval` → `draft`                     |
-| Cancel order          | `PUT /api/admin/listings/order/:orderId/update-state` | Any pre-`inProgress` state                      |
-| Cancel picking        | `PUT /api/orders/:orderId/cancel-picking-order`       | `picking` → `draft` or `canceled`               |
-| Publish to picking    | `POST /api/orders/:orderId/publish-order`             | `draft` → `picking`                             |
-| Start order           | `PUT /api/orders/:orderId/plan/:planId/start-order`   | **Irreversible** — creates Sharetribe transactions |
+| Action                | API                                                   | Notes                                                                                                                                  |
+| --------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Update order state    | `PUT /api/admin/listings/order/:orderId/update-state` | Generic state setter; only allows transitions listed in `ORDER_STATE_TRANSIT_FLOW` (`src/utils/constants.ts`). Used to publish, cancel, etc. |
+| Cancel picking        | `PUT /api/orders/:orderId/cancel-picking-order`       | `picking` → `canceled` only. Also cleans up EventBridge schedulers and notifies all participants.                                      |
+| Publish to picking    | `POST /api/orders/:orderId/publish-order`             | `draft` → `picking`. Sets up EventBridge schedulers (auto-pick, picking reminder, auto-start).                                         |
+| Start order           | `PUT /api/orders/:orderId/plan/:planId/start-order`   | **Irreversible** — creates Sharetribe transactions, triggers `initialize-payment`, moves order to `inProgress`.                        |
+| Booker request approval | `PUT /api/orders/:orderId/request-approval-order`   | Booker-only: `draft` → `pendingApproval`. Admin then publishes via `update-state`.                                                     |
+| Booker cancel pending | `PUT /api/orders/:orderId/cancel-pending-approval-order` | Booker-only: `pendingApproval` → `canceledByBooker`.                                                                                |
+
+**Allowed `ORDER_STATE_TRANSIT_FLOW` transitions** (single source of truth in `src/utils/constants.ts`):
+
+```
+draft            → pendingApproval | canceled
+bookerDraft      → canceled
+pendingApproval  → picking | canceledByBooker | canceled
+picking          → inProgress | canceled
+inProgress       → pendingPayment
+pendingPayment   → completed
+completed        → reviewed
+```
 
 ### Order States Reference
 
 ```
-bookerDraft → pendingApproval → draft → picking → inProgress → pendingPayment → completed → reviewed
-                                  │
-                                  ▼
-                          canceled / expiredStart / canceledByBooker
+              bookerDraft ─────────┐
+                                   ▼
+            draft ── (request-approval) ──> pendingApproval ──> picking ──> inProgress ──> pendingPayment ──> completed ──> reviewed
+              │                       │              │
+              ▼                       ▼              ▼
+           canceled            canceledByBooker   canceled
+                                  /canceled
 ```
 
-| State              | Who Sets It  | Meaning                                                            |
-| ------------------ | ------------ | ------------------------------------------------------------------ |
-| `bookerDraft`      | Booker       | Initial booker-created draft                                       |
-| `pendingApproval`  | Booker       | Booker submitted for admin review                                  |
-| `draft`            | Admin        | Admin approved — ready for setup                                   |
-| `picking`          | Admin/Booker | Published — participants can pick food                             |
-| `inProgress`       | System       | Sharetribe transactions initiated, delivery underway               |
-| `pendingPayment`   | System       | All deliveries done, awaiting payment confirmation                 |
-| `completed`        | Admin        | Both payments confirmed                                            |
-| `reviewed`         | System/Admin | Restaurant reviews submitted                                       |
-| `canceled`         | Admin        | Order canceled at any pre-`inProgress` state                       |
-| `canceledByBooker` | Booker       | Booker canceled the order                                          |
-| `expiredStart`     | System       | Order never started — auto-start window expired                    |
+`expiredStart` is set by the auto-start scheduler when the order is in `picking` and the auto-start window has elapsed without progress; it is set directly by scheduler logic and is not part of `ORDER_STATE_TRANSIT_FLOW`.
+
+| State              | Who Sets It  | Meaning                                                                              |
+| ------------------ | ------------ | ------------------------------------------------------------------------------------ |
+| `bookerDraft`      | Booker       | Booker began creating an order but has not submitted; only outgoing transition is `canceled`. |
+| `draft`            | Admin/System | Default state for admin-created orders; awaits booker `request-approval-order`.      |
+| `pendingApproval`  | Booker       | Booker requested approval; admin reviews and either publishes (→ `picking`) or cancels. |
+| `picking`          | Admin        | Published — participants can pick food until the deadline.                           |
+| `inProgress`       | System       | `start-order` ran; Sharetribe transactions exist; delivery underway.                 |
+| `pendingPayment`   | System       | All sub-orders completed; awaiting partner + client payment confirmation.            |
+| `completed`        | System       | Both `isAdminConfirmedPartnerPayment` and `isAdminConfirmedClientPayment` are true.  |
+| `reviewed`         | System/Admin | Restaurant reviews submitted (`review-restaurant` transition).                       |
+| `canceled`         | Admin        | Order canceled at any pre-`inProgress` state.                                        |
+| `canceledByBooker` | Booker       | Booker canceled while in `pendingApproval`.                                          |
+| `expiredStart`     | System       | Auto-start scheduler fired but order was not in a startable state.                   |
 
 ---
 

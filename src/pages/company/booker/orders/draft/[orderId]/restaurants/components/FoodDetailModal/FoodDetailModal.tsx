@@ -25,6 +25,8 @@ type TFoodDetailModalProps = {
   onSelect?: (foodId: string) => void;
   isLoading?: boolean;
   isMobileLayout?: boolean;
+  /** Menu-scoped extra fee for this dish. Defaults to 0. */
+  extraFee?: number;
 };
 
 const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
@@ -34,12 +36,14 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
   onSelect,
   isLoading,
   isMobileLayout,
+  extraFee = 0,
 }) => {
   const intl = useIntl();
 
   const foodGetter = Listing(food!);
   const { sideDishes = [], notes } = foodGetter.getPublicData();
   const { title, price } = foodGetter.getAttributes();
+  const displayPrice = (price?.amount || 0) + extraFee;
   const FOOD_SIDE_DISH_OPTIONS = useFoodSideDishOptionsByLocale();
 
   const renderedSideDishes = sideDishes?.map(
@@ -109,7 +113,7 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
           <div className={css.topContent}>
             <div className={css.foodTitle}>{title}</div>
             <div className={css.price}>{`${addCommas(
-              price?.amount,
+              displayPrice,
             )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
           </div>
           <p className={css.description}>

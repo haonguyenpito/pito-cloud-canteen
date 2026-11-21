@@ -53,6 +53,18 @@ Restaurant search is powered by Sharetribe listing queries with filters defined 
 
 ---
 
+## Restaurant Browsing — Food Price Display
+
+When a booker browses restaurants (Step 4 of the quiz wizard), the food items shown in each restaurant card ("Lựa chọn phù hợp" / "Menu tham khảo") display the **final price** (`base + fee`), where the fee is the menu-scoped one for the menu being browsed (`menu.publicData.foodExtraFees`).
+
+The budget filter (`packagePerMember`) also compares against the final price — a food with base 75,000 + extra fee 25,000 matches a 100,000 VND/person budget. This is the basis **everywhere**: restaurant search, the booker's "trong mức giá" grouping, admin recommend-restaurants, the participant's suitable-price list and auto-pick, and the `isOverflowPackage` billing check all compare `base + fee` via `getBillablePrice` (`src/helpers/menuExtraFee.ts`).
+
+Note the operators differ by intent and are not interchangeable: admin sourcing matches **exactly** (`=== packagePerMember`) because the markup is meant to close the gap to the package precisely, while participant selection uses **at most** (`<=`).
+
+**Source:** `src/helpers/searchRestaurantHelper.ts` → `parseFoodsFromMenu`
+
+---
+
 ## Step 2: Order Setup
 
 Booker or admin fills in:
@@ -90,11 +102,13 @@ If the order was created as `bookerDraft`, the booker must submit it for admin a
 
 ## Cancel Flow (Pre-inProgress)
 
-Orders can be canceled before they reach `inProgress`:
+Orders can be canceled before they reach `inProgress`. The exact destination state depends on which endpoint is used (enforced by `ORDER_STATE_TRANSIT_FLOW` in `src/utils/constants.ts`):
 
-| Cancel Type             | State                             | API                                                      |
-| ----------------------- | --------------------------------- | -------------------------------------------------------- |
-| Booker cancel           | `draft` or `picking`              | `PUT /api/orders/:orderId/cancel-order-by-booker`        |
-| Cancel picking          | `picking` → `draft` or `canceled` | `PUT /api/orders/:orderId/cancel-picking-order`          |
-| Cancel pending approval | `pendingApproval` → `draft`       | `PUT /api/orders/:orderId/cancel-pending-approval-order` |
-| Admin cancel            | Any pre-`inProgress` state        | `PUT /api/admin/listings/order/:orderId/update-state`    |
+| Cancel Type             | Transition                         | API                                                      |
+| ----------------------- | ---------------------------------- | -------------------------------------------------------- |
+| Booker cancel pending   | `pendingApproval` → `canceledByBooker` | `PUT /api/orders/:orderId/cancel-pending-approval-order` |
+| Cancel picking          | `picking` → `canceled`             | `PUT /api/orders/:orderId/cancel-picking-order`          |
+| Booker delete draft     | (deletes own `bookerDraft` order)  | `DELETE /api/company/:companyId/orders/:orderId`         |
+| Admin cancel (generic)  | Any state allowed by `ORDER_STATE_TRANSIT_FLOW` | `PUT /api/admin/listings/order/:orderId/update-state` (with `orderState: 'canceled'`) |
+
+There is no `cancel-order-by-booker` endpoint.

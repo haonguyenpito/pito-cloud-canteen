@@ -1,6 +1,7 @@
 import * as unidecode from 'unidecode';
 
 import { calculateDistance } from '@helpers/mapHelpers';
+import { getMenuExtraFeeMap } from '@helpers/menuExtraFee';
 import config from '@src/configs';
 import type { TFoodInRestaurant } from '@src/types/bookerSelectRestaurant';
 import { Listing } from '@src/utils/data';
@@ -71,12 +72,17 @@ export function parseFoodsFromMenu(
   const menuListing = Listing(menu);
   const foodInList = menuListing.getPublicData().foodsByDate[dayOfWeek];
   const { restaurantId } = menuListing.getMetadata();
+  // The fee belongs to this menu, not to the shared dish listing.
+  const extraFeeByFoodId = getMenuExtraFeeMap(menu);
   Object.keys(foodInList).forEach((key) => {
     const foodMenu = foodInList[key];
     const food = mapfoods.get(key);
     if (foodMenu && food) {
       const foodListing = Listing(food);
       const { price, title, publicData } = foodListing.getAttributes();
+
+      const extraFee = extraFeeByFoodId[key] ?? 0;
+      const finalPrice = price.amount + extraFee;
 
       if (
         options?.findExactPackagePerMember &&
@@ -85,7 +91,7 @@ export function parseFoodsFromMenu(
         const packagePerMember =
           options?.findExactPackagePerMember.packagePerMember;
 
-        if (price.amount !== packagePerMember) {
+        if (finalPrice !== packagePerMember) {
           return;
         }
       }
@@ -95,7 +101,7 @@ export function parseFoodsFromMenu(
         foodId: key,
         foodName: title,
         minQuantity: foodListing.getPublicData().minQuantity ?? 0,
-        price: price.amount,
+        price: finalPrice,
         foodUnit: publicData?.unit ?? '',
         numberOfMainDishes: publicData?.numberOfMainDishes ?? 2,
       });

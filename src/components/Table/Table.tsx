@@ -63,6 +63,13 @@ type TTableProps = TDefaultProps & {
   customCheckboxChange?: (e: any) => void;
   afterCheckboxChangeHandler?: (e: any, rowCheckboxValues: any) => void;
   extraRows?: ReactNode;
+  /**
+   * Opt-in accordion: when a row's key matches, `renderExpandedContent` is
+   * rendered in a full-width row directly beneath it. Both props absent means
+   * the table behaves exactly as before — this is used by many screens.
+   */
+  expandedRowKey?: string | number | null;
+  renderExpandedContent?: (row: TRowData) => ReactNode;
   tableWrapperClassName?: string;
   shouldReplacePathWhenChangePage?: boolean;
   onCustomPageChange?: (page: number, pageSize?: number) => void;
@@ -99,6 +106,8 @@ const Table = (props: TTableProps) => {
     sortValue,
     afterCheckboxChangeHandler,
     extraRows,
+    expandedRowKey = null,
+    renderExpandedContent,
     tableWrapperClassName,
     onCustomPageChange,
     paginationProps = {},
@@ -232,58 +241,72 @@ const Table = (props: TTableProps) => {
           ) : (
             <tbody className={tableBodyClassName}>
               {data.map((row: TRowData) => (
-                <RenderWhen
-                  key={row.key}
-                  condition={Boolean(row.data.isParent)}>
-                  <CollapsibleRows
-                    row={row}
-                    columns={columns}
-                    hasCheckbox={hasCheckbox}
-                    tableBodyRowClassName={tableBodyRowClassName}
-                    tableBodyCellClassName={tableBodyCellClassName}
-                    rowCheckboxChange={rowCheckboxChange}
-                    values={values}
-                  />
-                  <RenderWhen.False>
-                    <tr
-                      className={classNames(tableBodyRowClassName, css.bodyRow)}
-                      key={row.key}>
-                      {hasCheckbox && (
-                        <td
-                          className={classNames(
-                            tableBodyCellClassName,
-                            css.bodyCell,
-                          )}>
-                          <FieldCheckbox
-                            labelClassName={css.checkboxLabel}
-                            svgClassName={css.checkboxSvg}
-                            name="rowCheckbox"
-                            id={`rowCheckbox.${row.key}`}
-                            value={row.key as any}
-                            label=" "
-                            customOnChange={rowCheckboxChange}
-                          />
-                        </td>
-                      )}
-                      {columns.map((col: TColumn) => {
-                        const rowCheckbox = values?.rowCheckbox || [];
-                        const isChecked = rowCheckbox.includes(row.key);
-
-                        return (
+                <React.Fragment key={row.key}>
+                  <RenderWhen
+                    key={row.key}
+                    condition={Boolean(row.data.isParent)}>
+                    <CollapsibleRows
+                      row={row}
+                      columns={columns}
+                      hasCheckbox={hasCheckbox}
+                      tableBodyRowClassName={tableBodyRowClassName}
+                      tableBodyCellClassName={tableBodyCellClassName}
+                      rowCheckboxChange={rowCheckboxChange}
+                      values={values}
+                    />
+                    <RenderWhen.False>
+                      <tr
+                        className={classNames(
+                          tableBodyRowClassName,
+                          css.bodyRow,
+                        )}
+                        key={row.key}>
+                        {hasCheckbox && (
                           <td
                             className={classNames(
                               tableBodyCellClassName,
                               css.bodyCell,
-                            )}
-                            data-label={col.label}
-                            key={col.key}>
-                            {col.render(row.data, isChecked)}
+                            )}>
+                            <FieldCheckbox
+                              labelClassName={css.checkboxLabel}
+                              svgClassName={css.checkboxSvg}
+                              name="rowCheckbox"
+                              id={`rowCheckbox.${row.key}`}
+                              value={row.key as any}
+                              label=" "
+                              customOnChange={rowCheckboxChange}
+                            />
                           </td>
-                        );
-                      })}
+                        )}
+                        {columns.map((col: TColumn) => {
+                          const rowCheckbox = values?.rowCheckbox || [];
+                          const isChecked = rowCheckbox.includes(row.key);
+
+                          return (
+                            <td
+                              className={classNames(
+                                tableBodyCellClassName,
+                                css.bodyCell,
+                              )}
+                              data-label={col.label}
+                              key={col.key}>
+                              {col.render(row.data, isChecked)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </RenderWhen.False>
+                  </RenderWhen>
+                  {renderExpandedContent && expandedRowKey === row.key && (
+                    <tr className={css.expandedRow}>
+                      <td
+                        className={css.expandedCell}
+                        colSpan={columns.length + (hasCheckbox ? 1 : 0)}>
+                        {renderExpandedContent(row)}
+                      </td>
                     </tr>
-                  </RenderWhen.False>
-                </RenderWhen>
+                  )}
+                </React.Fragment>
               ))}
               {extraRows && <tr className={css.bodyRow}>{extraRows}</tr>}
             </tbody>

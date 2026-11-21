@@ -8,6 +8,8 @@ export type TLineItem = {
   price: number;
   quantity: number;
   unitPrice: number;
+  /** Menu surcharge per serving, billed to the company only. */
+  unitExtraFee?: number;
 };
 
 export type TCartItem = {
@@ -81,6 +83,8 @@ export type TPlanData = {
   [dayId: string]: {
     foodList: FoodListing[];
     restaurant: RestaurantListing;
+    /** Menu-scoped extra fee per dish, from the plan snapshot. */
+    foodExtraFees?: Record<string, number>;
     memberOrder: TMemberOrderDetail;
   };
 };

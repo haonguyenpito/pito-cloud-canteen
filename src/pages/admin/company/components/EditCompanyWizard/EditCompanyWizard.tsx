@@ -43,6 +43,7 @@ import type {
 } from '@utils/types';
 
 import type { TAddCompanyGroupsFormValues } from '../AddCompanyGroupsForm/AddCompanyGroupsForm';
+import EditBookerQuizTab from '../EditBookerQuizTab/EditBookerQuizTab';
 import type { TEditCompanyBankAccountsFormValues } from '../EditCompanyBankAccountsForm/EditCompanyBankAccountsForm';
 import type { TEditCompanyInformationFormValues } from '../EditCompanyInformationForm/EditCompanyInformationForm';
 import EditInformationCompanyForm from '../EditCompanyInformationForm/EditCompanyInformationForm';
@@ -52,11 +53,13 @@ import EditCompanySettingsTabs from '../EditCompanySettingsTabs/EditCompanySetti
 import type { TUpdateCompanyGroupFormValues } from '../UpdateCompanyGroupForm/UpdateCompanyGroupForm';
 
 import {
+  COMPANY_BOOKER_QUIZ_TAB,
   COMPANY_INFORMATION_TAB,
   COMPANY_SETTINGS_TAB,
   createSubmitAddMembersToCompanyValues,
   createSubmitCreateCompanyValues,
   createSubmitUpdateCompanyValues,
+  EDIT_COMPANY_DRAFT_FLOW_TABS,
   EDIT_COMPANY_WIZARD_TABS,
 } from './utils';
 
@@ -335,6 +338,8 @@ const EditCompanyWizardTab: React.FC<TEditCompanyWizardTab> = (props) => {
           resetTransferError={resetTransferError}
         />
       );
+    case COMPANY_BOOKER_QUIZ_TAB:
+      return <EditBookerQuizTab companyMembers={companyMembers} />;
     default:
       return <></>;
   }
@@ -438,7 +443,7 @@ const EditCompanyWizard = () => {
       return redirectAfterDraftUpdate(
         id,
         selectedTab as string,
-        EDIT_COMPANY_WIZARD_TABS,
+        EDIT_COMPANY_DRAFT_FLOW_TABS,
         router,
       );
     }
@@ -516,7 +521,7 @@ const EditCompanyWizard = () => {
     (createCompanyError && createCompanyError.message);
 
   const onSubmitOutsideForm = () => {
-    formRef.current.submit();
+    formRef.current?.submit();
   };
 
   const uploadCompanyLogo = (params: { id: string; file: File }) => {
@@ -630,7 +635,11 @@ const EditCompanyWizard = () => {
   };
 
   useEffect(() => {
-    if (selectedTab === COMPANY_SETTINGS_TAB && companyId) {
+    if (
+      (selectedTab === COMPANY_SETTINGS_TAB ||
+        selectedTab === COMPANY_BOOKER_QUIZ_TAB) &&
+      companyId
+    ) {
       dispatch(companyMemberThunks.queryCompanyMembers(companyId as string));
     }
   }, [selectedTab, companyId, dispatch]);
@@ -643,10 +652,14 @@ const EditCompanyWizard = () => {
     <>
       <FormWizard>
         {EDIT_COMPANY_WIZARD_TABS.map((tab, index) => {
-          const completed = tabCompleted(
-            EDIT_COMPANY_WIZARD_TABS[index - 1],
-            company as TCompany,
-          );
+          // The quiz tab edits booker profiles, not the company draft, so it is
+          // never gated on how far the draft-creation flow has progressed.
+          const completed =
+            tab === COMPANY_BOOKER_QUIZ_TAB ||
+            tabCompleted(
+              EDIT_COMPANY_WIZARD_TABS[index - 1],
+              company as TCompany,
+            );
 
           return (
             <EditCompanyWizardTab
@@ -708,18 +721,22 @@ const EditCompanyWizard = () => {
           })}>
           <FormattedMessage id="EditCompanyWizard.goBack" />
         </Button>
-        <Button
-          inProgress={inProgress}
-          ready={submitSuccess}
-          disabled={inProgress}
-          onClick={onSubmitOutsideForm}
-          type="button">
-          {selectedTab === COMPANY_INFORMATION_TAB ? (
-            <FormattedMessage id="EditCompanyWizard.nextStep" />
-          ) : (
-            <FormattedMessage id="EditCompanyWizard.save" />
-          )}
-        </Button>
+        {/* The quiz tab writes booker profiles through its own form and never
+            registers formRef, so the wizard-level save cannot drive it. */}
+        {selectedTab !== COMPANY_BOOKER_QUIZ_TAB && (
+          <Button
+            inProgress={inProgress}
+            ready={submitSuccess}
+            disabled={inProgress}
+            onClick={onSubmitOutsideForm}
+            type="button">
+            {selectedTab === COMPANY_INFORMATION_TAB ? (
+              <FormattedMessage id="EditCompanyWizard.nextStep" />
+            ) : (
+              <FormattedMessage id="EditCompanyWizard.save" />
+            )}
+          </Button>
+        )}
       </div>
       {errorMessage && <ErrorMessage message={errorMessage} />}
     </>

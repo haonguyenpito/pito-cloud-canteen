@@ -1,0 +1,12 @@
+/* The reused participant form sizes itself to a full page; inside the modal it
+   only needs to be as tall as its fields. */
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px 8px;
+}

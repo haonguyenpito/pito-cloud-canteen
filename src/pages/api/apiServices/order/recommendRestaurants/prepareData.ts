@@ -6,6 +6,7 @@ import {
   getMenuQueryWithDraftOrderData,
 } from '@helpers/listingSearchQuery';
 import { calculateDistance } from '@helpers/mapHelpers';
+import { getBillablePrice, getMenuExtraFeeMap } from '@helpers/menuExtraFee';
 import { mealTypeAdapter } from '@helpers/order/adapterHelper';
 import {
   adjustFoodListPrice,
@@ -126,12 +127,19 @@ export const prepareMenuFoodList = async ({
     },
   });
 
-  // * find valid food items
+  const extraFeeByFoodId = getMenuExtraFeeMap(menu);
+
+  // * find valid food items — the budget is fee-inclusive
   const suitableFoodList = foodListFromSharetribe.filter(
     (foodListing: TListing) => {
       if (packagePerMember <= 0) return true;
 
-      return foodListing.attributes.price.amount === packagePerMember;
+      return (
+        getBillablePrice(
+          foodListing.attributes.price.amount,
+          extraFeeByFoodId[foodListing.id.uuid],
+        ) === packagePerMember
+      );
     },
   );
 
@@ -141,6 +149,7 @@ export const prepareMenuFoodList = async ({
       foodList: suitableFoodList,
       foodIds: suitableFoodList.map((foodItem: TListing) => foodItem.id.uuid),
       currentRestaurant: restaurant,
+      extraFeeByFoodId,
     });
 
   // Adjust food list price if the company is allowed to add a second food
@@ -300,9 +309,12 @@ export function filterMenusHavePackagePerMember(
     const { foodsByDate } = Listing(menu).getPublicData();
     const foodByIds = foodsByDate[dayOfWeek];
     const foodIds = Object.keys(foodByIds);
+    const extraFeeByFoodId = getMenuExtraFeeMap(menu);
 
     return foodIds.some(
-      (foodId) => foodByIds[foodId].price === packagePerMember,
+      (foodId) =>
+        getBillablePrice(foodByIds[foodId].price, extraFeeByFoodId[foodId]) ===
+        packagePerMember,
     );
   });
 }

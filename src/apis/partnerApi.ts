@@ -9,12 +9,22 @@ export const queryPartnerOrdersApi = (partnerId: string, params?: TObject) => {
   return getApi(`${BASE_URL}/${partnerId}/orders`, params);
 };
 
+/**
+ * Query partner order detail by order ID
+ * @param orderId - Order ID
+ * @param date - sub order date
+ * @returns Order detail
+ */
 export const queryPartnerOrderDetailApi = ({
   partnerId,
   orderId,
   date,
-}: TObject) => {
-  return getApi(`${BASE_URL}/${partnerId}/orders/${orderId}`, { date });
+}: {
+  partnerId: string;
+  orderId: string;
+  date: string;
+}) => {
+  return postApi(`${BASE_URL}/${partnerId}/orders/${orderId}`, { date });
 };
 
 export const queryAllPartnerPaymentRecordsApi = ({ partnerId }: TObject) => {
