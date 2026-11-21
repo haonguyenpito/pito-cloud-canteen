@@ -529,6 +529,64 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
   }
 };
 
+const menuContainsFood = (
+  menu: TIntegrationListing,
+  isTargetFood: (foodId: string) => boolean,
+) => {
+  const menuListing = IntegrationListing(menu);
+  const { foodsByDate = {} } = menuListing.getPublicData();
+
+  return Object.values(EDayOfWeek).some(
+    (day) =>
+      ((menuListing.getMetadata()[`${day}FoodIdList`] || []) as string[]).some(
+        isTargetFood,
+      ) || Object.keys(foodsByDate[day] || {}).some(isTargetFood),
+  );
+};
+
+/**
+ * Menus that really contain one of the foods. A food's `menuIdList` is only
+ * maintained by the admin menu create/update flow and is stale for menus made
+ * any other way, so the restaurant's menus are searched as well.
+ */
+const findMenusContainingFoods = async (
+  foods: TIntegrationListing[],
+  isTargetFood: (foodId: string) => boolean,
+): Promise<TIntegrationListing[]> => {
+  const listedMenuIds: string[] = uniq(
+    flatten(
+      foods.map(
+        (food) => IntegrationListing(food).getPublicData().menuIdList || [],
+      ),
+    ),
+  );
+  const restaurantIds: string[] = uniq(
+    foods
+      .map((food) => IntegrationListing(food).getMetadata().restaurantId)
+      .filter(Boolean),
+  );
+  const [listedMenus, restaurantMenus] = await Promise.all([
+    listedMenuIds.length ? queryMenuByIdList(listedMenuIds) : [],
+    restaurantIds.length
+      ? queryAllListings({
+          query: {
+            meta_listingType: EListingType.menu,
+            meta_restaurantId: restaurantIds.join(','),
+          },
+        })
+      : [],
+  ]);
+  const menuById = new Map<string, TIntegrationListing>(
+    [...(listedMenus || []), ...(restaurantMenus || [])].map(
+      (menu: TIntegrationListing) => [menu.id.uuid, menu],
+    ),
+  );
+
+  return Array.from(menuById.values()).filter((menu) =>
+    menuContainsFood(menu, isTargetFood),
+  );
+};
+
 export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
   try {
     const integrationSdk = getIntegrationSdk();
@@ -553,18 +611,12 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
         ];
       }),
     );
-    const menuIdList: string[] = uniq(
-      flatten(
-        updatedFoods.map(
-          (food: TIntegrationListing) =>
-            IntegrationListing(food).getPublicData().menuIdList || [],
-        ),
-      ),
-    );
-    if (!menuIdList.length) return;
-
-    const menus = await queryMenuByIdList(menuIdList);
     const isUpdatedFood = (foodId: string) => !!updatedFoodList[foodId];
+    const menus = await findMenusContainingFoods(updatedFoods, isUpdatedFood);
+    if (!menus.length) return;
+    const menuIdList: string[] = menus.map(
+      (menu: TIntegrationListing) => menu.id.uuid,
+    );
 
     const menuDays: {
       menu: TIntegrationListing;
