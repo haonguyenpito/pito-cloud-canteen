@@ -16,6 +16,7 @@ import {
   getFoodDataMap,
   getIsAllowAddSecondaryFoodInCreateOrder,
   getOrderParticipantNumber,
+  getParticipantPickClosedReason,
   getPickFoodParticipants,
   getRestaurantListFromOrderDetail,
   getTotalInfo,
@@ -24,6 +25,7 @@ import {
   isEnableUpdateBookingInfo,
   isOrderDetailDatePickedFood,
   isOrderDetailFullDatePickingFood,
+  isParticipantPickClosedError,
   markColorForOrder,
   mergeRecommendOrderDetailWithCurrentOrderDetail,
 } from '@helpers/orderHelper';
@@ -538,5 +540,60 @@ describe('getOrderParticipantNumber', () => {
       u1: { foodId: '', status: EParticipantOrderStatus.notJoined },
     };
     expect(getOrderParticipantNumber(memberOrders as any)).toBe(0);
+  });
+});
+
+describe('getParticipantPickClosedReason', () => {
+  const order = (metadata: Record<string, unknown>) =>
+    ({
+      id: { uuid: 'order-1' },
+      type: 'listing',
+      attributes: { metadata },
+    } as any);
+  const inOneHour = Date.now() + 60 * 60 * 1000;
+
+  it('is open while picking and before the deadline', () => {
+    expect(
+      getParticipantPickClosedReason(
+        order({ orderState: 'picking', deadlineDate: inOneHour }),
+      ),
+    ).toBeNull();
+  });
+
+  it('is open while picking when no deadline is set', () => {
+    expect(
+      getParticipantPickClosedReason(order({ orderState: 'picking' })),
+    ).toBeNull();
+  });
+
+  it('is closed once the order left picking, even before the deadline', () => {
+    expect(
+      getParticipantPickClosedReason(
+        order({ orderState: 'inProgress', deadlineDate: inOneHour }),
+      ),
+    ).toBe('Order is no longer open for food selection');
+  });
+
+  it('is closed after the deadline', () => {
+    expect(
+      getParticipantPickClosedReason(
+        order({ orderState: 'picking', deadlineDate: Date.now() - 1000 }),
+      ),
+    ).toBe('Food selection deadline has passed');
+  });
+});
+
+describe('isParticipantPickClosedError', () => {
+  it('recognises the closed-picking reasons and nothing else', () => {
+    expect(
+      isParticipantPickClosedError('Food selection deadline has passed'),
+    ).toBe(true);
+    expect(
+      isParticipantPickClosedError(
+        'Order is no longer open for food selection',
+      ),
+    ).toBe(true);
+    expect(isParticipantPickClosedError('Sharetribe unavailable')).toBe(false);
+    expect(isParticipantPickClosedError(undefined)).toBe(false);
   });
 });

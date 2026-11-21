@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
+import { getParticipantPickClosedReason } from '@helpers/orderHelper';
 import cookies from '@services/cookie';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
@@ -145,6 +146,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         )[0];
         const currentUserId = CurrentUser(currentUser).getId();
 
+        const pickClosedReason = getParticipantPickClosedReason(
+          await fetchListing(orderId as string),
+        );
+        if (pickClosedReason) {
+          return res.status(400).json({ message: pickClosedReason });
+        }
+
         console.info('[TRACK] step=enqueue_job start', {
           orderId,
           planId,
@@ -160,13 +168,8 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           currentUserId,
         });
         console.info('[TRACK] step=enqueue_job success', {
-          jobId: queued?.jobId,
+          jobId: queued.jobId,
         });
-        if (!queued) {
-          return res.status(409).json({
-            message: 'Previous order of this participant is still processing',
-          });
-        }
         console.info('[TRACK] step=api_receive success');
 
         return res.json({ message: 'Job queued', ...queued });
