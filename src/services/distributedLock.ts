@@ -1,7 +1,7 @@
 import type { Redis } from 'ioredis';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { redisConnection } from '@services/redis';
+import { lockRedisConnection } from '@services/redis';
 
 const ACQUIRE_LOCK_SCRIPT = `
   local key = KEYS[1]
@@ -166,12 +166,27 @@ export const withPlanLock = async <T>(
   }
 
   // ~11s of backoff, so an API request fails fast instead of hanging.
-  const lock = new DistributedLock(redisConnection as Redis, `plan:${planId}`, {
-    ttl: 30000,
-    retryDelay: 100,
-    maxRetries: 40,
-  });
-  if (!(await lock.acquire())) {
+  const lock = new DistributedLock(
+    lockRedisConnection as Redis,
+    `plan:${planId}`,
+    {
+      ttl: 30000,
+      retryDelay: 100,
+      maxRetries: 40,
+    },
+  );
+  let acquired: boolean;
+  try {
+    acquired = await lock.acquire();
+  } catch (error) {
+    // Redis unreachable: refuse the write rather than run it unlocked.
+    throw new Error(
+      `Plan lock unavailable for planId: ${planId}: ${
+        (error as Error).message
+      }`,
+    );
+  }
+  if (!acquired) {
     throw new Error(`Failed to acquire lock for planId: ${planId}`);
   }
 
@@ -181,6 +196,9 @@ export const withPlanLock = async <T>(
       criticalSection,
     );
   } finally {
-    await lock.release();
+    // The write is done; a failed release only leaves the lock to its TTL.
+    await lock.release().catch((error) => {
+      console.error(`Plan lock release failed for planId: ${planId}`, error);
+    });
   }
 };

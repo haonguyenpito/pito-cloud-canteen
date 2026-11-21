@@ -64,6 +64,10 @@ jest.mock('@services/redis', () => {
 
   return {
     __store: { strings, hashes },
+    // Lock and pending picks use their own fail-fast connection; same fake here.
+    get lockRedisConnection() {
+      return this.redisConnection;
+    },
     redisConnection: {
       on: jest.fn(),
       eval: jest.fn(
