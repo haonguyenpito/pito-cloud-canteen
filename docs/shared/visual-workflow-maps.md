@@ -27,7 +27,7 @@ Mermaid diagrams for every major workflow in PITO Cloud Canteen, verified agains
 | # | Topic | Reality |
 |---|-------|---------|
 | 1 | SDK modes | 4 mainline modes (`getSdk`, `getTrustedSdk`, `getIntegrationSdk`, `getSubAccountTrustedSdk`) plus `getTrustedSdkWithSubAccountToken` (`src/services/sdk.ts:116`) — used when the user token is already known and a fresh `req` is not available. |
-| 2 | Food selection | Participant self-pick (`POST /api/participants/orders/:orderId`) calls `addToProcessOrderQueue` **directly** — no Firebase indirection. There is no `place-order.api.ts`. Admin/booker edits (`PUT /api/orders/:orderId/member-order`) bypass the queue and write straight to Sharetribe. |
+| 2 | Food selection | Participant picks (`POST /api/participants/orders/:orderId/place-order` and `POST /api/participants/orders/:orderId`) call `enqueueParticipantOrder`: the pick waits in Redis `pending:plan:{planId}` and the lock holder writes every pending pick of the plan in one batch — no Firebase indirection. Admin/booker edits (`PUT /api/orders/:orderId/member-order`) are synchronous under `withPlanLock`. See `docs/roles/participant/food-selection.md`. |
 | 3 | Transit endpoints | Admin's `transit.api.ts` handles `START_DELIVERY`, `COMPLETE_DELIVERY`, and the 3 `OPERATOR_CANCEL_*` cases. Partner's `transit.api.ts` (`src/pages/api/partner/[partnerId]/orders/[orderId]/transit.api.ts`) handles `PARTNER_CONFIRM_SUB_ORDER` and `PARTNER_REJECT_SUB_ORDER`. `REVIEW_RESTAURANT` / `REVIEW_RESTAURANT_AFTER_EXPIRE_TIME` are fired from `participants/plans/summarize-reviews.service.ts`. |
 | 4 | BullMQ workers | Two files exist (`processOrder.job.ts`, `processMemberOrder.job.ts`) both bound to queue `processOrder`. **Only `processOrder.job.ts` has callers** — `processMemberOrder.job.ts` is unused as of the last audit. |
 | 5 | Expired transitions | In `process.edn`, **only** `expired-review-time` has an `:at` clause (auto-fires 14 days after `state/completed`). `expired-start-delivery` and `expired-delivery` are operator-triggered despite their names. |
@@ -234,10 +234,12 @@ sequenceDiagram
     Note over Redux: In-memory only, no API call yet
 
     UI->>API: POST /api/participants/orders/:orderId\nbody: planId, planData, orderDay(s), memberOrders
-    API->>BullMQ: addToProcessOrderQueue({ orderId, planId, currentUserId, ... })
-    API-->>UI: 200 { jobId } — fire-and-forget
+    API->>Redis: HSET pending:plan:{planId} submissionId → pick
+    API->>BullMQ: enqueueParticipantOrder({ orderId, planId, currentUserId, ... })
+    API-->>UI: 200 { jobId, submissionId } — UI waits on the Firestore job status
 
-    BullMQ->>Redis: ACQUIRE lock:plan:{planId}\nLua CAS script, TTL 30s, up to 100 retries
+    BullMQ->>Redis: ACQUIRE lock:plan:{planId}\nLua CAS script, TTL 30s
+    Note over BullMQ: writes every pending pick of the plan in one batch
 
     loop Contended — retry with backoff
         Redis-->>BullMQ: 0 (locked by another worker)

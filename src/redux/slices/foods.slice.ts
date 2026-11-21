@@ -222,7 +222,7 @@ const queryFilteredPartnerFoods = createAsyncThunk(
     try {
       const { data } = await partnerFoodApi.queryFoods({
         ...params,
-        perPage: MANAGE_FOOD_PAGE_SIZE,
+        perPage: params.perPage || MANAGE_FOOD_PAGE_SIZE,
       });
 
       return {

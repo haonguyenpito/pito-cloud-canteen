@@ -7,6 +7,7 @@ import logger from '@helpers/logger';
 import { createFoodRatingNotificationSchedulerWhenOrderComplete } from '@pages/api/admin/plan/transit.api';
 import { transitionOrderStatus } from '@pages/api/admin/plan/transition-order-status.service';
 import createQuotation from '@pages/api/orders/[orderId]/quotation/create-quotation.service';
+import { withPlanLock } from '@services/distributedLock';
 import { emailSendingFactory, EmailTemplateTypes } from '@services/email';
 import {
   adminQueryListings,
@@ -40,6 +41,35 @@ const findSubOrderDate = (orderDetail: TObject, subOrderWeekDay: string) => {
       DateTime.fromMillis(Number(k)).setZone(VNTimezone).weekday.toString(),
   );
 };
+
+/**
+ * Merges the patch `buildPatch` returns (null: no change) into one sub-order
+ * of the plan as it is under the plan lock, so a webhook never writes back a
+ * stale orderDetail over a concurrent pick or transition.
+ */
+const updateSubOrderUnderLock = (
+  planId: string,
+  subOrderDate: string,
+  buildPatch: (subOrder: TObject) => TObject | null,
+) =>
+  withPlanLock(planId, async () => {
+    const { orderDetail = {} } = Listing(
+      await fetchListing(planId),
+    ).getMetadata();
+    const subOrder = orderDetail[subOrderDate];
+    const patch = subOrder ? buildPatch(subOrder) : null;
+    if (!patch) return;
+
+    await getIntegrationSdk().listings.update({
+      id: planId,
+      metadata: {
+        orderDetail: {
+          ...orderDetail,
+          [subOrderDate]: { ...subOrder, ...patch },
+        },
+      },
+    });
+  });
 
 const fetchData = async (orderTitle: string) => {
   const [order] = await adminQueryListings({
@@ -118,25 +148,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
                 if (!subOrderDate) return;
 
-                const subOrder = orderDetail[subOrderDate];
-                const { isOnWheelOrderCreated = false } = subOrder;
-                if (!isOnWheelOrderCreated) {
-                  const newOrderDetail = {
-                    ...orderDetail,
-                    [subOrderDate]: {
-                      ...subOrder,
-                      isOnWheelOrderCreated: true,
-                      ...(sharedLink ? { trackingLink: sharedLink } : {}),
-                    },
-                  };
-
-                  await integrationSdk.listings.update({
-                    id: planId,
-                    metadata: {
-                      orderDetail: newOrderDetail,
-                    },
-                  });
-                }
+                await updateSubOrderUnderLock(
+                  planId,
+                  subOrderDate,
+                  ({ isOnWheelOrderCreated = false }) =>
+                    isOnWheelOrderCreated
+                      ? null
+                      : {
+                          isOnWheelOrderCreated: true,
+                          ...(sharedLink ? { trackingLink: sharedLink } : {}),
+                        },
+                );
               }),
             );
 
@@ -228,21 +250,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
                   params: {},
                 });
 
-                const newOrderDetail = {
-                  ...orderDetail,
-                  [subOrderDate]: {
-                    ...subOrder,
-                    lastTransition: transition,
-                    ...(sharedLink ? { trackingLink: sharedLink } : {}),
-                  },
-                };
-
-                await integrationSdk.listings.update({
-                  id: planId,
-                  metadata: {
-                    orderDetail: newOrderDetail,
-                  },
-                });
+                await updateSubOrderUnderLock(planId, subOrderDate, () => ({
+                  lastTransition: transition,
+                  ...(sharedLink ? { trackingLink: sharedLink } : {}),
+                }));
 
                 const orderListing = Listing(order);
                 const orderId = orderListing.getId() as string;
@@ -494,24 +505,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
                 if (!subOrderDate) return;
 
-                const subOrder = orderDetail[subOrderDate];
-                const { isOnWheelOrderCreated = false } = subOrder;
-                if (isOnWheelOrderCreated) {
-                  const newOrderDetail = {
-                    ...orderDetail,
-                    [subOrderDate]: {
-                      ...subOrder,
-                      isOnWheelOrderCreated: false,
-                    },
-                  };
-
-                  await integrationSdk.listings.update({
-                    id: planId,
-                    metadata: {
-                      orderDetail: newOrderDetail,
-                    },
-                  });
-                }
+                await updateSubOrderUnderLock(
+                  planId,
+                  subOrderDate,
+                  ({ isOnWheelOrderCreated = false }) =>
+                    isOnWheelOrderCreated
+                      ? { isOnWheelOrderCreated: false }
+                      : null,
+                );
               }),
             );
 

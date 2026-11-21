@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  getIsAllowAddSecondaryFood,
+  getParticipantPickClosedReason,
+} from '@helpers/orderHelper';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
 import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
@@ -87,6 +90,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             message: 'Order not found',
           }).send(res);
         }
+        const pickClosedReason = getParticipantPickClosedReason(orderListing);
+        if (pickClosedReason) {
+          return new FailedResponse({
+            status: HttpStatus.BAD_REQUEST,
+            message: pickClosedReason,
+          }).send(res);
+        }
         const plan = await sdk.listings.show({ id: planId });
         const [planListing] = denormalisedResponseEntities(plan);
         if (!planListing) {
@@ -130,12 +140,6 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           planData,
           currentUserId: participantId,
         });
-        if (!queued) {
-          return new FailedResponse({
-            status: HttpStatus.CONFLICT,
-            message: 'Previous order of this participant is still processing',
-          }).send(res);
-        }
 
         return new SuccessResponse({
           data: queued,

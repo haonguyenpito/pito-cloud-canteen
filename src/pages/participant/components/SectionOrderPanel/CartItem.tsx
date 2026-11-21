@@ -16,7 +16,6 @@ type TCartItemProps = {
   subOrderDate?: string;
   onRemove: () => void;
   foodPosition?: 'first' | 'second';
-  isProcessing?: boolean;
 };
 
 const CartItem: React.FC<TCartItemProps> = ({
@@ -26,15 +25,19 @@ const CartItem: React.FC<TCartItemProps> = ({
   subOrderDate,
   onRemove,
   foodPosition,
-  isProcessing = false,
 }) => {
   const intl = useIntl();
   const dispatch = useAppDispatch();
   const isAllowAddSecondaryFood = useAppSelector(
     (state) => state.ParticipantPlanPage.isAllowAddSecondaryFood,
   );
+  // No cart edits from "Đặt món" until the queued pick is written.
+  const editDisabled = useAppSelector(
+    (state) => state.ParticipantPlanPage.submitDataInprogress,
+  );
 
   const handleAutoSelect = () => {
+    if (editDisabled) return;
     dispatch(ParticipantPlanThunks.recommendFoodSubOrder(subOrderDate!));
   };
 
@@ -52,15 +55,10 @@ const CartItem: React.FC<TCartItemProps> = ({
         <span className="flex items-center gap-2">
           {label && <span>{label}</span>}
         </span>
-        {!removeDisabled && !isProcessing && (
+        {!removeDisabled && !editDisabled && (
           <IconClose onClick={onRemove} className={css.iconClose} />
         )}
       </div>
-      {isProcessing && (
-        <span className={css.processing} role="status">
-          {intl.formatMessage({ id: 'OrderEventCardStatus.processing' })}
-        </span>
-      )}
       {isAllowAddSecondaryFood && (
         <div>
           {foodPosition === 'first' &&
@@ -78,7 +76,13 @@ const CartItem: React.FC<TCartItemProps> = ({
         </div>
       )}
       <div className={css.value}>
-        <IconRefreshing className={css.icon} onClick={handleAutoSelect} />
+        <IconRefreshing
+          className={classNames(css.icon, {
+            'opacity-40 !cursor-not-allowed': editDisabled,
+          })}
+          onClick={handleAutoSelect}
+          aria-disabled={editDisabled}
+        />
         <span>{value}</span>
       </div>
     </div>

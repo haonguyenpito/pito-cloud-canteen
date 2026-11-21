@@ -49,7 +49,8 @@ const OrderPanelFooter: React.FC<TOrderPanelFooter> = ({
       isRequireSecondFood,
     );
 
-  const removeAllDisabled = isOrderDeadlineOver || cartListKeys.length === 0;
+  const removeAllDisabled =
+    isOrderDeadlineOver || submitDataInprogress || cartListKeys.length === 0;
 
   const completeOrderButtonLabel = intl.formatMessage({
     id: 'SectionOrderPanel.completeOrder',
@@ -73,8 +74,11 @@ const OrderPanelFooter: React.FC<TOrderPanelFooter> = ({
         onClick={handleSubmit}
         variant="primary"
         disabled={submitDisabled}
-        inProgress={submitDataInprogress}>
-        {completeOrderButtonLabel}
+        inProgress={submitDataInprogress}
+        loadingMode="extend">
+        {submitDataInprogress
+          ? intl.formatMessage({ id: 'OrderEventCardStatus.processing' })
+          : completeOrderButtonLabel}
       </Button>
       <Button
         variant="secondary"

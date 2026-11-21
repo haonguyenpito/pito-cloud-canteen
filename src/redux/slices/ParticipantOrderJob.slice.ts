@@ -45,8 +45,8 @@ export default ParticipantOrderJobSlice.reducer;
 /**
  * Marks the dates as processing from the click until the queued pick is
  * persisted. `submit` calls the queueing API. Throws when the request or the
- * job finally fails so the caller's error path runs; a timeout resolves so the
- * caller just reloads the plan.
+ * job finally fails so the caller's error path runs; `jobStatus: 'timeout'`
+ * means the outcome is unknown and the caller should reload the plan.
  */
 export const runParticipantOrderJob = async <
   TResponse extends { submissionId: string },
@@ -60,7 +60,7 @@ export const runParticipantOrderJob = async <
   dispatch: Dispatch;
   userId: string;
   submit: () => Promise<TResponse>;
-}): Promise<TResponse> => {
+}): Promise<TResponse & { jobStatus: 'completed' | 'timeout' }> => {
   const normalizedDays = days.map(String);
   dispatch(
     ParticipantOrderJobActions.startProcessing({
@@ -79,7 +79,7 @@ export const runParticipantOrderJob = async <
       throw new Error(result.error);
     }
 
-    return response;
+    return { ...response, jobStatus: result.status };
   } finally {
     dispatch(
       ParticipantOrderJobActions.finishProcessing({

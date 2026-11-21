@@ -131,23 +131,26 @@ All schedules use `Asia/Ho_Chi_Minh` timezone.
 
 ## 5. BullMQ + Redis
 
-**Purpose:** Job queue for participant food selection — prevents race conditions when multiple users update simultaneously.
+**Purpose:** Batched job queue for participant food selection, plus the plan lock every `plan.metadata.orderDetail` writer takes.
 
-**Queue name:** `processOrder`
-**Worker concurrency:** 5
-**Retry:** 3 attempts, exponential backoff (2s base)
-**Distributed lock:** `lock:plan:{planId}`, TTL 30s, max 100 retries
+**Queue name:** `processOrder` (job id = `submissionId`, delay 500 ms)
+**Worker concurrency:** 5 per process
+**Retry:** 3 attempts, exponential backoff (2s base); retries write only the job's own pick
+**Pending picks:** hash `pending:plan:{planId}` (field `submissionId`) + counter `pending:seq:{planId}`, TTL 24 h
+**Plan lock:** `lock:plan:{planId}`, TTL 30s — job waits up to ~90 s, `withPlanLock` (API routes) up to ~11 s
 
 **Files:**
 
-- `src/services/jobs/processOrder.job.ts`
-- `src/services/jobs/processMemberOrder.job.ts`
+- `src/services/jobs/processOrder.job.ts` — `enqueueParticipantOrder` + worker
+- `src/services/distributedLock.ts` — `DistributedLock`, `withPlanLock`
+- `src/helpers/orderJobStatus.ts` — Firestore job status (`queued` → `processing` → `completed`/`failed`) the participant UI waits on
 - `src/services/redis.ts` — Redis client
 - `src/services/queues/config.ts` — Queue configuration
+- `src/services/jobs/processMemberOrder.job.ts` — dead code (same queue name; do not import)
 
-**Config key:** `REDIS_URL`
+**Config keys:** `NEXT_PUBLIC_REDIS_URL`, `NEXT_PUBLIC_FIREBASE_ORDER_JOB_STATUS_COLLECTION_NAME`
 
-> Live caller: `POST /api/participants/orders/:orderId` (participant self-pick) calls `addToProcessOrderQueue` → `processOrder.job.ts`. `processMemberOrder.job.ts` is a newer implementation that currently has **no call sites**. See `docs/roles/participant/food-selection.md` for the full flow.
+See `docs/roles/participant/food-selection.md` for full details.
 
 ---
 
@@ -264,7 +267,8 @@ NEXT_PUBLIC_REMIND_PICKING_NATIVE_NOTIFICATION_TO_BOOKER_TIME_TO_DEADLINE_IN_MIN
 NEXT_PUBLIC_SEND_REMIND_PICKING_ORDER_TIME_TO_DEADLINE_IN_MINUTES=
 
 # Redis / BullMQ
-REDIS_URL=
+NEXT_PUBLIC_REDIS_URL=
+NEXT_PUBLIC_FIREBASE_ORDER_JOB_STATUS_COLLECTION_NAME=   # participant pick status docs ({planId}-{userId})
 
 # Security
 ENCRYPT_PASSWORD_SECRET_KEY=     # AES key for sub-account passwords — NEVER expose

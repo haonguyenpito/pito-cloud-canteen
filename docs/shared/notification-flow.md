@@ -156,7 +156,7 @@ Slack notifications go to 5 different webhook channels. Some support rich block 
 | `PARTNER_CONFIRMS_SUB_ORDER`              | `SLACK_WEBHOOK_URL`                    | Restaurant confirms sub-order               |
 | `PARTNER_REJECTS_SUB_ORDER`               | `SLACK_WEBHOOK_URL`                    | Restaurant rejects sub-order                |
 | `PARTICIPANT_RATING`                      | `SLACK_RATING_WEBHOOK_URL`             | Participant submits food rating — message includes company name: `[${userTypeData.label} - *${companyName}*]` |
-| `PARTICIPANT_ORDER_PERSISTENCE_FAILED`    | `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL` | BullMQ job failed to persist food selection |
+| `PARTICIPANT_ORDER_PERSISTENCE_FAILED`    | `SLACK_WEBHOOK_FOR_MISSING_ORDERS_URL` | Participant pick not persisted: given up after the last attempt, rejected from a batch, or a post-write verification mismatch |
 | `PARTNER_REPLY_REVIEW`                    | `SLACK_RATING_WEBHOOK_URL`             | Partner replies to review                   |
 | `ADMIN_REPLY_REVIEW`                      | `SLACK_RATING_WEBHOOK_URL`             | Admin replies to review                     |
 | `ADMIN_APPROVE_PARTNER_REPLY_REVIEW`      | `SLACK_RATING_WEBHOOK_URL`             | Admin approves partner reply                |

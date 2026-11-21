@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createAction, createSlice } from '@reduxjs/toolkit';
 import { AxiosError } from 'axios';
 import difference from 'lodash/difference';
 
@@ -10,7 +10,10 @@ import {
   pickRandomFoodExcludingIds,
 } from '@helpers/foodPickerHelpers';
 import { getBillablePrice } from '@helpers/menuExtraFee';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  getIsAllowAddSecondaryFood,
+  isParticipantPickClosedError,
+} from '@helpers/orderHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
 import { runParticipantOrderJob } from '@redux/slices/ParticipantOrderJob.slice';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
@@ -214,6 +217,12 @@ const initialState: TParticipantPlanState = {
   submitDataError: null,
   isAllowAddSecondaryFood: false,
 };
+
+/** The loaded plan as processOrder.job wrote this user's pick. */
+const applyOwnMemberOrders = createAction<{
+  userId: string;
+  planData: TShoppingCartMemberPlan;
+}>('ParticipantPlanPage/applyOwnMemberOrders');
 
 const loadData = createAsyncThunk(
   LOAD_DATA,
@@ -505,7 +514,7 @@ const placeOrder = createAsyncThunk(
       };
 
       // Throws on a failed request or job, so the catch below reports it.
-      const { jobId } = await runParticipantOrderJob({
+      const { jobId, jobStatus } = await runParticipantOrderJob({
         dispatch,
         planId,
         userId: currentUserId,
@@ -520,9 +529,21 @@ const placeOrder = createAsyncThunk(
           return queued;
         },
       });
-      await dispatch(reloadData(planId));
-      // firebase documents for history sub-orders and rating feature
-      await Promise.all(
+      if (jobStatus === 'completed') {
+        // The job wrote exactly this cart, so patch the loaded plan instead
+        // of refetching it; only an unknown outcome needs the reload.
+        dispatch(
+          applyOwnMemberOrders({
+            userId: currentUserId,
+            planData: updatedPlan,
+          }),
+        );
+      } else {
+        await dispatch(reloadData(planId));
+      }
+      // firebase documents for history sub-orders and rating feature. They
+      // read the written plan, so they start now, but the user need not wait.
+      Promise.all(
         orderDays.map((timestamp: string) =>
           participantSubOrderAddDocumentApi({
             participantId: currentUserId,
@@ -530,6 +551,8 @@ const placeOrder = createAsyncThunk(
             timestamp: parseInt(timestamp, 10),
           }),
         ),
+      ).catch((error) =>
+        console.error('Cannot add participant sub-order documents', error),
       );
 
       return { status: true, jobId };
@@ -543,6 +566,11 @@ const placeOrder = createAsyncThunk(
           : error instanceof Error
           ? error.message
           : String(error);
+
+      // Picking closed is an expected refusal: no missing-orders alert.
+      if (isParticipantPickClosedError(errorMessage)) {
+        return rejectWithValue({ pickClosed: true, message: errorMessage });
+      }
 
       await placeOrderFailedApi(orderId, {
         planId,
@@ -675,6 +703,19 @@ const participantPlanSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
+      .addCase(
+        applyOwnMemberOrders,
+        (state, { payload: { userId, planData } }) => {
+          Object.entries(planData).forEach(([day, members]) => {
+            if (state.plan[day]) {
+              state.plan[day].memberOrder = {
+                ...state.plan[day].memberOrder,
+                [userId]: members[userId],
+              };
+            }
+          });
+        },
+      )
       .addCase(loadData.pending, (state) => {
         return {
           ...state,

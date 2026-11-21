@@ -9,7 +9,7 @@
  */
 import {
   updateMenuAfterFoodDeleted,
-  updateMenuAfterFoodUpdated,
+  updateMenuAfterFoodsUpdated,
 } from '@pages/api/helpers/foodHelpers';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
@@ -86,13 +86,13 @@ const menuPublicDataUpdate = (update: jest.Mock) =>
 
 afterEach(() => jest.clearAllMocks());
 
-describe('updateMenuAfterFoodUpdated', () => {
+describe('updateMenuAfterFoodsUpdated', () => {
   it('recomputes MinFoodPrice including the menu surcharge', async () => {
     const foods = [food(FOOD_A, 40_000), food(FOOD_B, 50_000)];
     const update = setup(foods);
     (fetchListing as jest.Mock).mockResolvedValue(foods[0]);
 
-    await updateMenuAfterFoodUpdated(FOOD_A);
+    await updateMenuAfterFoodsUpdated([FOOD_A]);
 
     // min(40,000 + 15,000, 50,000 + 2,000) — not the base 40,000
     expect(menuPublicDataUpdate(update).monMinFoodPrice).toBe(52_000);
