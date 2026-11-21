@@ -11,7 +11,7 @@ import { setOrderJobStatus } from '@helpers/orderJobStatus';
 import { DistributedLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { defaultQueueConfig } from '@services/queues/config';
-import { redisConnection } from '@services/redis';
+import { lockRedisConnection, redisConnection } from '@services/redis';
 import { getIntegrationSdk } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
 import { Listing } from '@src/utils/data';
@@ -57,7 +57,9 @@ type ProcessOrderJobData = Pick<
 // few writes instead of N serialized ones.
 const PENDING_TTL_SECONDS = 24 * 60 * 60;
 const MAX_BATCH_SIZE = 200;
-const redis = redisConnection as Redis;
+// Pending picks and the plan lock fail fast while Redis is down; the queue
+// itself keeps BullMQ's own connection.
+const redis = lockRedisConnection as Redis;
 const pendingKey = (planId: string) => `pending:plan:${planId}`;
 const seqKey = (planId: string) => `pending:seq:${planId}`;
 
