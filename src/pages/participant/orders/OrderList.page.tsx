@@ -3,6 +3,7 @@ import type { Event, View } from 'react-big-calendar';
 import { Views } from 'react-big-calendar';
 import { useIntl } from 'react-intl';
 import { shallowEqual } from 'react-redux';
+import { toast } from 'react-toastify';
 import flatten from 'lodash/flatten';
 import { DateTime } from 'luxon';
 import { useRouter } from 'next/router';
@@ -478,6 +479,13 @@ const OrderListPage = () => {
       },
       [],
     );
+    if (neededRecommendSubOrders.length === 0) {
+      toast.info('Không có ngày nào cần chọn giúp', {
+        toastId: 'pick-for-me-nothing-to-pick',
+      });
+
+      return;
+    }
 
     dispatch(
       OrderListThunks.pickFoodForSubOrders({
@@ -643,7 +651,7 @@ const OrderListPage = () => {
 
     const deliveriedSubOrder = deliveredSubOrders.find((subOrder) => {
       const subOrderId = buildParticipantSubOrderDocumentId(
-        subOrder?.participantId!,
+        subOrder.participantId!,
         subOrder.planId!,
         _event?.resource?.timestamp,
       );
