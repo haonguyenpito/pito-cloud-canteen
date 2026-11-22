@@ -4,68 +4,17 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import cookies from '@services/cookie';
-import { queryCollectionData } from '@services/firebase';
 import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
-import type {
-  TFirebaseMemberOrder,
-  TOrderDetail,
-  TOrderDetailRestaurant,
-  TShoppingCartMemberPlan,
-} from '@src/types/order';
+import type { TOrderDetail, TOrderDetailRestaurant } from '@src/types/order';
 import {
   CurrentUser,
   denormalisedResponseEntities,
   Listing,
 } from '@utils/data';
 
-const { NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME } = process.env;
-
-/**
- * Get sub order from firestore
- * @param planId - plan id
- * @returns { TShoppingCartMemberPlan } - sub order
- */
-export const getSubOrderFromFirestore = async ({
-  planId,
-  participantId,
-}: {
-  planId: string;
-  participantId: string;
-}): Promise<TShoppingCartMemberPlan | undefined> => {
-  try {
-    const memberOrdersFromFirestore: TFirebaseMemberOrder[] =
-      await queryCollectionData({
-        collectionName: NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME!,
-        queryParams: {
-          planId: {
-            operator: '==',
-            value: planId,
-          },
-          participantId: {
-            operator: '==',
-            value: participantId,
-          },
-          status: {
-            operator: '==',
-            value: 'pending',
-          },
-        },
-        limitRecords: 1,
-      });
-    if (memberOrdersFromFirestore.length > 0) {
-      return memberOrdersFromFirestore[0].planData ?? undefined;
-    }
-  } catch (error) {
-    console.error(error);
-
-    return undefined;
-  }
-};
-
 const fetchSubOrder = async (
   orderDetail: TOrderDetail,
   currentUserId: string,
-  planId: string,
 ) => {
   let orderDetailResult = {};
   const integrationSdk = getIntegrationSdk();
@@ -125,27 +74,6 @@ const fetchSubOrder = async (
       },
     };
   }
-  // fetch mealPlan from firestore
-  const subOrderFromFirestore = await getSubOrderFromFirestore({
-    planId: planId as string,
-    participantId: currentUserId,
-  });
-  if (subOrderFromFirestore) {
-    orderDetailResult = Object.entries(orderDetailResult).reduce(
-      (acc, [dayId, memberOrder]) => {
-        return {
-          ...acc,
-          [dayId]: {
-            ...(memberOrder as object),
-            memberOrder: {
-              [currentUserId]: subOrderFromFirestore[dayId]?.[currentUserId],
-            },
-          },
-        };
-      },
-      {},
-    );
-  }
 
   return orderDetailResult;
 };
@@ -187,11 +115,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           )[0];
 
           const currentUserId = CurrentUser(currentUser).getId();
-          const mealPlan = await fetchSubOrder(
-            orderDetail,
-            currentUserId,
-            planId as string,
-          );
+          const mealPlan = await fetchSubOrder(orderDetail, currentUserId);
 
           res.json({
             statusCode: 200,
