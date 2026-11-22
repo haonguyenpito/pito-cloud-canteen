@@ -31,8 +31,13 @@ const CartItem: React.FC<TCartItemProps> = ({
   const isAllowAddSecondaryFood = useAppSelector(
     (state) => state.ParticipantPlanPage.isAllowAddSecondaryFood,
   );
+  // No cart edits from "Đặt món" until the queued pick is written.
+  const editDisabled = useAppSelector(
+    (state) => state.ParticipantPlanPage.submitDataInprogress,
+  );
 
   const handleAutoSelect = () => {
+    if (editDisabled) return;
     dispatch(ParticipantPlanThunks.recommendFoodSubOrder(subOrderDate!));
   };
 
@@ -50,7 +55,7 @@ const CartItem: React.FC<TCartItemProps> = ({
         <span className="flex items-center gap-2">
           {label && <span>{label}</span>}
         </span>
-        {!removeDisabled && (
+        {!removeDisabled && !editDisabled && (
           <IconClose onClick={onRemove} className={css.iconClose} />
         )}
       </div>
@@ -71,7 +76,13 @@ const CartItem: React.FC<TCartItemProps> = ({
         </div>
       )}
       <div className={css.value}>
-        <IconRefreshing className={css.icon} onClick={handleAutoSelect} />
+        <IconRefreshing
+          className={classNames(css.icon, {
+            'opacity-40 !cursor-not-allowed': editDisabled,
+          })}
+          onClick={handleAutoSelect}
+          aria-disabled={editDisabled}
+        />
         <span>{value}</span>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { Views } from 'react-big-calendar';
 import { useIntl } from 'react-intl';
 import Skeleton from 'react-loading-skeleton';
 import { shallowEqual } from 'react-redux';
+import { toast } from 'react-toastify';
 import flatten from 'lodash/flatten';
 import { DateTime } from 'luxon';
 import { useRouter } from 'next/router';
@@ -248,6 +249,13 @@ const OrderCalendarView: React.FC<TOrderCalendarViewProps> = (props) => {
       },
       [],
     );
+    if (neededRecommendSubOrders.length === 0) {
+      toast.info('Không có ngày nào cần chọn giúp', {
+        toastId: 'pick-for-me-nothing-to-pick',
+      });
+
+      return;
+    }
 
     dispatch(
       OrderListThunks.pickFoodForSubOrders({

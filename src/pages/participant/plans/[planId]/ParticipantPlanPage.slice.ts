@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createAction, createSlice } from '@reduxjs/toolkit';
 import { AxiosError } from 'axios';
 import difference from 'lodash/difference';
 
@@ -9,9 +9,12 @@ import {
   pickRandomFood,
   pickRandomFoodExcludingIds,
 } from '@helpers/foodPickerHelpers';
-import { sleep } from '@helpers/index';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  getIsAllowAddSecondaryFood,
+  isParticipantPickClosedError,
+} from '@helpers/orderHelper';
 import { createAsyncThunk } from '@redux/redux.helper';
+import { runParticipantOrderJob } from '@redux/slices/ParticipantOrderJob.slice';
 import type { TMemberPlan } from '@redux/slices/shoppingCart.slice';
 import {
   shoppingCartActions,
@@ -206,6 +209,12 @@ const initialState: TParticipantPlanState = {
   isAllowAddSecondaryFood: false,
 };
 
+/** The loaded plan as processOrder.job wrote this user's pick. */
+const applyOwnMemberOrders = createAction<{
+  userId: string;
+  planData: TShoppingCartMemberPlan;
+}>('ParticipantPlanPage/applyOwnMemberOrders');
+
 const loadData = createAsyncThunk(
   LOAD_DATA,
   async (planId: string, { getState, dispatch }) => {
@@ -389,11 +398,16 @@ const updateOrder = createAsyncThunk(
       planData: updatedPlan,
     };
 
-    const {
-      data: { jobId },
-    } = await updateParticipantOrderApi(orderId, updateValues);
-
-    await sleep(2000); // wait for the order to be updated
+    const { jobId } = await runParticipantOrderJob({
+      dispatch,
+      planId,
+      userId: currentUserId,
+      days: orderDays,
+      submit: async () =>
+        (
+          await updateParticipantOrderApi(orderId, updateValues)
+        ).data,
+    });
     await dispatch(reloadData(planId));
     // firebase documents for history sub-orders and rating feature
     await Promise.all(
@@ -490,14 +504,37 @@ const placeOrder = createAsyncThunk(
         planData: updatedPlan,
       };
 
-      const res = await placeOrderApi(orderId, updateValues);
-      const { orderMemberDocumentId } = res?.data?.data || {};
-      if (!orderMemberDocumentId) {
-        return rejectWithValue(new Error('Failed to place order'));
+      // Throws on a failed request or job, so the catch below reports it.
+      const { jobId, jobStatus } = await runParticipantOrderJob({
+        dispatch,
+        planId,
+        userId: currentUserId,
+        days: orderDays,
+        submit: async () => {
+          const res = await placeOrderApi(orderId, updateValues);
+          const queued = res?.data?.data;
+          if (!queued?.jobId || !queued.submissionId) {
+            throw new Error('Failed to place order');
+          }
+
+          return queued;
+        },
+      });
+      if (jobStatus === 'completed') {
+        // The job wrote exactly this cart, so patch the loaded plan instead
+        // of refetching it; only an unknown outcome needs the reload.
+        dispatch(
+          applyOwnMemberOrders({
+            userId: currentUserId,
+            planData: updatedPlan,
+          }),
+        );
+      } else {
+        await dispatch(reloadData(planId));
       }
-      await dispatch(reloadData(planId));
-      // firebase documents for history sub-orders and rating feature
-      await Promise.all(
+      // firebase documents for history sub-orders and rating feature. They
+      // read the written plan, so they start now, but the user need not wait.
+      Promise.all(
         orderDays.map((timestamp: string) =>
           participantSubOrderAddDocumentApi({
             participantId: currentUserId,
@@ -505,9 +542,11 @@ const placeOrder = createAsyncThunk(
             timestamp: parseInt(timestamp, 10),
           }),
         ),
+      ).catch((error) =>
+        console.error('Cannot add participant sub-order documents', error),
       );
 
-      return { status: true, orderMemberDocumentId };
+      return { status: true, jobId };
     } catch (error: unknown) {
       const { orderId, planId, userOrder = {} } = data;
       const { currentUser } = getState().user;
@@ -518,6 +557,11 @@ const placeOrder = createAsyncThunk(
           : error instanceof Error
           ? error.message
           : String(error);
+
+      // Picking closed is an expected refusal: no missing-orders alert.
+      if (isParticipantPickClosedError(errorMessage)) {
+        return rejectWithValue({ pickClosed: true, message: errorMessage });
+      }
 
       await placeOrderFailedApi(orderId, {
         planId,
@@ -650,6 +694,19 @@ const participantPlanSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
+      .addCase(
+        applyOwnMemberOrders,
+        (state, { payload: { userId, planData } }) => {
+          Object.entries(planData).forEach(([day, members]) => {
+            if (state.plan[day]) {
+              state.plan[day].memberOrder = {
+                ...state.plan[day].memberOrder,
+                [userId]: members[userId],
+              };
+            }
+          });
+        },
+      )
       .addCase(loadData.pending, (state) => {
         return {
           ...state,

@@ -1,11 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { v4 as uuidv4 } from 'uuid';
 
 import { HttpMethod } from '@apis/configs';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  getIsAllowAddSecondaryFood,
+  getParticipantPickClosedReason,
+} from '@helpers/orderHelper';
 import cookies from '@services/cookie';
 import { denormalisedResponseEntities } from '@services/data';
-import { setCollectionDocWithCustomId } from '@services/firebase';
+import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
 import participantChecker from '@services/permissionChecker/participant';
 import { getSdk } from '@services/sdk';
 import type { TCartItem, TUpdateParticipantOrderBody } from '@src/types/order';
@@ -16,8 +18,6 @@ import {
 } from '@src/utils/response';
 import { Listing } from '@utils/data';
 import type { TPlan } from '@utils/orderTypes';
-
-const { NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME } = process.env;
 
 /**
  * Validate cart item
@@ -90,6 +90,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
             message: 'Order not found',
           }).send(res);
         }
+        const pickClosedReason = getParticipantPickClosedReason(orderListing);
+        if (pickClosedReason) {
+          return new FailedResponse({
+            status: HttpStatus.BAD_REQUEST,
+            message: pickClosedReason,
+          }).send(res);
+        }
         const plan = await sdk.listings.show({ id: planId });
         const [planListing] = denormalisedResponseEntities(plan);
         if (!planListing) {
@@ -126,36 +133,17 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           }
         }
 
-        // add update plan to firestore
-        const orderMemberDocumentId = uuidv4();
-        try {
-          await setCollectionDocWithCustomId(
-            orderMemberDocumentId,
-            {
-              orderId,
-              planId,
-              participantId,
-              planData,
-              orderDays,
-              status: 'pending',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME!,
-          );
-        } catch (error) {
-          return new FailedResponse({
-            status: HttpStatus.INTERNAL_SERVER_ERROR,
-            message: 'Failed to set order member document',
-            error: error as string,
-          }).send(res);
-        }
+        const queued = await enqueueParticipantOrder({
+          orderId,
+          planId,
+          orderDays,
+          planData,
+          currentUserId: participantId,
+        });
 
         return new SuccessResponse({
-          data: {
-            orderMemberDocumentId,
-          },
-          message: 'Order placed successfully',
+          data: queued,
+          message: 'Order queued',
         }).send(res);
       } catch (error) {
         return new FailedResponse({

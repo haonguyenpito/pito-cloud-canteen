@@ -63,6 +63,34 @@ export const isOrderOverDeadline = (order: TListing) => {
   return isOver(deadlineDate);
 };
 
+const PARTICIPANT_PICK_CLOSED_REASONS = {
+  notPicking: 'Order is no longer open for food selection',
+  deadlinePassed: 'Food selection deadline has passed',
+} as const;
+
+/**
+ * Why a participant can no longer change their own picks of this order, or
+ * null while they can. Same rule as the participant UI: picking state and
+ * before the deadline. Bookers and admins are not bound by it.
+ */
+export const getParticipantPickClosedReason = (order: TListing) => {
+  const { orderState, deadlineDate } = Listing(order).getMetadata();
+  if (orderState !== EOrderStates.picking) {
+    return PARTICIPANT_PICK_CLOSED_REASONS.notPicking;
+  }
+  if (deadlineDate && isOver(Number(deadlineDate))) {
+    return PARTICIPANT_PICK_CLOSED_REASONS.deadlinePassed;
+  }
+
+  return null;
+};
+
+/** True for an API/job error that only means picking is closed (no bug). */
+export const isParticipantPickClosedError = (message?: string) =>
+  Object.values<string>(PARTICIPANT_PICK_CLOSED_REASONS).includes(
+    message ?? '',
+  );
+
 export const isEnableUpdateBookingInfo = (
   orderState: EBookerOrderDraftStates | EOrderDraftStates,
 ) => {

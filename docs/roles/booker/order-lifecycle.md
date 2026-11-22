@@ -144,7 +144,7 @@ All schedulers use `Asia/Ho_Chi_Minh` timezone. Schedule expressions are `at(yyy
 | `GET`  | `/api/orders/:orderId`                                 | Fetch order                           |
 | `PUT`  | `/api/orders/:orderId`                                 | Update order                          |
 | `POST` | `/api/orders/:orderId/publish-order`                   | Transition to picking                 |
-| `PUT`  | `/api/orders/:orderId/member-order`                    | Update participant food selection     |
+| `PUT`  | `/api/orders/:orderId/member-order`                    | Booker/admin edits a member's pick (sync, under `withPlanLock`) |
 | `PUT`  | `/api/orders/:orderId/plan/:planId/start-order`        | Start order (initiate transactions)   |
 | `POST` | `/api/orders/:orderId/plan/:planId/initialize-payment` | Create payment records                |
 | `POST` | `/api/orders/:orderId/quotation`                       | Create quotation                      |

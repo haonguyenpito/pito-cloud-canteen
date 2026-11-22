@@ -37,6 +37,7 @@
  * process alias. A mismatch causes all initiations to fail with a 404/422.
  */
 import isEmpty from 'lodash/isEmpty';
+import pick from 'lodash/pick';
 import uniq from 'lodash/uniq';
 
 import {
@@ -49,7 +50,8 @@ import {
   prepareNewPlanOrderDetail,
 } from '@pages/api/orders/utils';
 import { denormalisedResponseEntities } from '@services/data';
-import { fetchUser } from '@services/integrationHelper';
+import { withPlanLock } from '@services/distributedLock';
+import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { createFirebaseDocNotification } from '@services/notifications';
 import { getIntegrationSdk } from '@services/sdk';
 import { getSubAccountTrustedSdk } from '@services/subAccountSdk';
@@ -269,28 +271,33 @@ export const initiateTransaction = async ({
     });
   };
 
-  if (!isEmpty(subOrdersWithNoTxId)) {
-    // Update new order detail of plan listing
-    await integrationSdk.listings.update({
-      id: planId,
-      metadata: {
-        orderDetail: prepareNewPlanOrderDetail(planOrderDetail, transactionMap),
-      },
+  if (!isEmpty(transactionMap)) {
+    // Creating the transactions takes seconds; re-read so picks made meanwhile
+    // survive. A date deleted meanwhile is kept, since its transaction exists.
+    await withPlanLock(planId, async () => {
+      const { orderDetail: freshOrderDetail = {} } = Listing(
+        await fetchListing(planId),
+      ).getMetadata();
+
+      await integrationSdk.listings.update({
+        id: planId,
+        metadata: {
+          orderDetail: prepareNewPlanOrderDetail(
+            {
+              ...pick(planOrderDetail, Object.keys(transactionMap)),
+              ...freshOrderDetail,
+            },
+            transactionMap,
+          ),
+        },
+      });
     });
-    await updateVatSettings(partnerIds);
   }
 
+  if (!isEmpty(subOrdersWithNoTxId)) {
+    await updateVatSettings(partnerIds);
+  }
   if (!isEmpty(editedSubOrders)) {
-    await integrationSdk.listings.update({
-      id: planId,
-      metadata: {
-        orderDetail: {
-          ...planOrderDetail,
-          ...prepareNewPlanOrderDetail(editedSubOrders, transactionMap),
-        },
-      },
-    });
-
     await updateVatSettings(orderPartnerIds);
   }
 };

@@ -760,21 +760,42 @@ const fetchCompanyBookers = createAsyncThunk(
   },
 );
 
+const loadPlanOrderDetail = async (sdk: any, planId: string) => {
+  const response: any = denormalisedResponseEntities(
+    await sdk.listings.show({
+      id: planId,
+    }),
+  )[0];
+
+  return Listing(response).getMetadata().orderDetail;
+};
+
 const fetchOrderDetail = createAsyncThunk(
   FETCH_ORDER_DETAIL,
-  async (plans: string[], { extra: sdk }) => {
-    if (plans?.length > 0) {
-      const response: any = denormalisedResponseEntities(
-        await sdk.listings.show({
-          id: plans[0],
+  async (plans: string[], { extra: sdk }) =>
+    plans?.length > 0 ? loadPlanOrderDetail(sdk, plans[0]) : {},
+);
+
+/** Reads the plan without touching state, so an open edit keeps its baseline. */
+const fetchLatestOrderDetail = createAsyncThunk(
+  'app/Order/FETCH_LATEST_ORDER_DETAIL',
+  async (planId: string, { extra: sdk }) => loadPlanOrderDetail(sdk, planId),
+);
+
+const fetchUserDisplayNames = createAsyncThunk(
+  'app/Order/FETCH_USER_DISPLAY_NAMES',
+  async (userIds: string[], { extra: sdk }) =>
+    Object.fromEntries(
+      await Promise.all(
+        userIds.map(async (id) => {
+          const [user] = denormalisedResponseEntities(
+            await sdk.users.show({ id }),
+          );
+
+          return [id, User(user).getProfile().displayName as string];
         }),
-      )[0];
-
-      return Listing(response).getMetadata().orderDetail;
-    }
-
-    return {};
-  },
+      ),
+    ) as Record<string, string>,
 );
 
 const fetchRestaurantCoverImages = createAsyncThunk(
@@ -1240,6 +1261,8 @@ export const orderAsyncActions = {
   fetchCompanyBookers,
   fetchOrder,
   fetchOrderDetail,
+  fetchLatestOrderDetail,
+  fetchUserDisplayNames,
   queryOrders,
   queryCompanyOrders,
   fetchPlanDetail,

@@ -5,7 +5,7 @@ import Button from '@components/Button/Button';
 import IconBanned from '@components/Icons/IconBanned/IconBanned';
 import IconRefreshing from '@components/Icons/IconRefreshing/IconRefreshing';
 import Tracker from '@helpers/tracker';
-import { useAppDispatch } from '@hooks/reduxHooks';
+import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import { ParticipantPlanThunks } from '@pages/participant/plans/[planId]/ParticipantPlanPage.slice';
 import { shoppingCartThunks } from '@redux/slices/shoppingCart.slice';
 
@@ -35,6 +35,11 @@ const TabActions: React.FC<TTabActionsProps> = ({
   onAddedToCart,
 }) => {
   const dispatch = useAppDispatch();
+  // Locked from "Đặt món" until the queued pick is written.
+  const submitDataInprogress = useAppSelector(
+    (state) => state.ParticipantPlanPage.submitDataInprogress,
+  );
+  const actionDisabled = isOrderDeadlineOver || submitDataInprogress;
 
   const handleAutoSelect = () => {
     Tracker.track('participant:food:randomly-suggest', {
@@ -68,7 +73,7 @@ const TabActions: React.FC<TTabActionsProps> = ({
     <div className={classNames(css.tabActions, className)}>
       <Button
         variant="secondary"
-        disabled={isOrderDeadlineOver}
+        disabled={actionDisabled}
         onClick={handleAutoSelect}
         className={css.autoSelect}>
         <IconRefreshing className={css.iconRefresh} />
@@ -79,7 +84,7 @@ const TabActions: React.FC<TTabActionsProps> = ({
       </Button>
       <Button
         variant="secondary"
-        disabled={isOrderDeadlineOver}
+        disabled={actionDisabled}
         onClick={handleNotJoinDay}
         className={css.notJoinThisDay}>
         <IconBanned className={css.iconNotJoined} />

@@ -79,6 +79,10 @@ const DishSelectionForm: React.FC<TDishSelectionFormProps> = ({
           variant="secondary"
           type="button"
           onClick={handlePickForMe}
+          // Pick-for-me only fills a date that has no choice yet.
+          disabled={
+            actionsDisabled || subOrderStatus !== EVENT_STATUS.EMPTY_STATUS
+          }
           inProgress={pickForMeInProgress}>
           {intl.formatMessage({
             id: 'DishSelectionForm.pickForMe',

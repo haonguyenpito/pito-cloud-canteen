@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { composeApiCheckers, HttpMethod } from '@apis/configs';
 import { convertDateToVNTimezone } from '@helpers/dateHelpers';
+import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import partnerChecker from '@services/permissionChecker/partner';
@@ -36,27 +37,34 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
         const order: OrderListing = await fetchListing(orderId as string);
         const { plans = [] } = Listing(order as any).getMetadata();
         const planId = plans[0];
-        const plan: PlanListing = await fetchListing(planId);
-        const { orderDetail = {} } = Listing(plan as any).getMetadata();
+        const { plan, updatePlanListing } = await withPlanLock(
+          planId,
+          async () => {
+            const freshPlan: PlanListing = await fetchListing(planId);
+            const { orderDetail = {} } = Listing(
+              freshPlan as any,
+            ).getMetadata();
 
-        const updateOrderDetail = {
-          ...orderDetail,
-          [subOrderDate]: {
-            ...orderDetail[subOrderDate],
-            lastTransition: newTransition,
+            const [updatedPlan] = denormalisedResponseEntities(
+              await integrationSdk.listings.update(
+                {
+                  id: planId,
+                  metadata: {
+                    orderDetail: {
+                      ...orderDetail,
+                      [subOrderDate]: {
+                        ...orderDetail[subOrderDate],
+                        lastTransition: newTransition,
+                      },
+                    },
+                  },
+                },
+                { expand: true },
+              ),
+            );
+
+            return { plan: freshPlan, updatePlanListing: updatedPlan };
           },
-        };
-
-        const [updatePlanListing] = denormalisedResponseEntities(
-          await integrationSdk.listings.update(
-            {
-              id: planId,
-              metadata: {
-                orderDetail: updateOrderDetail,
-              },
-            },
-            { expand: true },
-          ),
         );
 
         if (newTransition === ETransition.PARTNER_CONFIRM_SUB_ORDER) {

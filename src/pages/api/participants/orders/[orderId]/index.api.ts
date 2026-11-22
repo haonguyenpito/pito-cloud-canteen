@@ -3,9 +3,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
+import { getParticipantPickClosedReason } from '@helpers/orderHelper';
 import cookies from '@services/cookie';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
-import { addToProcessOrderQueue } from '@services/jobs/processOrder.job';
+import { enqueueParticipantOrder } from '@services/jobs/processOrder.job';
 import { getIntegrationSdk, getSdk, handleError } from '@services/sdk';
 import type { TUpdateParticipantOrderBody } from '@src/types/order';
 import { EListingType } from '@src/utils/enums';
@@ -145,12 +146,19 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         )[0];
         const currentUserId = CurrentUser(currentUser).getId();
 
+        const pickClosedReason = getParticipantPickClosedReason(
+          await fetchListing(orderId as string),
+        );
+        if (pickClosedReason) {
+          return res.status(400).json({ message: pickClosedReason });
+        }
+
         console.info('[TRACK] step=enqueue_job start', {
           orderId,
           planId,
           currentUserId,
         });
-        const job = await addToProcessOrderQueue({
+        const queued = await enqueueParticipantOrder({
           orderId,
           planId,
           memberOrders,
@@ -159,13 +167,12 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           planData,
           currentUserId,
         });
-        console.info('[TRACK] step=enqueue_job success', { jobId: job?.id });
+        console.info('[TRACK] step=enqueue_job success', {
+          jobId: queued.jobId,
+        });
         console.info('[TRACK] step=api_receive success');
 
-        return res.json({
-          message: 'Job queued',
-          jobId: job?.id,
-        });
+        return res.json({ message: 'Job queued', ...queued });
       } catch (error) {
         handleError(res, error);
         console.error(error);

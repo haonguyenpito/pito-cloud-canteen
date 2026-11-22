@@ -1,13 +1,20 @@
 import type { Job } from 'bullmq';
 import { Queue, Worker } from 'bullmq';
+import { randomUUID } from 'crypto';
 import type { Redis } from 'ioredis';
+import groupBy from 'lodash/groupBy';
+import uniq from 'lodash/uniq';
 
+import { mergeParticipantOrder } from '@helpers/order/orderDetailHelper';
+import { getParticipantPickClosedReason } from '@helpers/orderHelper';
+import { setOrderJobStatus } from '@helpers/orderJobStatus';
+import { DistributedLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { defaultQueueConfig } from '@services/queues/config';
-import { redisConnection } from '@services/redis';
+import { lockRedisConnection, redisConnection } from '@services/redis';
 import { getIntegrationSdk } from '@services/sdk';
 import { createSlackNotification } from '@services/slackNotification';
-import { denormalisedResponseEntities, Listing } from '@src/utils/data';
+import { Listing } from '@src/utils/data';
 import { ESlackNotificationType } from '@src/utils/enums';
 import {
   buildActualUserPlan,
@@ -18,167 +25,188 @@ import {
 
 const queueName = 'processOrder';
 
-export interface QueueInterface {
-  orderId: any;
-  title: any;
-  amount: number;
-}
-
-interface ProcessOrderJobData {
+/** One participant pick, as sent by the participant UI. */
+export type TParticipantPick = {
   orderId: any;
   planId: any;
-  memberOrders?: Record<string, any>;
+  currentUserId: string;
+  /** Per-click id; the participant UI waits for this id's status in Firestore. */
+  submissionId: string;
   orderDay?: string;
+  memberOrders?: Record<string, any>;
   orderDays?: string[];
   planData?: Record<string, Record<string, any>>;
-  currentUserId: string;
-}
+};
 
-type AddToQueueData = Pick<ProcessOrderJobData, 'orderId' | 'currentUserId'> &
-  Partial<ProcessOrderJobData>;
+type TPendingPick = TParticipantPick & { seq: number };
 
-const ACQUIRE_LOCK_SCRIPT = `
-  local key = KEYS[1]
-  local token = ARGV[1]
-  local ttl = tonumber(ARGV[2])
-  local current = redis.call('GET', key)
-  if current == false then
-    redis.call('SET', key, token, 'PX', ttl)
-    return 1
-  elseif current == token then
-    redis.call('PEXPIRE', key, ttl)
-    return 1
-  else
-    return 0
-  end
-`;
+/**
+ * The pick is written from `pending:plan:{planId}` (`pending: true`). The job
+ * still carries the pick so a pre-batching worker, alive during a rolling
+ * deploy, writes it the old way; a job without `pending` was queued by such a
+ * worker and its pick is not in the hash yet.
+ */
+type ProcessOrderJobData = Pick<
+  TParticipantPick,
+  'orderId' | 'planId' | 'currentUserId'
+> &
+  Partial<TParticipantPick> & { pending?: boolean };
 
-const RELEASE_LOCK_SCRIPT = `
-  local key = KEYS[1]
-  local token = ARGV[1]
-  local current = redis.call('GET', key)
-  if current == token then
-    return redis.call('DEL', key)
-  else
-    return 0
-  end
-`;
+// Picks are written in batches: whoever holds the plan lock writes every pick
+// queued for the plan in one Sharetribe update, so N simultaneous picks cost a
+// few writes instead of N serialized ones.
+const PENDING_TTL_SECONDS = 24 * 60 * 60;
+const MAX_BATCH_SIZE = 200;
+// Pending picks and the plan lock fail fast while Redis is down; the queue
+// itself keeps BullMQ's own connection.
+const redis = lockRedisConnection as Redis;
+const pendingKey = (planId: string) => `pending:plan:${planId}`;
+const seqKey = (planId: string) => `pending:seq:${planId}`;
 
-class DistributedLock {
-  private redis: Redis;
+const isLegacyJob = ({ pending }: ProcessOrderJobData) => !pending;
 
-  private lockKey: string;
-
-  private token: string;
-
-  private ttl: number;
-
-  private retryDelay: number;
-
-  private maxRetries: number;
-
-  constructor(
-    redis: Redis,
-    resource: string,
-    options: { ttl?: number; retryDelay?: number; maxRetries?: number } = {},
-  ) {
-    this.redis = redis;
-    this.lockKey = `lock:${resource}`;
-    this.token = `${Date.now()}-${Math.random()}`;
-    this.ttl = options.ttl || 30000;
-    this.retryDelay = options.retryDelay || 100;
-    this.maxRetries = options.maxRetries || 50;
+const addPendingPick = async (
+  pick: TParticipantPick,
+  { onlyIfAbsent = false } = {},
+) => {
+  // A Redis counter, not a clock: ECS tasks may disagree on the time, and a
+  // later pick of the same user must always be applied last.
+  const seq = await redis.incr(seqKey(pick.planId));
+  const value = JSON.stringify({ ...pick, seq });
+  if (onlyIfAbsent) {
+    await redis.hsetnx(pendingKey(pick.planId), pick.submissionId, value);
+  } else {
+    await redis.hset(pendingKey(pick.planId), pick.submissionId, value);
   }
+  await Promise.all([
+    redis.expire(pendingKey(pick.planId), PENDING_TTL_SECONDS),
+    redis.expire(seqKey(pick.planId), PENDING_TTL_SECONDS),
+  ]);
+};
 
-  private async tryAcquireLock(attempts = 0): Promise<boolean> {
-    const startTime = Date.now();
-    console.log(
-      `[RACE_DEBUG] Lock acquisition attempt ${attempts + 1}/${
-        this.maxRetries
-      } for ${this.lockKey}, token: ${this.token}`,
-    );
+const readPendingPicks = async (planId: string, onlySubmissionId?: string) => {
+  const raw: Record<string, string> = onlySubmissionId
+    ? Object.fromEntries(
+        [
+          [
+            onlySubmissionId,
+            await redis.hget(pendingKey(planId), onlySubmissionId),
+          ],
+        ].filter(([, value]) => value !== null),
+      )
+    : (await redis.hgetall(pendingKey(planId))) ?? {};
 
-    const result = (await this.redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-      this.ttl,
-    )) as number;
+  return Object.entries(raw).reduce<{
+    picks: TPendingPick[];
+    malformedIds: string[];
+  }>(
+    (result, [submissionId, value]) => {
+      try {
+        return {
+          ...result,
+          picks: [...result.picks, JSON.parse(value) as TPendingPick],
+        };
+      } catch {
+        return {
+          ...result,
+          malformedIds: [...result.malformedIds, submissionId],
+        };
+      }
+    },
+    { picks: [], malformedIds: [] },
+  );
+};
 
-    const duration = Date.now() - startTime;
+const setPickStatus = (
+  pick: TParticipantPick,
+  status: 'processing' | 'completed' | 'failed',
+  error?: string,
+) =>
+  setOrderJobStatus({
+    planId: pick.planId,
+    userId: pick.currentUserId,
+    submissionId: pick.submissionId,
+    status,
+    error,
+  }).catch((statusError) =>
+    console.error('[RACE_DEBUG] Order job status write failed:', statusError),
+  );
 
-    if (result === 1) {
-      console.log(
-        `[RACE_DEBUG] Lock acquired successfully for ${this.lockKey} after ${
-          attempts + 1
-        } attempts, duration: ${duration}ms, token: ${this.token}`,
-      );
+/** Adds users who are neither participants nor anonymous yet, once per order. */
+const addNewUsersToAnonymous = async (picks: TPendingPick[]) => {
+  const sdk = getIntegrationSdk();
 
-      return true;
-    }
+  await Promise.all(
+    Object.entries(groupBy(picks, 'orderId')).map(
+      async ([orderId, orderPicks]) => {
+        const { participants = [], anonymous = [] } =
+          Listing(await fetchListing(orderId)).getMetadata() ?? {};
+        const newUserIds = uniq(
+          orderPicks.map(({ currentUserId }) => currentUserId),
+        ).filter(
+          (userId) =>
+            !participants.includes(userId) && !anonymous.includes(userId),
+        );
+        if (newUserIds.length > 0) {
+          await sdk.listings.update({
+            id: orderId,
+            metadata: { anonymous: [...anonymous, ...newUserIds] },
+          });
+        }
+      },
+    ),
+  );
+};
 
-    if (attempts >= this.maxRetries) {
-      console.error(
-        `[RACE_DEBUG] Lock acquisition failed after ${
-          attempts + 1
-        } attempts for ${this.lockKey}, total duration: ${duration}ms, token: ${
-          this.token
-        }`,
-      );
+const verifyWrittenPicks = async (
+  planId: string,
+  picks: TPendingPick[],
+  orderDetailBefore: Record<string, any>,
+  { jobId, jobStartTime }: { jobId: string; jobStartTime: number },
+) => {
+  const freshPlan = await fetchListing(planId);
 
-      return false;
-    }
+  await Promise.all(
+    picks.map(
+      ({ orderId, currentUserId, orderDay, orderDays, planData = {} }) => {
+        const daysToCheck = orderDay ? [String(orderDay)] : orderDays ?? [];
 
-    const delay = this.retryDelay * 1.5 ** Math.min(attempts, 10);
-    console.warn(
-      `[RACE_DEBUG] Lock busy for ${
-        this.lockKey
-      }, retrying in ${delay}ms (attempt ${attempts + 1}/${
-        this.maxRetries
-      }), token: ${this.token}`,
-    );
-
-    await new Promise((res) => {
-      setTimeout(res, delay);
-    });
-
-    return this.tryAcquireLock(attempts + 1);
-  }
-
-  async acquire(): Promise<boolean> {
-    return this.tryAcquireLock();
-  }
-
-  async release(): Promise<boolean> {
-    const result = (await this.redis.eval(
-      RELEASE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-    )) as number;
-
-    return result === 1;
-  }
-
-  async extend(additionalTtl: number = this.ttl): Promise<boolean> {
-    const result = (await this.redis.eval(
-      ACQUIRE_LOCK_SCRIPT,
-      1,
-      this.lockKey,
-      this.token,
-      additionalTtl,
-    )) as number;
-
-    return result === 1;
-  }
-}
+        return verifyOrderPersistence({
+          orderId,
+          planId,
+          currentUserId,
+          jobId,
+          jobStartTime,
+          orderDay,
+          orderDays: daysToCheck,
+          expectedUserPlan: buildExpectedUserPlan(
+            daysToCheck,
+            planData,
+            currentUserId,
+          ),
+          actualUserPlan: buildActualUserPlan(
+            freshPlan,
+            currentUserId,
+            daysToCheck,
+          ),
+          userActions: buildUserActions(
+            daysToCheck,
+            planData,
+            currentUserId,
+            orderDetailBefore,
+          ),
+        });
+      },
+    ),
+  );
+};
 
 // Queue setup
-const processOrderQueue = new Queue<AddToQueueData>(queueName, {
+const processOrderQueue = new Queue<ProcessOrderJobData>(queueName, {
   connection: redisConnection,
   defaultJobOptions: {
     ...defaultQueueConfig,
+    // Also the window in which a burst of picks gathers into one batch.
     delay: 500,
     removeOnComplete: 10,
     removeOnFail: 5,
@@ -195,292 +223,194 @@ const worker = new Worker<ProcessOrderJobData>(
   queueName,
   async (job: Job<ProcessOrderJobData>) => {
     const jobStartTime = Date.now();
-    const {
-      orderId,
-      planId,
-      memberOrders,
-      orderDay,
-      orderDays,
-      planData,
-      currentUserId,
-    } = job.data;
+    const { orderId, planId, currentUserId } = job.data;
+    const submissionId = job.data.submissionId ?? String(job.id);
 
-    console.log('worker@@planData:', {
-      planData: JSON.stringify(planData),
-    });
+    if (isLegacyJob(job.data) && job.attemptsMade === 0) {
+      await addPendingPick({ ...job.data, submissionId } as TParticipantPick, {
+        onlyIfAbsent: true,
+      });
+    }
 
-    console.log(
-      `[RACE_DEBUG] Job started - planId: ${planId}, userId: ${currentUserId}, orderId: ${orderId}, jobId: ${
-        job.id
-      }, timestamp: ${new Date().toISOString()}`,
-    );
-
-    const sdk = getIntegrationSdk();
-    let originalOrderDetailBefore: Record<string, any> = {};
-    const lock = new DistributedLock(
-      redisConnection as Redis,
-      `plan:${planId}`,
-      {
-        ttl: 30000,
-        retryDelay: 100,
-        maxRetries: 100, // Maybe bug here
-      },
-    );
-
-    try {
+    // Already written by another job's batch: nothing left to do.
+    if (!(await redis.hexists(pendingKey(planId), submissionId))) {
       console.log(
-        `[RACE_DEBUG] Attempting to acquire lock for planId: ${planId}, userId: ${currentUserId}`,
+        `[RACE_DEBUG] Pick already written by a batch - planId: ${planId}, userId: ${currentUserId}, jobId: ${job.id}`,
       );
 
-      const lockAcquired = await lock.acquire();
-      if (!lockAcquired) {
-        console.error(
-          `[RACE_DEBUG] CRITICAL: Failed to acquire lock for planId: ${planId}, userId: ${currentUserId} after all retries`,
-        );
+      return null;
+    }
+
+    await setPickStatus(
+      { orderId, planId, currentUserId, submissionId },
+      'processing',
+    );
+
+    // A retry writes only its own pick, so a pick Sharetribe rejects cannot
+    // keep failing every batch it lands in.
+    const ownPickOnly = job.attemptsMade > 0;
+    // ~90s of 300ms-capped retries while earlier batches are written.
+    const lock = new DistributedLock(redis, `plan:${planId}`, {
+      ttl: 30000,
+      retryDelay: 100,
+      maxRetries: 300,
+    });
+    let writtenPicks: TPendingPick[] = [];
+    let rejectedPicks: { pick: TPendingPick; error: string }[] = [];
+    let pickClosedReason: string | null = null;
+    let orderDetailBefore: Record<string, any> = {};
+
+    try {
+      if (!(await lock.acquire())) {
         throw new Error(`Failed to acquire lock for planId: ${planId}`);
       }
 
-      const lockAcquiredTime = Date.now();
-      console.log(
-        `[RACE_DEBUG] Lock acquired for planId: ${planId}, user: ${currentUserId}, lock acquisition took: ${
-          lockAcquiredTime - jobStartTime
-        }ms`,
-      );
-      await job.updateProgress(25);
-
-      const orderListing = await fetchListing(orderId as string);
-      await job.updateProgress(50);
-
-      console.log(
-        `[RACE_DEBUG] Fetching fresh plan data for planId: ${planId}, userId: ${currentUserId}`,
-      );
-
-      // Re-fetch fresh plan before mutation
-      const updatingPlan = await fetchListing(planId as string);
-      const { participants = [], anonymous = [] } =
-        Listing(orderListing).getMetadata() ?? {};
-      const currentMetadata = Listing(updatingPlan).getMetadata() ?? {};
-      const orderDetail = currentMetadata.orderDetail ?? {};
-
-      // Log the current state before modification
-      console.log(
-        `[RACE_DEBUG] Current orderDetail state for planId: ${planId}, userId: ${currentUserId}:`,
-        JSON.stringify(orderDetail, null, 2),
-      );
-
-      const originalOrderDetail = JSON.parse(JSON.stringify(orderDetail));
-      originalOrderDetailBefore = originalOrderDetail;
-
-      // Merge logic
-      if (orderDay && memberOrders) {
-        console.log(
-          `[RACE_DEBUG] Processing single day order - planId: ${planId}, userId: ${currentUserId}, orderDay: ${orderDay}`,
+      try {
+        const { picks, malformedIds } = await readPendingPicks(
+          planId,
+          ownPickOnly ? submissionId : undefined,
         );
-        orderDetail[orderDay] = orderDetail[orderDay] || { memberOrders: {} };
-        orderDetail[orderDay].memberOrders =
-          orderDetail[orderDay].memberOrders || {};
-        orderDetail[orderDay].memberOrders[currentUserId] =
-          memberOrders[currentUserId];
-      } else if (orderDays && planData) {
-        console.log(
-          `[RACE_DEBUG] Processing multiple days order - planId: ${planId}, userId: ${currentUserId}, orderDays: ${orderDays?.join(
-            ', ',
-          )}`,
-        );
-        orderDays.forEach((day) => {
-          orderDetail[day] = orderDetail[day] || { memberOrders: {} };
-          orderDetail[day].memberOrders = orderDetail[day].memberOrders || {};
-          const userData = planData?.[day]?.[currentUserId];
-          console.log('worker@@userData:', { userData });
-          if (userData !== undefined) {
-            orderDetail[day].memberOrders[currentUserId] = userData;
+        if (malformedIds.length > 0) {
+          console.error(
+            `[RACE_DEBUG] Dropping malformed pending picks - planId: ${planId}, submissionIds: ${malformedIds.join(
+              ', ',
+            )}`,
+          );
+          await redis.hdel(pendingKey(planId), ...malformedIds);
+        }
+        const batch = picks
+          .sort((a, b) => a.seq - b.seq)
+          .slice(0, MAX_BATCH_SIZE);
+        if (batch.length === 0) {
+          return null;
+        }
+
+        const [orderListing, planListing] = await Promise.all([
+          fetchListing(orderId as string),
+          fetchListing(planId),
+        ]);
+        const {
+          participants: knownParticipants = [],
+          anonymous: knownAnonymous = [],
+        } = Listing(orderListing).getMetadata() ?? {};
+        orderDetailBefore =
+          Listing(planListing).getMetadata()?.orderDetail ?? {};
+        // Checked under the lock: start-order moves the order out of picking
+        // before initiate-transaction takes this lock, so a batch written
+        // after the order started is always refused here.
+        pickClosedReason = getParticipantPickClosedReason(orderListing);
+        if (pickClosedReason) {
+          const reason = pickClosedReason;
+          rejectedPicks = batch.map((pick) => ({ pick, error: reason }));
+        }
+        // A pick that cannot be merged is failed alone, not with its batch.
+        const orderDetail = (pickClosedReason ? [] : batch).reduce<
+          Record<string, any>
+        >((result, pick) => {
+          try {
+            const merged = mergeParticipantOrder(result, pick);
+            writtenPicks = [...writtenPicks, pick];
+
+            return merged;
+          } catch (error) {
+            rejectedPicks = [
+              ...rejectedPicks,
+              { pick, error: (error as Error).message },
+            ];
+
+            return result;
           }
-        });
-      }
+        }, orderDetailBefore);
 
-      // Log what changed
-      console.log(
-        `[RACE_DEBUG] OrderDetail changes for planId: ${planId}, userId: ${currentUserId}:`,
-        {
-          before: originalOrderDetail,
-          after: orderDetail,
-          timestamp: new Date().toISOString(),
-        },
-      );
+        if (writtenPicks.length > 0) {
+          await lock.extend();
+          await getIntegrationSdk().listings.update({
+            id: planId,
+            metadata: { orderDetail },
+          });
 
-      await job.updateProgress(75);
-      await lock.extend();
+          const unknownPickers = writtenPicks.filter(
+            ({ currentUserId: userId }) =>
+              !knownParticipants.includes(userId) &&
+              !knownAnonymous.includes(userId),
+          );
+          if (unknownPickers.length > 0) {
+            await addNewUsersToAnonymous(unknownPickers);
+          }
+        }
 
-      console.log(
-        `[RACE_DEBUG] Updating plan listing for planId: ${planId}, userId: ${currentUserId}`,
-      );
-
-      const planResponse = await sdk.listings.update(
-        {
-          id: planId,
-          metadata: { orderDetail },
-        },
-        { expand: true },
-      );
-
-      if (
-        !participants.includes(currentUserId) &&
-        !anonymous.includes(currentUserId)
-      ) {
-        console.log(
-          `[RACE_DEBUG] Adding user ${currentUserId} to anonymous participants for orderId: ${orderId}`,
+        // Removed right after the write: a crash in between only makes the
+        // next batch re-apply these same picks (later picks keep a higher seq).
+        await redis.hdel(
+          pendingKey(planId),
+          ...batch.map((pick) => pick.submissionId),
         );
-        await sdk.listings.update({
-          id: orderId,
-          metadata: {
-            anonymous: [...anonymous, currentUserId],
-          },
-        });
+      } finally {
+        await lock.release();
       }
-
-      await job.updateProgress(100);
-      const totalDuration = Date.now() - jobStartTime;
-      console.log(
-        `[RACE_DEBUG] Job completed successfully - planId: ${planId}, userId: ${currentUserId}, total duration: ${totalDuration}ms, memberOrders: ${JSON.stringify(
-          memberOrders,
-        )}, orderDay: ${orderDay}, orderDays: ${orderDays?.join(
-          ', ',
-        )}, planData keys: ${
-          planData ? Object.keys(planData).join(', ') : 'none'
-        }`,
-      );
-
-      return denormalisedResponseEntities(planResponse)[0];
     } catch (error) {
-      const totalDuration = Date.now() - jobStartTime;
+      // Picks stay pending: this job retries, and any other job on the plan
+      // writes them in its own batch meanwhile.
       console.error(
-        `[RACE_DEBUG] Process order error after ${totalDuration}ms:`,
+        `[RACE_DEBUG] Batch write failed after ${Date.now() - jobStartTime}ms:`,
         {
           planId,
           currentUserId,
           orderId,
           jobId: job.id,
+          attemptsMade: job.attemptsMade,
+          ownPickOnly,
           error: error instanceof Error ? error.message : error,
-          stack: error instanceof Error ? error.stack : undefined,
-          timestamp: new Date().toISOString(),
         },
       );
-      try {
-        const orderLink = `${
-          process.env.NEXT_PUBLIC_APP_URL || ''
-        }/participant/orders/${orderId}`;
-        await createSlackNotification(
-          ESlackNotificationType.PARTICIPANT_ORDER_PERSISTENCE_FAILED,
-          {
-            orderLink,
-            orderCode: '',
-            orderName: '',
-            planId,
-            userId: currentUserId,
-            actions: [],
-            expected: {},
-            actual: {},
-            failedAt: 'job-exception',
-            service: 'processOrder.job',
-            jobId: job.id,
-            error: error instanceof Error ? error.message : String(error),
-            totalJobDurationMs: Date.now() - jobStartTime,
-          } as any,
-        );
-      } catch (notifyErr) {
-        console.error('[RACE_DEBUG] Slack notify failed:', notifyErr);
-      }
       throw error;
-    } finally {
-      try {
-        console.log(
-          `[RACE_DEBUG] Attempting to release lock for planId: ${planId}, userId: ${currentUserId}`,
-        );
-        const released = await lock.release();
-        if (!released) {
-          console.warn(
-            `[RACE_DEBUG] WARNING: Failed to release lock for planId: ${planId}, userId: ${currentUserId} - lock may have been stolen or expired`,
-          );
-        } else {
-          console.log(
-            `[RACE_DEBUG] Lock released successfully for planId: ${planId}, userId: ${currentUserId}`,
-          );
-          // Verify persistence AFTER releasing lock
-          try {
-            const freshPlan = await fetchListing(planId as string);
-            const daysToCheck: string[] = orderDay
-              ? [String(orderDay)]
-              : (orderDays as string[]) || [];
-
-            // Build expected user plan
-            const expectedUserPlan = buildExpectedUserPlan(
-              daysToCheck,
-              planData || {},
-              currentUserId,
-            );
-
-            // Build user actions
-            const userActions = buildUserActions(
-              daysToCheck,
-              planData || {},
-              currentUserId,
-              originalOrderDetailBefore,
-            );
-
-            // Build actual user plan
-            const actualUserPlan = buildActualUserPlan(
-              freshPlan,
-              currentUserId,
-              daysToCheck,
-            );
-
-            // Verify persistence using utils
-            await verifyOrderPersistence({
-              orderId,
-              planId,
-              currentUserId,
-              jobId: job.id as string,
-              jobStartTime,
-              orderDay,
-              orderDays: daysToCheck,
-              expectedUserPlan,
-              actualUserPlan,
-              userActions,
-            });
-          } catch (verifyAfterReleaseError) {
-            console.error(
-              '[RACE_DEBUG] Verification after release failed:',
-              verifyAfterReleaseError,
-            );
-            try {
-              await createSlackNotification(
-                ESlackNotificationType.PARTICIPANT_ORDER_PERSISTENCE_FAILED,
-                {
-                  service: 'processOrder.job',
-                  failedAt: 'verify-after-release-failed',
-                  orderId,
-                  planId,
-                  userId: currentUserId,
-                  error:
-                    verifyAfterReleaseError instanceof Error
-                      ? verifyAfterReleaseError.message
-                      : String(verifyAfterReleaseError),
-                  jobId: job.id,
-                  totalJobDurationMs: Date.now() - jobStartTime,
-                } as any,
-              );
-            } catch (_notifyErr) {
-              // ignore
-            }
-          }
-        }
-      } catch (releaseError) {
-        console.error(
-          `[RACE_DEBUG] Error releasing lock for planId: ${planId}, userId: ${currentUserId}:`,
-          releaseError,
-        );
-      }
     }
+
+    await Promise.all([
+      ...writtenPicks.map((pick) => setPickStatus(pick, 'completed')),
+      ...rejectedPicks.map(({ pick, error }) =>
+        setPickStatus(pick, 'failed', error),
+      ),
+    ]);
+    console.log(
+      `[RACE_DEBUG] Batch written - planId: ${planId}, jobId: ${
+        job.id
+      }, written: ${writtenPicks.length}, rejected: ${
+        rejectedPicks.length
+      }, duration: ${Date.now() - jobStartTime}ms`,
+    );
+
+    // A closed order is an expected refusal, not lost data: no alert.
+    if (rejectedPicks.length > 0 && !pickClosedReason) {
+      await createSlackNotification(
+        ESlackNotificationType.PARTICIPANT_ORDER_PERSISTENCE_FAILED,
+        {
+          service: 'processOrder.job',
+          failedAt: 'merge-rejected',
+          orderId,
+          planId,
+          userId: rejectedPicks.map(({ pick }) => pick.currentUserId).join(','),
+          error: rejectedPicks.map(({ error }) => error).join('; '),
+          jobId: job.id,
+        } as any,
+      ).catch((notifyError) =>
+        console.error('[RACE_DEBUG] Slack notify failed:', notifyError),
+      );
+    }
+
+    try {
+      await verifyWrittenPicks(planId, writtenPicks, orderDetailBefore, {
+        jobId: job.id as string,
+        jobStartTime,
+      });
+    } catch (verifyError) {
+      console.error(
+        '[RACE_DEBUG] Verification after release failed:',
+        verifyError,
+      );
+    }
+
+    return { written: writtenPicks.length, rejected: rejectedPicks.length };
   },
   {
     connection: redisConnection,
@@ -501,98 +431,85 @@ worker.on('stalled', (jobId) => {
   );
 });
 
-worker.on('failed', (job, error) => {
+worker.on('failed', async (job, error) => {
   console.error('[RACE_DEBUG] Job failed:', {
     jobId: job?.id,
     planId: job?.data?.planId,
     userId: job?.data?.currentUserId,
     orderId: job?.data?.orderId,
-    data: job?.data,
     error: error.message,
-    stack: error.stack,
     attemptsMade: job?.attemptsMade,
-    timestamp: new Date().toISOString(),
   });
+
+  // Earlier attempts are retried; only the final failure gives the pick up.
+  if (!job || job.attemptsMade < (job.opts.attempts ?? 1)) {
+    return;
+  }
+  const { orderId, planId, currentUserId } = job.data;
+  const submissionId = job.data.submissionId ?? String(job.id);
+  try {
+    // 0 means another job's batch already wrote this pick: it did not fail.
+    const removed = await redis.hdel(pendingKey(planId), submissionId);
+    if (!removed) {
+      return;
+    }
+    if (job.data.submissionId) {
+      await setPickStatus(
+        { orderId, planId, currentUserId, submissionId },
+        'failed',
+        error.message,
+      );
+    }
+    await createSlackNotification(
+      ESlackNotificationType.PARTICIPANT_ORDER_PERSISTENCE_FAILED,
+      {
+        orderLink: `${
+          process.env.NEXT_PUBLIC_APP_URL || ''
+        }/participant/orders/${orderId}`,
+        orderCode: '',
+        orderName: '',
+        planId,
+        userId: currentUserId,
+        actions: [],
+        expected: {},
+        actual: {},
+        failedAt: 'job-exception',
+        service: 'processOrder.job',
+        jobId: job.id,
+        error: error.message,
+      } as any,
+    );
+  } catch (handlerError) {
+    console.error('[RACE_DEBUG] Final failure handling failed:', handlerError);
+  }
 });
 
-// Add to queue
-export const addToProcessOrderQueue = async (data: AddToQueueData) => {
-  const deduplicationKey = `${data.orderId}-${data.planId}-${data.currentUserId}`;
-  const startTime = Date.now();
+/**
+ * Queues a participant pick and returns at once; the participant UI follows
+ * it through its Firestore status doc.
+ */
+export const enqueueParticipantOrder = async (
+  data: Omit<TParticipantPick, 'submissionId'>,
+) => {
+  const submissionId = randomUUID();
+  // Written before queueing so a fast worker's later status is never
+  // overwritten by `queued`.
+  await setOrderJobStatus({
+    planId: data.planId,
+    userId: data.currentUserId,
+    submissionId,
+    status: 'queued',
+  });
+  // Pending before the job exists, so the job always finds its pick.
+  await addPendingPick({ ...data, submissionId });
 
-  try {
-    console.log(
-      `[RACE_DEBUG] Attempting to add job to queue - userId: ${
-        data.currentUserId
-      }, planId: ${data.planId}, orderId: ${
-        data.orderId
-      }, deduplicationKey: ${deduplicationKey}, timestamp: ${new Date().toISOString()}`,
-    );
+  const job = await processOrderQueue.add(
+    queueName,
+    { ...data, submissionId, pending: true },
+    { jobId: submissionId },
+  );
 
-    // Check if job already exists
-    const existingJob = await processOrderQueue.getJob(deduplicationKey);
-    if (existingJob) {
-      console.log(
-        `[RACE_DEBUG] Existing job found for deduplicationKey: ${deduplicationKey}, jobId: ${
-          existingJob.id
-        }, state: ${await existingJob.getState()}, removing it first`,
-      );
-    }
-
-    await processOrderQueue.remove(deduplicationKey);
-
-    const job = await processOrderQueue.add(queueName, data, {
-      jobId: deduplicationKey,
-      removeOnComplete: 10,
-      removeOnFail: 5,
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 2000,
-      },
-      priority: data.orderDays?.length || 1,
-    });
-
-    const duration = Date.now() - startTime;
-    console.log(
-      `[RACE_DEBUG] Job added successfully to queue - userId: ${
-        data.currentUserId
-      }, planId: ${data.planId}, jobId: ${job.id}, priority: ${
-        data.orderDays?.length || 1
-      }, duration: ${duration}ms`,
-    );
-
-    if (await job.isFailed()) {
-      await createSlackNotification(
-        ESlackNotificationType.PARTICIPANT_ORDER_PERSISTENCE_FAILED,
-        {
-          service: 'processOrder.queue',
-          failedAt: 'queue-overloaded',
-          orderId: data.orderId,
-          planId: data.planId,
-          userId: data.currentUserId,
-          error: `Queue job failed with reason: ${job.failedReason}`,
-        } as any,
-      );
-    }
-
-    return job;
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    if (error instanceof Error && error.message.includes('duplicate')) {
-      console.log(
-        `[RACE_DEBUG] Duplicate job ignored for ${deduplicationKey}, userId: ${data.currentUserId}, duration: ${duration}ms - this indicates potential race condition`,
-      );
-
-      return null;
-    }
-
-    console.error(
-      `[RACE_DEBUG] Error adding job to queue for userId: ${data.currentUserId}, planId: ${data.planId}, duration: ${duration}ms:`,
-      error,
-    );
-    throw error;
-  }
+  return { jobId: job.id as string, submissionId };
 };
 
 // Shutdown

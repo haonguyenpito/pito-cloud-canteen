@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { composeApiCheckers, HttpMethod } from '@apis/configs';
 import { EHttpStatusCode } from '@apis/errors';
 import { denormalisedResponseEntities } from '@services/data';
+import { withPlanLock } from '@services/distributedLock';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import adminChecker from '@services/permissionChecker/admin';
 import { handleError } from '@services/sdk';
@@ -18,51 +19,60 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
     switch (apiMethod) {
       case HttpMethod.PUT: {
-        const [plan] = denormalisedResponseEntities(
-          await integrationSdk.listings.show({
-            id: planId,
-          }),
-        );
+        // Same lock scope as confirm-partner-payment: check and write together.
+        const result = await withPlanLock(planId, async () => {
+          const [plan] = denormalisedResponseEntities(
+            await integrationSdk.listings.show({
+              id: planId,
+            }),
+          );
 
-        const { orderDetail = {}, orderId } = Listing(plan).getMetadata();
+          const { orderDetail = {}, orderId } = Listing(plan).getMetadata();
 
-        const { isAdminPaymentConfirmed = false } =
-          orderDetail[subOrderDate] || {};
+          const { isAdminPaymentConfirmed = false } =
+            orderDetail[subOrderDate] || {};
 
-        if (!isAdminPaymentConfirmed) {
-          return res.status(EHttpStatusCode.BadRequest).json({
-            error: 'Cannot disapprove partner payment unconfirmed order',
+          if (!isAdminPaymentConfirmed) {
+            return {
+              error: 'Cannot disapprove partner payment unconfirmed order',
+            };
+          }
+          // TODO: update firebase payment status
+          await updatePartnerRootPaymentRecord({
+            orderId,
+            subOrderDate,
+            updateData: {
+              isAdminConfirmed: false,
+            },
           });
-        }
-        // TODO: update firebase payment status
-        await updatePartnerRootPaymentRecord({
-          orderId,
-          subOrderDate,
-          updateData: {
-            isAdminConfirmed: false,
-          },
-        });
 
-        const updateOrderDetail = {
-          ...orderDetail,
-          [subOrderDate]: {
-            ...orderDetail[subOrderDate],
-            isAdminPaymentConfirmed: false,
-          },
-        };
+          const updateOrderDetail = {
+            ...orderDetail,
+            [subOrderDate]: {
+              ...orderDetail[subOrderDate],
+              isAdminPaymentConfirmed: false,
+            },
+          };
 
-        denormalisedResponseEntities(
           await integrationSdk.listings.update({
             id: planId,
             metadata: {
               orderDetail: updateOrderDetail,
             },
-          }),
-        );
+          });
+
+          return { orderDetail: updateOrderDetail };
+        });
+
+        if ('error' in result) {
+          return res
+            .status(EHttpStatusCode.BadRequest)
+            .json({ error: result.error });
+        }
 
         return res.status(EHttpStatusCode.Ok).json({
           message: 'Successfully disapprove partner payment',
-          orderDetail: updateOrderDetail,
+          orderDetail: result.orderDetail,
         });
       }
       default:
