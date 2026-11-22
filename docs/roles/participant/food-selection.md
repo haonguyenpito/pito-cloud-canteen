@@ -166,7 +166,7 @@ plan.metadata.orderDetail = {
 
 ## Known issues / watch points
 
-1. **Legacy Firestore path** — `NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME` is drained by the external `updateMemberOrders` Lambda, which writes plans **without** the lock. Nothing in this repo writes to it any more; `api/participants/plans/[planId]` still reads its `pending` docs. Retire the Lambda once the collection is empty.
+1. **Legacy Firestore path** — `NEXT_PUBLIC_FIREBASE_MEMBER_ORDERS_COLLECTION_NAME` is drained by the external `updateMemberOrders` Lambda, which writes plans **without** the lock. Nothing in this repo reads or writes it any more (the participant plan and calendar APIs used to overlay its `pending` docs on the plan; removed, the plan is the only source). Retire the Lambda once the collection is empty.
 2. **`processMemberOrder.job.ts` is dead code** using the same queue name `processOrder`. Importing it would start a second worker competing for jobs. Delete it.
 3. **`place-order` latency** dominates under load (≈ 6.4 s p50 with 50 simultaneous requests on `next dev`): the route reads order and plan sequentially and makes several Upstash round-trips.
 4. **Sub-order history documents** are created in the background after success; closing the tab within ~2 s can skip them.
