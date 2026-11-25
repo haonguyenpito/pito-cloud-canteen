@@ -141,7 +141,10 @@ const LIST_SIDEBAR_MENU: TSidebarMenu[] = [
         id: 'partnersMenus',
         label: 'AdminSidebar.partnersMenusLabel',
         nameLink: adminRoutes.ManagePartnersMenus.path,
-        highlightRefLinks: [adminRoutes.ManagePartnersMenus.path],
+        highlightRefLinks: [
+          adminRoutes.ManagePartnersMenus.path,
+          adminRoutes.ManagePartnerMenuApproval.path,
+        ],
       },
     ],
   },

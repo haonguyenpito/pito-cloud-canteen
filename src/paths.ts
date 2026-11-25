@@ -265,6 +265,10 @@ export const adminRoutes = {
     path: '/admin/partner/pending-menus',
     label: 'Quản lý thực đơn đối tác',
   },
+  ManagePartnerMenuApproval: {
+    path: '/admin/partner/pending-menus/[menuId]',
+    label: 'Duyệt chi tiết menu',
+  },
   ManagePartnerFixedMenus: {
     path: '/admin/partner/[restaurantId]/settings/menu/fixed-menu',
     label: 'Thực đơn cố định',
