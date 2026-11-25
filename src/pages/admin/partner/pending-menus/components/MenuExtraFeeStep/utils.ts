@@ -50,6 +50,28 @@ export const buildExtraFeeDayGroups = (
     .filter(({ rows }) => rows.length > 0);
 
 /**
+ * Keeps the dishes whose partner price is inside a range. Days left without a
+ * dish are dropped.
+ * @param dayGroups - The menu's dishes grouped by weekday.
+ * @param range.min - Lowest partner price, inclusive; undefined = no bound.
+ * @param range.max - Highest partner price, inclusive; undefined = no bound.
+ */
+export const filterExtraFeeDayGroupsByPrice = (
+  dayGroups: TMenuExtraFeeDayGroup[],
+  { min, max }: { min?: number; max?: number },
+): TMenuExtraFeeDayGroup[] =>
+  dayGroups
+    .map(({ day, rows }) => ({
+      day,
+      rows: rows.filter(
+        ({ partnerPrice }) =>
+          (min === undefined || partnerPrice >= min) &&
+          (max === undefined || partnerPrice <= max),
+      ),
+    }))
+    .filter(({ rows }) => rows.length > 0);
+
+/**
  * Keeps only the digits of a fee input, so a negative or decimal fee cannot
  * be typed.
  * @param value - The raw input value.
