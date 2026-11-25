@@ -966,6 +966,7 @@
   "FoodBasicInforTabFormPart.hint": "Giá chia hết cho 5.000 sẽ giúp món ăn dễ được gợi ý cho khách hàng hơn.",
   "FoodEventCard.sideDishesContent": "có {boldText}",
   "FoodEventCard.sideDishesLabel": "Món ăn kèm",
+  "FoodEventCard.customerPriceLabel": "Khách thấy",
   "FoodPickingField.pickAllow": "Cho phép người tham gia chọn món",
   "FoodPickingField.title": "Thiết lập chọn món",
   "GeneralLayoutTopBar.menuItem.account": "Tài khoản",

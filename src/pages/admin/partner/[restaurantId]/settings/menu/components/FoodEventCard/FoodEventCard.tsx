@@ -5,6 +5,7 @@ import classNames from 'classnames';
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import { InlineTextButton } from '@components/Button/Button';
 import IconClose from '@components/Icons/IconClose/IconClose';
+import { parseThousandNumber } from '@helpers/format';
 import { EFoodType } from '@src/utils/enums';
 
 import type { TEditMenuPricingCalendarResources } from '../EditPartnerMenuWizard/utils';
@@ -23,6 +24,8 @@ const FoodEventCard = ({
     sideDishes = [],
     hideRemoveButton,
     foodType,
+    showPrice,
+    price = 0,
   } = resource;
   const isVegetarian = foodType === EFoodType.vegetarianDish;
 
@@ -49,6 +52,16 @@ const FoodEventCard = ({
                 ),
               }}
             />
+          </div>
+        )}
+        {showPrice && (
+          <div className={css.priceRow}>
+            <span className={css.priceLabel}>
+              <FormattedMessage id="FoodEventCard.customerPriceLabel" />
+            </span>
+            <span className={css.price}>
+              {parseThousandNumber(price, '.')}đ
+            </span>
           </div>
         )}
       </div>

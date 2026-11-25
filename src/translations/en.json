@@ -965,6 +965,7 @@
   "FoodBasicInforTabFormPart.hint": "Prices divisible by 5,000 will help dishes be more easily suggested to customers.",
   "FoodEventCard.sideDishesContent": "includes {boldText}",
   "FoodEventCard.sideDishesLabel": "Side Dishes",
+  "FoodEventCard.customerPriceLabel": "Customer sees",
   "FoodPickingField.pickAllow": "Allow participants to choose dishes",
   "FoodPickingField.title": "Dish selection settings",
   "GeneralLayoutTopBar.menuItem.account": "Account",

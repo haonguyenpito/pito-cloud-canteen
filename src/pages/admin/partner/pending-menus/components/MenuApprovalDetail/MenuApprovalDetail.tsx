@@ -125,7 +125,8 @@ const MenuApprovalDetail = ({ menu, anchorDate }: TMenuApprovalDetailProps) => {
       onRemovePickedFood: () => {},
       daysOfWeek: daysOfWeekArray,
       hideRemoveButton: true,
-    });
+      showPrice: true,
+    }).sort((a, b) => (a.resource.price || 0) - (b.resource.price || 0));
   }, [foodsByDate, daysOfWeekArray, anchorDate]);
 
   return (

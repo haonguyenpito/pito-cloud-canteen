@@ -48,6 +48,7 @@ export type TEditMenuPricingCalendarResources = {
   title: string;
   onRemovePickedFood?: (id: string, date: Date) => void;
   hideRemoveButton?: boolean;
+  showPrice?: boolean;
   sideDishes: string[];
   price?: number;
   foodNote?: string;
@@ -309,6 +310,7 @@ export const renderResourcesForCalendar = (
     onRemovePickedFood: (id: string, date: Date) => void;
     daysOfWeek: string[];
     hideRemoveButton?: boolean;
+    showPrice?: boolean;
   },
 ) => {
   const foodsByDate = foodsByDateParam || {};

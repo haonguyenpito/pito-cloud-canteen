@@ -17,6 +17,23 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+  }
+  .priceRow {
+    @include flexAlign(center, space-between);
+    width: 100%;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed $neutralGray4;
+  }
+  .priceLabel {
+    font-size: 12px;
+    color: $neutralGray6;
+  }
+  .price {
+    font-size: 14px;
+    font-weight: $fontWeightBold;
   }
   .title {
     font-size: 14px;
@@ -27,8 +44,11 @@
     margin-bottom: 4px;
   }
   .sideDishesContent {
+    font-size: 12px;
+    line-height: 16px;
     font-weight: $fontWeightRegular;
-    color: $neutralGray6;
+    // $sematicGreen2 is too light to read on the vegetarian card background
+    color: #389e0d;
     .boldText {
       font-weight: $fontWeightBold;
     }
