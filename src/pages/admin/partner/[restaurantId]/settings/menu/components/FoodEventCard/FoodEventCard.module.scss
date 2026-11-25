@@ -50,6 +50,11 @@
   .price {
     font-size: 14px;
     font-weight: $fontWeightBold;
+
+    &.withFee {
+      // Same orange as text-orange-600 used in the extra fee step.
+      color: #ea580c;
+    }
   }
   .title {
     font-size: 14px;

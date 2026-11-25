@@ -78,7 +78,8 @@ const FoodEventCard = ({
             <span className={css.priceLabel}>
               <FormattedMessage id="FoodEventCard.customerPriceLabel" />
             </span>
-            <span className={css.price}>
+            <span
+              className={classNames(css.price, extraFee > 0 && css.withFee)}>
               {parseThousandNumber(getBillablePrice(price, extraFee), '.')}đ
             </span>
           </div>
