@@ -42,6 +42,7 @@ import { fetchTxApi } from '@apis/txApi';
 import { checkUserExistedApi } from '@apis/userApi';
 import { EOrderDetailsTableTab } from '@components/OrderDetails/EditView/ManageOrderDetailSection/OrderDetailsTable/OrderDetailsTable.utils';
 import { checkMinMaxQuantityInProgressState } from '@helpers/order/orderInProgressHelper';
+import type { TFoodOrderOfDate } from '@helpers/order/quotationHelper';
 import {
   calculateClientQuotation,
   calculatePartnerQuotation,
@@ -886,39 +887,10 @@ const bookerStartOrder = createAsyncThunk(
       planId: plans.length > 0 ? plans[0] : '',
     });
 
-    const clientQuotation = {
-      quotation: foodOrderGroupedByDate.reduce((result: any, item: any) => {
-        return {
-          ...result,
-          [item.date]: item.foodDataList,
-        };
-      }, {}),
-    };
+    const clientQuotation = calculateClientQuotation(foodOrderGroupedByDate);
 
-    const groupByRestaurantQuotationData = groupBy(
-      foodOrderGroupedByDate,
-      'restaurantId',
-    );
-
-    const partnerQuotation = Object.keys(groupByRestaurantQuotationData).reduce(
-      (result, item) => {
-        return {
-          ...result,
-          [item]: {
-            name: groupByRestaurantQuotationData[item][0].restaurantName,
-            quotation: groupByRestaurantQuotationData[item].reduce(
-              (quotationArrayResult: any, quotationItem: any) => {
-                return {
-                  ...quotationArrayResult,
-                  [quotationItem.date]: quotationItem.foodDataList,
-                };
-              },
-              {},
-            ),
-          },
-        };
-      },
-      {},
+    const partnerQuotation = calculatePartnerQuotation(
+      groupBy(foodOrderGroupedByDate, 'restaurantId'),
     );
 
     const apiBody = {
@@ -1087,15 +1059,10 @@ const updateOrderFromDraftEdit = createAsyncThunk(
       }),
     );
 
-    const clientQuotation = calculateClientQuotation(foodOrderGroupedByDate);
-
-    const groupByRestaurantQuotationData = groupBy(
-      foodOrderGroupedByDate,
-      'restaurantId',
-    );
-
+    const foodOrders = foodOrderGroupedByDate as TFoodOrderOfDate[];
+    const clientQuotation = calculateClientQuotation(foodOrders);
     const partnerQuotation = calculatePartnerQuotation(
-      groupByRestaurantQuotationData,
+      groupBy(foodOrders, 'restaurantId'),
     );
 
     const apiBody = {

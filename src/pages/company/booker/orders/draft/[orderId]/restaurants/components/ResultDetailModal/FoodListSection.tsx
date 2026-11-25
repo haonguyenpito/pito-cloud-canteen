@@ -4,7 +4,8 @@ import classNames from 'classnames';
 
 import FoodCard from '@components/FoodCard/FoodCard';
 import IconSpinner from '@components/Icons/IconSpinner/IconSpinner';
-import { Listing } from '@src/utils/data';
+import { getFoodBillablePrice } from '@helpers/menuExtraFee';
+import type { FoodListing } from '@src/types';
 import type { TListing } from '@utils/types';
 
 import css from './ResultDetailModal.module.scss';
@@ -18,8 +19,15 @@ type TFoodsListSectionProps = {
   hideSelection?: boolean;
   fetchFoodInProgress?: boolean;
   packagePerMember?: number;
+  extraFeeByFoodId?: Record<string, number>;
 };
 
+/**
+ * Lists a menu's dishes for the booker, split into dishes priced exactly at the
+ * package and the rest. Prices are client prices (base + the menu's fee).
+ * @param props.extraFeeByFoodId - The extra fees of the menu being browsed.
+ * @param props.packagePerMember - The fee-inclusive budget per participant.
+ */
 const FoodListSection: React.FC<TFoodsListSectionProps> = ({
   onClickFood = () => null,
   onSelectFood = () => null,
@@ -29,49 +37,20 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
   hideSelection = false,
   fetchFoodInProgress = false,
   packagePerMember = 0,
+  extraFeeByFoodId = {},
 }) => {
   const intl = useIntl();
-  const groupedFoodList = foodList.reduce<{
-    equalPriceFoodList: TListing[];
-    notEqualPriceFoodList: TListing[];
-  }>(
-    (result: any, foodItem: TListing) => {
-      const foodListing = Listing(foodItem);
-      const { price } = foodListing.getAttributes();
-      const { equalPriceFoodList, notEqualPriceFoodList } = result;
+  const priceOf = (food: TListing) =>
+    getFoodBillablePrice(food as FoodListing, extraFeeByFoodId);
+  const byPriceDesc = (a: TListing, b: TListing) => priceOf(b) - priceOf(a);
 
-      if (price.amount !== packagePerMember) {
-        notEqualPriceFoodList.push(foodItem);
-      } else {
-        equalPriceFoodList.push(foodItem);
-      }
-
-      return {
-        equalPriceFoodList,
-        notEqualPriceFoodList,
-      };
-    },
-    {
-      equalPriceFoodList: [],
-      notEqualPriceFoodList: [],
-    },
-  );
-
-  const sortesFoodList = groupedFoodList.equalPriceFoodList.sort((a, b) => {
-    const aPrice = Listing(a).getAttributes().price.amount;
-    const bPrice = Listing(b).getAttributes().price.amount;
-
-    return bPrice - aPrice;
-  });
-
-  const sortesGreaterFoodList = groupedFoodList.notEqualPriceFoodList.sort(
-    (a, b) => {
-      const aPrice = Listing(a).getAttributes().price.amount;
-      const bPrice = Listing(b).getAttributes().price.amount;
-
-      return bPrice - aPrice;
-    },
-  );
+  const sortesFoodList = foodList
+    .filter((food) => priceOf(food) === packagePerMember)
+    .sort(byPriceDesc);
+  const sortesGreaterFoodList = foodList
+    .filter((food) => priceOf(food) !== packagePerMember)
+    .sort(byPriceDesc);
+  const extraFeeOf = (food: TListing) => extraFeeByFoodId[food?.id?.uuid] ?? 0;
 
   return (
     <section className={classNames(css.foodSection)}>
@@ -109,6 +88,7 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
                       '!w-full !max-w-[unset]',
                     )}
                     hideSelection={hideSelection}
+                    extraFee={extraFeeOf(item)}
                   />
                 ))}
               </div>
@@ -158,6 +138,7 @@ const FoodListSection: React.FC<TFoodsListSectionProps> = ({
                                 '!w-full !max-w-[unset]',
                               )}
                               hideSelection={hideSelection}
+                              extraFee={extraFeeOf(item)}
                             />
                           ))}
                         </div>

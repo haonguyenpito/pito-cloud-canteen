@@ -424,12 +424,11 @@ function BookerDraftOrderPage() {
   };
 
   const handleSearchRestaurantSubmit = (
-    keywords: string,
+    _keywords: string,
     _restaurantId: string,
   ) => {
     dispatch(
       BookerSelectRestaurantThunks.fetchFoodListFromRestaurant({
-        keywords,
         restaurantId: selectedRestaurantId,
         menuId,
         timestamp: selectedTimestamp,

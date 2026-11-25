@@ -8,6 +8,7 @@ export type TLineItem = {
   price: number;
   quantity: number;
   unitPrice: number;
+  unitPartnerPrice?: number;
 };
 
 export type TCartItem = {
@@ -81,6 +82,8 @@ export type TPlanData = {
   [dayId: string]: {
     foodList: FoodListing[];
     restaurant: RestaurantListing;
+    /** Extra fees of the menu serving this date. */
+    foodExtraFees?: Record<string, number>;
     memberOrder: TMemberOrderDetail;
   };
 };

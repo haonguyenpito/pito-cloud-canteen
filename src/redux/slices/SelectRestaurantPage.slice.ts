@@ -8,6 +8,7 @@ import { fetchFoodListFromMenuApi } from '@apis/admin';
 import { queryAllPages } from '@helpers/apiHelpers';
 import { getMenuQuery } from '@helpers/listingSearchQuery';
 import { createAsyncThunk } from '@redux/redux.helper';
+import type { FoodListing } from '@src/types';
 import { toNonAccentVietnamese } from '@src/utils/string';
 import { denormalisedResponseEntities, Listing } from '@utils/data';
 import type { TListing, TObject, TPagination } from '@utils/types';
@@ -20,6 +21,7 @@ type TSelectRestaurantPageSliceInitialState = {
 
   foodOfRestaurant: string | null;
   foodList: any[];
+  foodExtraFees: Record<string, number>;
   fetchFoodPending: boolean;
   fetchFoodError: any;
 
@@ -35,6 +37,7 @@ const initialState: TSelectRestaurantPageSliceInitialState = {
   selectRestaurantPageError: null,
   foodOfRestaurant: null,
   foodList: [],
+  foodExtraFees: {},
   fetchFoodPending: false,
   fetchFoodError: null,
   selectedRestaurant: null,
@@ -151,16 +154,38 @@ const getRestaurants = createAsyncThunk(
   },
 );
 
+/**
+ * Loads the dishes a menu serves on one delivery date, with the menu's fees.
+ * @param params.menuId - The menu being browsed.
+ * @param params.subOrderDate - Timestamp of the delivery date.
+ * @param params.favoriteFoodIdList - The company's favourite dishes.
+ * @returns The dishes and the menu's `{ [foodId]: fee }` map.
+ */
 const getRestaurantFood = createAsyncThunk(
   QUERY_RESTAURANT_FOOD,
-  async ({ menuId, subOrderDate, favoriteFoodIdList = [] }: any) => {
-    const { data: foodList } = await fetchFoodListFromMenuApi({
+  async ({
+    menuId,
+    subOrderDate,
+    favoriteFoodIdList = [],
+  }: {
+    menuId: string;
+    subOrderDate: number | string;
+    favoriteFoodIdList?: string[];
+  }) => {
+    const { data } = await fetchFoodListFromMenuApi({
       menuId,
       subOrderDate,
       favoriteFoodIdList,
     });
+    const {
+      foodList = [],
+      foodExtraFees = {},
+    }: {
+      foodList?: FoodListing[];
+      foodExtraFees?: Record<string, number>;
+    } = data || {};
 
-    return { foodList };
+    return { foodList, foodExtraFees };
   },
 );
 
@@ -219,15 +244,18 @@ const SelectRestaurantPageSlice = createSlice({
         state.fetchFoodPending = true;
         state.fetchFoodError = null;
         state.foodList = [];
+        state.foodExtraFees = {};
       })
       .addCase(getRestaurantFood.fulfilled, (state, { payload }) => {
         state.fetchFoodPending = false;
         state.foodList = payload.foodList;
+        state.foodExtraFees = payload.foodExtraFees;
       })
       .addCase(getRestaurantFood.rejected, (state, { error }) => {
         state.fetchFoodPending = false;
         state.fetchFoodError = error;
         state.foodList = [];
+        state.foodExtraFees = {};
       })
 
       .addCase(fetchSelectedRestaurant.pending, (state) => {

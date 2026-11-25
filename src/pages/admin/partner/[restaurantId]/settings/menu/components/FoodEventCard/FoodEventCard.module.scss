@@ -2,11 +2,11 @@
 @use '/src/styles/mixins.scss' as *;
 
 .root {
-  @include flexAlign(flex-start, space-between);
+  position: relative;
   background: $neutralGray1;
   box-shadow: $boxShadowMD;
   border-radius: 8px;
-  padding: 5px 10px;
+  padding: 8px 10px;
   margin-bottom: 10px;
 
   &.vegetarian {
@@ -17,15 +17,31 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    flex: 1;
     min-width: 0;
   }
+  // Only the title row shares its line with the absolutely positioned close button.
+  &.removable .title {
+    padding-right: 24px;
+  }
   .priceRow {
-    @include flexAlign(center, space-between);
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 4px;
     width: 100%;
-    margin-top: 6px;
-    padding-top: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
     border-top: 1px dashed $neutralGray4;
+
+    & > :nth-child(even) {
+      justify-self: end;
+    }
+  }
+  .priceLabel,
+  .price {
+    white-space: nowrap;
+    line-height: 18px;
   }
   .priceLabel {
     font-size: 12px;
@@ -38,7 +54,7 @@
   .title {
     font-size: 14px;
     font-weight: $fontWeightBold;
-    line-height: 24px;
+    line-height: 20px;
   }
   .vegetarianBadge {
     margin-bottom: 4px;
@@ -55,6 +71,9 @@
   }
 
   .buttonClose {
+    position: absolute;
+    top: 8px;
+    right: 8px;
     min-width: 20px;
     min-height: 20px;
     display: flex;

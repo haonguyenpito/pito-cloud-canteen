@@ -97,6 +97,9 @@ type TOrderInitialState = {
   restaurantFood: {
     [restaurantId: string]: TListing[];
   };
+  menuFoodExtraFees: {
+    [menuId: string]: Record<string, number>;
+  };
   fetchRestaurantFoodInProgress: boolean;
   fetchRestaurantFoodError: any;
 
@@ -146,6 +149,7 @@ const initialState: TOrderInitialState = {
   fetchCompanyAccountError: null,
 
   restaurantFood: {},
+  menuFoodExtraFees: {},
   fetchRestaurantFoodInProgress: false,
   fetchRestaurantFoodError: null,
 
@@ -417,9 +421,26 @@ const fetchCompanyAccount = createAsyncThunk(
   },
 );
 
+/**
+ * Loads the dishes of a restaurant's menu for one delivery date, with that
+ * menu's extra fees.
+ * @param params.menuId - The menu; falls back to the restaurant's searched menu.
+ * @param params.timestamp - Timestamp of the delivery date.
+ * @param params.favoriteFoodIdList - The company's favourite dishes.
+ * @param params.restaurantId - The restaurant being browsed.
+ * @returns The dishes per restaurant, the menu id and its fee map.
+ */
 const fetchFoodListFromRestaurant = createAsyncThunk(
   FETCH_FOOD_LIST_FROM_RESTAURANT,
-  async (params: Record<string, any>, { getState, dispatch }) => {
+  async (
+    params: {
+      menuId?: string;
+      timestamp: number | string;
+      favoriteFoodIdList?: string[];
+      restaurantId: string;
+    },
+    { getState, dispatch },
+  ) => {
     const { combinedRestaurantMenuData = [], restaurantFood = {} } =
       getState().BookerSelectRestaurant;
     const {
@@ -436,22 +457,28 @@ const fetchFoodListFromRestaurant = createAsyncThunk(
         (item: TObject) => item.restaurantId === restaurantId,
       )?.menuId;
 
-    const { data: foodList } = await fetchFoodListFromMenuApi({
+    const { data } = await fetchFoodListFromMenuApi({
       menuId,
       subOrderDate: timestamp,
       favoriteFoodIdList,
       nutritions,
     });
+    const {
+      foodList = [],
+      foodExtraFees = {},
+    }: {
+      foodList?: TListing[];
+      foodExtraFees?: Record<string, number>;
+    } = data || {};
 
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
     dispatch(BookerSelectRestaurantActions.setCurrentMenuId(menuId));
 
-    const newRestaurantFood = {
-      ...restaurantFood,
-      [restaurantId]: foodList,
+    return {
+      restaurantFood: { ...restaurantFood, [restaurantId]: foodList },
+      menuId: menuId as string,
+      foodExtraFees,
     };
-
-    return newRestaurantFood;
   },
 );
 
@@ -670,7 +697,12 @@ const BookerSelectRestaurantSlice = createSlice({
         state.fetchRestaurantFoodError = null;
       })
       .addCase(fetchFoodListFromRestaurant.fulfilled, (state, action) => {
-        state.restaurantFood = action.payload;
+        const { restaurantFood, menuId, foodExtraFees } = action.payload;
+        state.restaurantFood = restaurantFood;
+        state.menuFoodExtraFees = {
+          ...state.menuFoodExtraFees,
+          [menuId]: foodExtraFees,
+        };
         state.fetchRestaurantFoodInProgress = false;
       })
       .addCase(fetchFoodListFromRestaurant.rejected, (state, { payload }) => {

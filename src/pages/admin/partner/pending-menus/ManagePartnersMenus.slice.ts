@@ -6,6 +6,7 @@ import {
   getPartnerPendingMenuDetailApi,
   rejectPartnerMenuApi,
 } from '@apis/admin';
+import { updateMenuExtraFeesApi } from '@apis/menuApi';
 import { createAsyncThunk } from '@redux/redux.helper';
 import type { MenuListing, TQueryParams } from '@src/types';
 import type { EListingStates } from '@src/utils/enums';
@@ -29,6 +30,8 @@ type TManagePartnersMenusState = {
   // Reject
   rejectMenuInProgress: boolean;
   rejectMenuError: TError | null;
+  // Extra fees
+  saveExtraFeesInProgress: boolean;
 };
 
 const initialState: TManagePartnersMenusState = {
@@ -52,6 +55,8 @@ const initialState: TManagePartnersMenusState = {
   // Reject
   rejectMenuInProgress: false,
   rejectMenuError: null,
+  // Extra fees
+  saveExtraFeesInProgress: false,
 };
 
 // ================ Async Thunks ================ //
@@ -168,11 +173,34 @@ const rejectMenu = createAsyncThunk<
   },
 );
 
+/**
+ * Replaces the extra fees (phí phụ thu) of the menu being reviewed.
+ * @param payload.menuId - The menu.
+ * @param payload.extraFees - The complete `{ [foodId]: fee }` map.
+ * @returns The saved fee map.
+ */
+const saveMenuExtraFees = createAsyncThunk<
+  Record<string, number>,
+  { menuId: string; extraFees: Record<string, number> }
+>(
+  'admin/ManagePartnersMenus/SAVE_MENU_EXTRA_FEES',
+  async ({ menuId, extraFees }, { rejectWithValue }) => {
+    try {
+      await updateMenuExtraFeesApi(menuId, extraFees);
+
+      return extraFees;
+    } catch (error) {
+      return rejectWithValue(storableError(error));
+    }
+  },
+);
+
 export const ManagePartnersMenusThunks = {
   fetchPendingMenus,
   fetchMenuDetail,
   approveMenu,
   rejectMenu,
+  saveMenuExtraFees,
 };
 
 // ================ Slice ================ //
@@ -262,6 +290,19 @@ const ManagePartnersMenusSlice = createSlice({
       .addCase(rejectMenu.rejected, (state, { payload }) => {
         state.rejectMenuInProgress = false;
         state.rejectMenuError = payload as any;
+      })
+      // =============== saveMenuExtraFees ===============
+      .addCase(saveMenuExtraFees.pending, (state) => {
+        state.saveExtraFeesInProgress = true;
+      })
+      .addCase(saveMenuExtraFees.fulfilled, (state, { payload }) => {
+        state.saveExtraFeesInProgress = false;
+        if (state.currentMenu?.attributes?.publicData) {
+          state.currentMenu.attributes.publicData.foodExtraFees = payload;
+        }
+      })
+      .addCase(saveMenuExtraFees.rejected, (state) => {
+        state.saveExtraFeesInProgress = false;
       });
   },
 });

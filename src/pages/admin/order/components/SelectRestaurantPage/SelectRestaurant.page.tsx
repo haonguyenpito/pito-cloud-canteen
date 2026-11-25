@@ -7,15 +7,14 @@ import { DateTime } from 'luxon';
 import Badge from '@components/Badge/Badge';
 import IconArrowHead from '@components/Icons/IconArrowHead/IconArrowHead';
 import Pagination from '@components/Pagination/Pagination';
-import {
-  getSelectedRestaurantAndFoodList,
-  getUpdateLineItems,
-} from '@helpers/orderHelper';
+import { getSelectedRestaurantAndFoodList } from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { selectRestaurantPageThunks } from '@redux/slices/SelectRestaurantPage.slice';
+import type { RestaurantListing } from '@src/types';
 import { Listing } from '@utils/data';
-import type { TListing, TObject } from '@utils/types';
+import type { TFoodList } from '@utils/orderTypes';
+import type { TListing } from '@utils/types';
 
 import type { TSelectFoodFormValues } from '../SelectFoodModal/components/SelectFoodForm/SelectFoodForm';
 import SelectFoodModal from '../SelectFoodModal/SelectFoodModal';
@@ -27,8 +26,20 @@ import css from './SelectRestaurantPage.module.scss';
 
 const DEBOUNCE_TIME = 500;
 
+export type TSubmitRestaurantValues = {
+  restaurant: {
+    id?: string;
+    restaurantName?: string;
+    menuId?: string;
+    phoneNumber?: string;
+    minQuantity?: number;
+    maxQuantity?: number;
+  };
+  selectedFoodList: TFoodList;
+};
+
 type TSelectRestaurantPageProps = {
-  onSubmitRestaurant: (values: TObject) => void;
+  onSubmitRestaurant: (values: TSubmitRestaurantValues) => void;
   selectedDate: Date;
   onBack: () => void;
   selectFoodInProgress: boolean;
@@ -58,6 +69,10 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
   );
   const foodList = useAppSelector(
     (state) => state.SelectRestaurantPage.foodList,
+    shallowEqual,
+  );
+  const foodExtraFees = useAppSelector(
+    (state) => state.SelectRestaurantPage.foodExtraFees,
     shallowEqual,
   );
   const fetchFoodPending = useAppSelector(
@@ -143,6 +158,10 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
     }, DEBOUNCE_TIME);
   };
 
+  /**
+   * Snapshots the dishes picked in the food modal and hands them to the parent.
+   * @param values.food - Ids of the picked dishes.
+   */
   const handleSelectFood = async (values: TSelectFoodFormValues) => {
     const { food: foodIds } = values;
 
@@ -152,10 +171,9 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
       getSelectedRestaurantAndFoodList({
         foodList,
         foodIds,
-        currentRestaurant,
+        currentRestaurant: currentRestaurant as RestaurantListing,
+        extraFeeByFoodId: foodExtraFees,
       });
-
-    const updateLineItems = getUpdateLineItems(foodList, foodIds);
 
     await onSubmitRestaurant({
       restaurant: {
@@ -166,7 +184,6 @@ const SelectRestaurantPage: React.FC<TSelectRestaurantPageProps> = ({
         ).menu.id.uuid,
       },
       selectedFoodList: submitFoodListData,
-      lineItems: updateLineItems,
     });
     setModalOpen(false);
   };

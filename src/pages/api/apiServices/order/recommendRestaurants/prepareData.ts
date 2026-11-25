@@ -6,15 +6,23 @@ import {
   getMenuQueryWithDraftOrderData,
 } from '@helpers/listingSearchQuery';
 import { calculateDistance } from '@helpers/mapHelpers';
+import {
+  getBillablePrice,
+  getFoodBillablePrice,
+  getMenuExtraFeeMap,
+  sanitizeExtraFeeMap,
+} from '@helpers/menuExtraFee';
 import { mealTypeAdapter } from '@helpers/order/adapterHelper';
 import {
   adjustFoodListPrice,
-  getSelectedRestaurantAndFoodList,
+  buildSnapshotFoodList,
 } from '@helpers/orderHelper';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import config from '@src/configs';
+import type { FoodListing, MenuListing, TMenuPublicData } from '@src/types';
 import { Listing, User } from '@src/utils/data';
 import { convertWeekDay, renderDateRange, VNTimezone } from '@src/utils/dates';
+import type { EDayOfWeek } from '@src/utils/enums';
 import { EOrderType } from '@src/utils/enums';
 import type { TListing, TObject } from '@src/utils/types';
 
@@ -82,8 +90,19 @@ export const prepareRestaurantDataForOrderDetail = (
   };
 };
 
+/**
+ * Picks the dishes of a recommended menu for one delivery date and snapshots
+ * them with client and partner prices.
+ * @param params.menu - The recommended menu.
+ * @param params.timestamp - Timestamp of the delivery date.
+ * @param params.mealType - Food types to keep.
+ * @param params.nutritions - Special diets to keep.
+ * @param params.packagePerMember - Keep only dishes whose client price equals
+ *   it; 0 keeps every dish.
+ * @param params.order - The order, to halve prices for dual-selection companies.
+ * @returns The snapshotted dishes keyed by foodId.
+ */
 export const prepareMenuFoodList = async ({
-  restaurant,
   menu,
   timestamp,
   mealType: foodTypes = [],
@@ -91,7 +110,6 @@ export const prepareMenuFoodList = async ({
   packagePerMember = 0,
   order,
 }: {
-  restaurant: TListing;
   menu: TListing;
   timestamp: number;
   mealType: string[];
@@ -126,22 +144,21 @@ export const prepareMenuFoodList = async ({
     },
   });
 
-  // * find valid food items
-  const suitableFoodList = foodListFromSharetribe.filter(
-    (foodListing: TListing) => {
-      if (packagePerMember <= 0) return true;
+  const extraFeeByFoodId = getMenuExtraFeeMap(menu as MenuListing);
 
-      return foodListing.attributes.price.amount === packagePerMember;
-    },
+  // * find valid food items
+  const suitableFoodList: FoodListing[] = foodListFromSharetribe.filter(
+    (foodListing: FoodListing) =>
+      packagePerMember <= 0 ||
+      getFoodBillablePrice(foodListing, extraFeeByFoodId) === packagePerMember,
   );
 
   // * convert food list (array) to food map
-  const { submitFoodListData: normalizedFoodList } =
-    getSelectedRestaurantAndFoodList({
-      foodList: suitableFoodList,
-      foodIds: suitableFoodList.map((foodItem: TListing) => foodItem.id.uuid),
-      currentRestaurant: restaurant,
-    });
+  const normalizedFoodList = buildSnapshotFoodList(
+    suitableFoodList,
+    suitableFoodList.map((foodItem) => foodItem.id?.uuid || ''),
+    extraFeeByFoodId,
+  );
 
   // Adjust food list price if the company is allowed to add a second food
   const foodList = order
@@ -288,21 +305,32 @@ export const prepareParamsFromGivenParamsForAllDays = ({
   };
 };
 
+/**
+ * Keeps the menus serving at least one dish priced exactly at the package on
+ * the delivery date.
+ * @param allMenus - Candidate menus.
+ * @param timestamp - Timestamp of the delivery date.
+ * @param packagePerMember - The fee-inclusive budget per participant.
+ * @returns The menus with a dish whose client price equals the package.
+ */
 export function filterMenusHavePackagePerMember(
-  allMenus: any,
+  allMenus: TListing[],
   timestamp: number,
-  packagePerMember: any,
-) {
+  packagePerMember: number,
+): TListing[] {
   const dateTime = DateTime.fromMillis(timestamp).setZone(VNTimezone);
-  const dayOfWeek = convertWeekDay(dateTime.weekday).key;
+  const dayOfWeek = convertWeekDay(dateTime.weekday).key as EDayOfWeek;
 
-  return allMenus.filter((menu: TListing) => {
-    const { foodsByDate } = Listing(menu).getPublicData();
-    const foodByIds = foodsByDate[dayOfWeek];
-    const foodIds = Object.keys(foodByIds);
+  return allMenus.filter((menu) => {
+    const { foodsByDate, foodExtraFees } = Listing(
+      menu,
+    ).getPublicData() as Partial<TMenuPublicData>;
+    const extraFeeByFoodId = sanitizeExtraFeeMap(foodExtraFees);
 
-    return foodIds.some(
-      (foodId) => foodByIds[foodId].price === packagePerMember,
+    return Object.entries(foodsByDate?.[dayOfWeek] || {}).some(
+      ([foodId, food]) =>
+        getBillablePrice(food?.price, extraFeeByFoodId[foodId]) ===
+        packagePerMember,
     );
   });
 }

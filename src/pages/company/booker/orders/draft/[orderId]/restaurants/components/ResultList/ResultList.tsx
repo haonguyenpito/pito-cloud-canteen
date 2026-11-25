@@ -93,12 +93,13 @@ const ResultList: React.FC<TResultListProps> = ({
     }
   };
 
-  const onSearchSubmit = (keywords: string, _restaurantId: string) => {
+  const onSearchSubmit = (_keywords: string, _restaurantId: string) => {
+    if (!selectedRestaurantId) return;
+
     dispatch(
       BookerSelectRestaurantThunks.fetchFoodListFromRestaurant({
-        keywords,
         restaurantId: selectedRestaurantId,
-        menuId,
+        menuId: typeof menuId === 'string' ? menuId : undefined,
         timestamp,
       }),
     );

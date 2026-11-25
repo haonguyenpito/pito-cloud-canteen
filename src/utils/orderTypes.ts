@@ -4,9 +4,11 @@ import type { ETransition } from './transaction';
 export type TFoodList = {
   [foodId: string]: {
     foodName: string;
+    /** Client price: the partner's base price plus the menu's extra fee. */
     foodPrice: number;
+    foodPartnerPrice?: number;
     foodUnit?: string;
-    numberOfMainDishes: number | string;
+    numberOfMainDishes?: number | string;
   };
 };
 
@@ -41,6 +43,7 @@ export type TPlan = {
         quantity: number;
         price: number;
         unitPrice: number;
+        unitPartnerPrice?: number;
       }[];
     };
   };

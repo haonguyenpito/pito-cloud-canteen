@@ -3,8 +3,8 @@ import isEmpty from 'lodash/isEmpty';
 import uniq from 'lodash/uniq';
 import { DateTime } from 'luxon';
 
-import type { FoodListing } from '@src/types';
-import type { TMemberOrders, TOrderDetail } from '@src/types/order';
+import type { FoodListing, RestaurantListing } from '@src/types';
+import type { TLineItem, TMemberOrders, TOrderDetail } from '@src/types/order';
 import { SECONDARY_FOOD_ALLOWED_COMPANIES } from '@src/utils/constants';
 import { ETransition } from '@src/utils/transaction';
 import { Listing } from '@utils/data';
@@ -36,6 +36,7 @@ import {
   findMinDeadlineDate,
   findMinStartDate,
 } from './order/prepareDataHelper';
+import { getBillablePrice } from './menuExtraFee';
 
 export const isCompletePickFood = ({
   participantId,
@@ -274,32 +275,58 @@ export const isOrderDetailFullDatePickingFood = (orderDetail: TObject) => {
   });
 };
 
-type TFoodDataMap = TObject<string, TFoodDataValue>;
+type TFoodDataMap = Record<string, TFoodDataValue>;
 
+type TFoodListOfDate = Record<
+  string,
+  TFoodList[string] & { requirement?: string }
+>;
+
+type TMemberOrdersOfDate = Record<
+  string,
+  {
+    foodId?: string;
+    secondaryFoodId?: string;
+    status: EParticipantOrderStatus;
+  }
+>;
+
+/**
+ * Counts how many of each dish a sub-order serves, with both prices per dish.
+ * @param params.foodListOfDate - Group order: the sub-order's food snapshot.
+ * @param params.memberOrders - Group order: each participant's pick.
+ * @param params.orderType - `group` reads picks, any other type reads line items.
+ * @param params.lineItems - Normal order: the sub-order's line items.
+ * @returns Food rows keyed by foodId.
+ */
 export const getFoodDataMap = ({
   foodListOfDate = {},
   memberOrders = {},
   orderType = EOrderType.group,
   lineItems = [],
-}: any) => {
+}: {
+  foodListOfDate?: TFoodListOfDate;
+  memberOrders?: TMemberOrdersOfDate;
+  orderType?: string;
+  lineItems?: TLineItem[];
+}): TFoodDataMap => {
   if (orderType === EOrderType.group) {
-    return Object.entries(memberOrders).reduce<TFoodDataMap>(
-      (foodFrequencyResult, [, memberOrderData]) => {
-        const { foodId, status, secondaryFoodId } = memberOrderData as TObject;
-
+    return Object.values(memberOrders).reduce<TFoodDataMap>(
+      (foodFrequencyResult, { foodId, status, secondaryFoodId }) => {
         const updateFoodFrequency = (
           result: TFoodDataMap,
-          id: string,
+          id?: string,
         ): TFoodDataMap => {
-          if (!isJoinedPlan(id, status) || !id) return result;
+          if (!id || !isJoinedPlan(id, status)) return result;
 
           const {
             foodName,
             foodPrice,
+            foodPartnerPrice,
             numberOfMainDishes,
             requirement = '',
           } = foodListOfDate[id] || {};
-          const current = result[id] as TObject;
+          const current = result[id];
           const { notes = [] } = current || {};
           const nextFrequency = (current?.frequency ?? 0) + 1;
 
@@ -313,6 +340,7 @@ export const getFoodDataMap = ({
               foodId: id,
               foodName,
               foodPrice,
+              foodPartnerPrice,
               numberOfMainDishes,
               notes,
               frequency: nextFrequency,
@@ -329,19 +357,19 @@ export const getFoodDataMap = ({
     );
   }
 
-  return lineItems.reduce((result: any, item: any) => {
-    const { id, name, quantity, unitPrice } = item;
-
-    return {
+  return lineItems.reduce<TFoodDataMap>(
+    (result, { id, name, quantity, unitPrice, unitPartnerPrice }) => ({
       ...result,
       [id]: {
         foodId: id,
         foodName: name,
         foodPrice: unitPrice,
+        foodPartnerPrice: unitPartnerPrice,
         frequency: quantity,
       },
-    };
-  }, {} as TFoodDataMap) as TFoodDataMap;
+    }),
+    {},
+  );
 };
 
 export const getTotalInfo = (foodDataList: TFoodDataValue[]) => {
@@ -505,38 +533,99 @@ export const markColorForOrder = (orderNumber: number) => {
   return colorList[orderNumber % colorList.length];
 };
 
+type TSnapshotFood = TFoodList[string];
+
+/**
+ * Snapshots one dish into a plan sub-order at pick time.
+ * @param food - The food listing being picked.
+ * @param extraFeeByFoodId - The extra fees of the menu the dish is picked from.
+ * @returns The dish with `foodPrice` = client price (base + menu fee) and
+ *   `foodPartnerPrice` = partner price (base).
+ */
+export const buildSnapshotFood = (
+  food: FoodListing,
+  extraFeeByFoodId: Record<string, number> = {},
+): TSnapshotFood => {
+  const { title = '', price, publicData } = food.attributes || {};
+  const basePrice = price?.amount || 0;
+
+  return {
+    foodName: title,
+    foodPrice: getBillablePrice(
+      basePrice,
+      extraFeeByFoodId[food.id?.uuid || ''],
+    ),
+    foodPartnerPrice: basePrice,
+    foodUnit: publicData?.unit || '',
+    numberOfMainDishes: publicData?.numberOfMainDishes,
+  };
+};
+
+/**
+ * Builds a normal order's line item from a snapshotted dish.
+ * @param foodId - The dish id.
+ * @param food - The snapshotted dish (see `buildSnapshotFood`).
+ * @param quantity - Number of servings.
+ * @returns The line item; `unitPrice` / `price` are client prices and
+ *   `unitPartnerPrice` is the partner price.
+ */
+export const buildLineItem = (
+  foodId: string,
+  { foodName, foodPrice, foodPartnerPrice }: TSnapshotFood,
+  quantity = 1,
+): TLineItem => ({
+  id: foodId,
+  name: foodName,
+  unitPrice: foodPrice,
+  price: foodPrice * quantity,
+  quantity,
+  unitPartnerPrice: foodPartnerPrice ?? foodPrice,
+});
+
+/**
+ * Snapshots the picked dishes of one sub-order.
+ * @param foodList - Food listings of the menu being browsed.
+ * @param foodIds - Ids of the picked dishes.
+ * @param extraFeeByFoodId - The extra fees of that menu.
+ * @returns The picked dishes keyed by foodId (see `buildSnapshotFood`).
+ */
+export const buildSnapshotFoodList = (
+  foodList: FoodListing[],
+  foodIds: string[],
+  extraFeeByFoodId: Record<string, number> = {},
+): TFoodList =>
+  foodIds.reduce<TFoodList>((result, foodId) => {
+    const food = foodList.find((item) => item?.id?.uuid === foodId);
+
+    return food
+      ? { ...result, [foodId]: buildSnapshotFood(food, extraFeeByFoodId) }
+      : result;
+  }, {});
+
+/**
+ * Snapshots the picked dishes and restaurant of one sub-order.
+ * @param params.foodList - Food listings of the menu being browsed.
+ * @param params.foodIds - Ids of the picked dishes.
+ * @param params.currentRestaurant - The restaurant listing.
+ * @param params.extraFeeByFoodId - The extra fees of that menu.
+ * @returns The restaurant snapshot and the picked dishes keyed by foodId.
+ */
 export const getSelectedRestaurantAndFoodList = ({
   foodList = [],
   foodIds = [],
   currentRestaurant,
+  extraFeeByFoodId = {},
 }: {
-  foodList: TObject[];
+  foodList: FoodListing[];
   foodIds: string[];
-  currentRestaurant: TObject;
+  currentRestaurant: RestaurantListing;
+  extraFeeByFoodId?: Record<string, number>;
 }) => {
-  const submitFoodListData = foodIds.reduce((result, foodId) => {
-    const item = foodList.find((food) => food?.id?.uuid === foodId);
-
-    if (isEmpty(item)) {
-      return result;
-    }
-    const { id, attributes } = item || {};
-    const { title, price } = attributes;
-    const foodUnit = attributes?.publicData?.unit || '';
-    const numberOfMainDishes = attributes?.publicData?.numberOfMainDishes;
-
-    return id?.uuid
-      ? {
-          ...result,
-          [id?.uuid]: {
-            foodName: title,
-            foodPrice: price?.amount || 0,
-            foodUnit,
-            numberOfMainDishes,
-          },
-        }
-      : result;
-  }, {});
+  const submitFoodListData = buildSnapshotFoodList(
+    foodList,
+    foodIds,
+    extraFeeByFoodId,
+  );
 
   const submitRestaurantData = {
     id: currentRestaurant?.id?.uuid,
@@ -569,82 +658,21 @@ export const getPickFoodParticipants = (orderDetail: TObject) => {
   return shouldSendNativeNotificationParticipantIdList;
 };
 
-export const getUpdateLineItems = (foodList: any[], foodIds: string[]) => {
-  const updateFoodList = foodIds.reduce((acc: any, foodId: string) => {
-    const food = foodList?.find((item) => item.id?.uuid === foodId);
-    if (food) {
-      const foodListingGetter = Listing(food).getAttributes();
-
-      acc[foodId] = {
-        foodName: foodListingGetter.title,
-        foodPrice: foodListingGetter.price?.amount || 0,
-        foodUnit: foodListingGetter.publicData?.unit || '',
-      };
-    }
-
-    return acc;
-  }, {});
-
-  const updateLineItems = Object.entries<{
-    foodName: string;
-    foodPrice: number;
-  }>(updateFoodList).map(([foodId, { foodName, foodPrice }]) => {
-    return {
-      id: foodId,
-      name: foodName,
-      unitPrice: foodPrice,
-      price: foodPrice,
-      quantity: 1,
-    };
-  });
-
-  return updateLineItems;
-};
-
-export const getUpdateLineItemsInDualSelectionOrder = (
+/**
+ * Builds the line items of a normal order from the picked dishes.
+ * @param foodList - Food listings of the menu being browsed.
+ * @param foodIds - Ids of the picked dishes.
+ * @param extraFeeByFoodId - The extra fees of that menu.
+ * @returns One line item per picked dish, quantity 1.
+ */
+export const getUpdateLineItems = (
   foodList: FoodListing[],
   foodIds: string[],
-) => {
-  const updateFoodList = foodIds.reduce((acc: any, foodId: string) => {
-    const food = foodList?.find(
-      (item: FoodListing) => item.id?.uuid === foodId,
-    );
-    if (food) {
-      const foodListingGetter = Listing(food as TListing).getAttributes();
-      const numberOfMainDishes =
-        foodListingGetter.publicData?.numberOfMainDishes;
-      const isSingleSelectionFood =
-        numberOfMainDishes !== undefined &&
-        numberOfMainDishes !== null &&
-        Number(numberOfMainDishes) === 1;
-      const foodPrice = isSingleSelectionFood
-        ? foodListingGetter.price?.amount || 0
-        : (foodListingGetter.price?.amount || 0) / 2;
-      acc[foodId] = {
-        foodName: foodListingGetter.title,
-        foodPrice,
-        foodUnit: foodListingGetter.publicData?.unit || '',
-      };
-    }
-
-    return acc;
-  }, {});
-
-  const updateLineItems = Object.entries<{
-    foodName: string;
-    foodPrice: number;
-  }>(updateFoodList).map(([foodId, { foodName, foodPrice }]) => {
-    return {
-      id: foodId,
-      name: foodName,
-      unitPrice: foodPrice,
-      price: foodPrice,
-      quantity: 1,
-    };
-  });
-
-  return updateLineItems;
-};
+  extraFeeByFoodId: Record<string, number> = {},
+): TLineItem[] =>
+  Object.entries(
+    buildSnapshotFoodList(foodList, foodIds, extraFeeByFoodId),
+  ).map(([foodId, food]) => buildLineItem(foodId, food));
 
 export const getEditedSubOrders = (orderDetail: TObject) => {
   const editedSubOrders = Object.keys(orderDetail).reduce(
@@ -709,23 +737,20 @@ export const mergeRecommendOrderDetailWithCurrentOrderDetail = (
   return mergedResult;
 };
 
+/**
+ * Builds a normal order's line items from a snapshotted food list.
+ * @param foodList - The sub-order's food snapshot.
+ * @param isNormalOrder - Group orders have no line items.
+ * @returns One line item per dish, quantity 1; empty for group orders.
+ */
 export const initLineItemsFromFoodList = (
   foodList: TFoodList,
   isNormalOrder = true,
-) => {
+): TLineItem[] => {
   return isNormalOrder
-    ? Object.entries<{
-        foodName: string;
-        foodPrice: number;
-      }>(foodList).map(([foodId, { foodName, foodPrice }]) => {
-        return {
-          id: foodId,
-          name: foodName,
-          unitPrice: foodPrice,
-          price: foodPrice,
-          quantity: 1,
-        };
-      })
+    ? Object.entries(foodList).map(([foodId, food]) =>
+        buildLineItem(foodId, food),
+      )
     : [];
 };
 
@@ -799,10 +824,11 @@ export const getIsAllowAddSecondaryFoodInCreateOrder = (companyId: string) => {
 };
 
 /**
- * Adjust the food list price
- * @param foodList - The food list
- * @param order - The order
- * @returns The adjusted food list
+ * Halves both prices of multi-dish foods for dual-selection companies, which
+ * split one package across two dishes.
+ * @param foodList - The sub-order's food snapshot.
+ * @param order - The order, to read whether the company picks two dishes.
+ * @returns The food snapshot with adjusted client and partner prices.
  */
 export const adjustFoodListPrice = (
   foodList: TFoodList,
@@ -811,32 +837,29 @@ export const adjustFoodListPrice = (
   const isSecondaryFoodAllowedCompany = getIsAllowAddSecondaryFood(order);
   if (!foodList) return {} as TFoodList;
 
-  return Object.entries(foodList).reduce(
+  return Object.entries(foodList).reduce<TFoodList>(
     (
-      acc: TObject,
-      [foodId, { foodName, foodPrice, foodUnit, numberOfMainDishes }],
+      acc,
+      [
+        foodId,
+        { foodName, foodPrice, foodPartnerPrice, foodUnit, numberOfMainDishes },
+      ],
     ) => {
       const isSingleSelectionFood =
         numberOfMainDishes !== undefined &&
         numberOfMainDishes !== null &&
         Number(numberOfMainDishes) === 1;
-      if (isSecondaryFoodAllowedCompany && !isSingleSelectionFood) {
-        return {
-          ...acc,
-          [foodId]: {
-            foodName,
-            foodPrice: foodPrice / 2,
-            foodUnit,
-            numberOfMainDishes,
-          },
-        };
-      }
+      const divisor =
+        isSecondaryFoodAllowedCompany && !isSingleSelectionFood ? 2 : 1;
 
       return {
         ...acc,
         [foodId]: {
           foodName,
-          foodPrice,
+          foodPrice: foodPrice / divisor,
+          ...(foodPartnerPrice !== undefined && {
+            foodPartnerPrice: foodPartnerPrice / divisor,
+          }),
           foodUnit,
           numberOfMainDishes,
         },

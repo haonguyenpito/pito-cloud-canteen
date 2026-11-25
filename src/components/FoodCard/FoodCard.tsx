@@ -7,6 +7,7 @@ import IconCheckmarkWithCircle from '@components/Icons/IconCheckmark/IconCheckma
 import IconPlusCircle from '@components/Icons/IconPlusCircle/IconPlusCircle';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import { addCommas } from '@helpers/format';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import { getLabelByKey, useFoodTypeOptionsByLocale } from '@src/utils/options';
 import { getDecorator } from '@src/utils/string';
 import { Listing } from '@utils/data';
@@ -23,8 +24,14 @@ type TFoodCardProps = {
   onSelect?: (foodId: string) => void;
   onRemove?: (foodId: string) => void;
   hideSelection?: boolean;
+  extraFee?: number;
 };
 
+/**
+ * Shows one dish to pick.
+ * @param props.extraFee - The menu's extra fee for the dish, added to the
+ *   displayed price. Partner-facing screens leave it at 0.
+ */
 const FoodCard: React.FC<TFoodCardProps> = ({
   className,
   isSelected = false,
@@ -33,6 +40,7 @@ const FoodCard: React.FC<TFoodCardProps> = ({
   onRemove = () => null,
   onClick = () => null,
   hideSelection = false,
+  extraFee = 0,
 }) => {
   const intl = useIntl();
   const classes = classNames(css.root, className);
@@ -106,7 +114,10 @@ const FoodCard: React.FC<TFoodCardProps> = ({
             css.price,
             '!text-sm font-semibold',
           )}>{`${addCommas(
-          Listing(food!).getAttributes().price?.amount,
+          `${getBillablePrice(
+            Listing(food!).getAttributes().price?.amount,
+            extraFee,
+          )}`,
         )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
       </div>
       {!hideSelection && (

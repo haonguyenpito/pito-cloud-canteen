@@ -1,7 +1,9 @@
 import * as unidecode from 'unidecode';
 
 import { calculateDistance } from '@helpers/mapHelpers';
+import { getBillablePrice, getMenuExtraFeeMap } from '@helpers/menuExtraFee';
 import config from '@src/configs';
+import type { MenuListing } from '@src/types';
 import type { TFoodInRestaurant } from '@src/types/bookerSelectRestaurant';
 import { Listing } from '@src/utils/data';
 import type { TListing } from '@src/utils/types';
@@ -56,6 +58,16 @@ export function filterRestaurant(
   return isValidRestaurant;
 }
 
+/**
+ * Lists the dishes a menu serves on one weekday.
+ * @param menu - The menu listing.
+ * @param dayOfWeek - `mon` … `sun`.
+ * @param mapfoods - Food listings keyed by id.
+ * @param options.findExactPackagePerMember - Keep only dishes whose client
+ *   price equals the package.
+ * @returns The dishes; `price` is the client price (base + this menu's fee)
+ *   and `partnerPrice` the partner price.
+ */
 export function parseFoodsFromMenu(
   menu: TListing,
   dayOfWeek: string,
@@ -71,12 +83,17 @@ export function parseFoodsFromMenu(
   const menuListing = Listing(menu);
   const foodInList = menuListing.getPublicData().foodsByDate[dayOfWeek];
   const { restaurantId } = menuListing.getMetadata();
+  const extraFeeByFoodId = getMenuExtraFeeMap(menu as MenuListing);
   Object.keys(foodInList).forEach((key) => {
     const foodMenu = foodInList[key];
     const food = mapfoods.get(key);
     if (foodMenu && food) {
       const foodListing = Listing(food);
       const { price, title, publicData } = foodListing.getAttributes();
+      const billablePrice = getBillablePrice(
+        price.amount,
+        extraFeeByFoodId[key],
+      );
 
       if (
         options?.findExactPackagePerMember &&
@@ -85,7 +102,7 @@ export function parseFoodsFromMenu(
         const packagePerMember =
           options?.findExactPackagePerMember.packagePerMember;
 
-        if (price.amount !== packagePerMember) {
+        if (billablePrice !== packagePerMember) {
           return;
         }
       }
@@ -95,7 +112,8 @@ export function parseFoodsFromMenu(
         foodId: key,
         foodName: title,
         minQuantity: foodListing.getPublicData().minQuantity ?? 0,
-        price: price.amount,
+        price: billablePrice,
+        partnerPrice: price.amount,
         foodUnit: publicData?.unit ?? '',
         numberOfMainDishes: publicData?.numberOfMainDishes ?? 2,
       });

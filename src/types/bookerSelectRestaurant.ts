@@ -10,7 +10,9 @@ export type KeywordsCombinedMenuData = CombinedRestaurantMenuData & {
 export type TFoodInRestaurant = {
   foodId: string;
   restaurantId: string;
+  /** Client price: the partner's base price plus the menu's extra fee. */
   price: number;
+  partnerPrice: number;
   minQuantity: number;
   foodName: string;
   foodUnit: string;

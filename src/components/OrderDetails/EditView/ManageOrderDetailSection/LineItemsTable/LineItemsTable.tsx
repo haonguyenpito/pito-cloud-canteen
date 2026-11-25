@@ -11,6 +11,7 @@ import { FieldDropdownSelectComponent } from '@components/FormFields/FieldDropdo
 import { FieldTextAreaComponent } from '@components/FormFields/FieldTextArea/FieldTextArea';
 import IconAdd from '@components/Icons/IconAdd/IconAdd';
 import SlideModal from '@components/SlideModal/SlideModal';
+import { buildLineItem } from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { saveDraftEditOrder } from '@redux/slices/Order.slice';
@@ -19,6 +20,7 @@ import {
   OrderManagementsAction,
   orderManagementThunks,
 } from '@redux/slices/OrderManagement.slice';
+import type { TLineItem } from '@src/types/order';
 import { Listing } from '@src/utils/data';
 import { EOrderStates } from '@src/utils/enums';
 import type { TListing, TObject } from '@src/utils/types';
@@ -157,22 +159,23 @@ const LineItemsTable: React.FC<TLineItemsTableProps> = (props) => {
   const disabledAddLineItem =
     disabledSelectFood || isEmpty(foodField.input.value);
 
+  /**
+   * Adds a dish as a line item, or sets/removes an existing line item's
+   * quantity. A new line item carries both the client and the partner price.
+   * @param foodId - The dish.
+   * @param quantity - New quantity; 0 removes the line item.
+   */
   const handleModifyQuantity =
     (foodId: string, quantity: number = 1) =>
     () => {
-      const itemIndex = lineItems.findIndex((x: TObject) => x?.id === foodId);
-      let newLineItems = lineItems;
-
+      const itemIndex = lineItems.findIndex((x: TLineItem) => x?.id === foodId);
+      let newLineItems: TLineItem[] = lineItems;
       const { foodPrice, foodName } = foodList[foodId] || {};
 
       if (itemIndex === -1) {
-        newLineItems = newLineItems.concat({
-          id: foodId,
-          name: foodName,
-          unitPrice: foodPrice,
-          price: foodPrice,
-          quantity,
-        });
+        newLineItems = newLineItems.concat(
+          buildLineItem(foodId, foodList[foodId], quantity),
+        );
       } else if (quantity === 0) {
         newLineItems = difference(lineItems, [lineItems[itemIndex]]);
       } else {

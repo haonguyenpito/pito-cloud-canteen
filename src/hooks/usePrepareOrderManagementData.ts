@@ -182,8 +182,9 @@ export const usePrepareOrderDetailPageData = ({
       groupFoodOrderByDateFromQuotation({
         quotation: quotation as TListing,
         date,
+        isPartner,
       }),
-    [JSON.stringify(quotation)],
+    [JSON.stringify(quotation), isPartner],
   );
   const foodOrderGroupedByDateFromDraftOrderDetail = useMemo(
     () =>

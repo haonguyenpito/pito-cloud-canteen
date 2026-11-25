@@ -99,7 +99,8 @@ Writers using it:
 | `api/orders/[orderId]/participant/index.api.ts`                                                                                        | Add / remove participants                                                  |
 | `api/orders/[orderId]/plan/update.service.ts`                                                                                          | Plan edits (`patchSubOrders`: never takes `memberOrders` from the client)  |
 | `api/orders/[orderId]/update-order-detail-from-draft.api.ts`                                                                           | Admin order edit from draft                                                |
-| `api/helpers/foodHelpers.ts`                                                                                                           | Food list changes                                                          |
+| `api/helpers/foodHelpers.ts`                                                                                                           | Food list changes; re-prices draft orders when a food price changes        |
+| `api/apiServices/menu/updateMenuExtraFees.service.ts`                                                                                  | Re-prices draft orders when the admin changes a menu's extra fees          |
 | `api/orders/[orderId]/publish-order.service.ts`, `request-approval-order.api.ts`                                                       | Order lifecycle                                                            |
 | `api/orders/[orderId]/plan/[planId]/initiate-transaction.service.ts`                                                                   | `transactionId` per date                                                   |
 | `api/admin/plan/transit.api.ts`, `api/partner/[partnerId]/orders/[orderId]/transit.api.ts`                                             | `lastTransition`                                                           |

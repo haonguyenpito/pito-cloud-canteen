@@ -158,7 +158,6 @@ export const recommendRestaurantForSpecificDay = async ({
 
     const foodList = await prepareMenuFoodList({
       menu,
-      restaurant,
       timestamp,
       nutritions,
       packagePerMember,
@@ -323,7 +322,6 @@ export const recommendRestaurants = async ({
         if (dayInWeek.includes(timestampWeekDay)) {
           const foodList = await prepareMenuFoodList({
             menu,
-            restaurant,
             timestamp,
             nutritions,
             mealType,

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { composeApiCheckers, HttpMethod } from '@apis/configs';
 import { convertDateToVNTimezone } from '@helpers/dateHelpers';
+import { toPartnerPlanListing } from '@helpers/order/partnerPriceHelper';
 import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
@@ -107,7 +108,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
           );
         }
 
-        return res.json({ transaction, plan: updatePlanListing });
+        return res.json({
+          transaction,
+          plan: toPartnerPlanListing(updatePlanListing),
+        });
       }
       default:
         break;

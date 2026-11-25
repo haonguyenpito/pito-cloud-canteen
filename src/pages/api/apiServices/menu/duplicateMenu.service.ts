@@ -1,5 +1,4 @@
 import {
-  createFoodAveragePriceByDaysOfWeekField,
   createFoodByDateByDaysOfWeekField,
   createFoodListIdByDaysOfWeekField,
   createListFoodIdsByFoodsByDate,
@@ -12,13 +11,30 @@ import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { IntegrationListing } from '@src/utils/data';
 import { addWeeksToDate } from '@src/utils/dates';
-import { EListingStates, EListingType, EMenuType } from '@src/utils/enums';
-import type { TDuplicateMenuApiParams, TObject } from '@src/utils/types';
+import {
+  EDayOfWeek,
+  EListingStates,
+  EListingType,
+  EMenuType,
+} from '@src/utils/enums';
+import type { TDuplicateMenuApiParams } from '@src/utils/types';
 
+const ZERO_MIN_FOOD_PRICE_BY_DAY = Object.fromEntries(
+  Object.values(EDayOfWeek).map((day) => [`${day}MinFoodPrice`, 0]),
+);
+
+/**
+ * Creates a copy of a menu, optionally on other days or with other dishes.
+ * The copy starts without extra fees.
+ * @param menuId - The menu to copy.
+ * @param dataParams - Fields that differ from the source menu.
+ * @param queryParams - Sharetribe query params of the create call.
+ * @returns The Sharetribe create response.
+ */
 const duplicateMenu = async (
   menuId: string,
   dataParams: TDuplicateMenuApiParams,
-  queryParams: TObject = {},
+  queryParams: Record<string, unknown> = {},
 ) => {
   const integrationSdk = getIntegrationSdk();
 
@@ -48,13 +64,6 @@ const duplicateMenu = async (
     startDate: startDateFromMenu,
     endDate: endDateFromMenu,
     numberOfCycles: numberOfCyclesFromMenu,
-    monMinFoodPrice: monMinFoodPriceFromMenu,
-    tueMinFoodPrice: tueMinFoodPriceFromMenu,
-    wedMinFoodPrice: wedMinFoodPriceFromMenu,
-    thuMinFoodPrice: thuMinFoodPriceFromMenu,
-    friMinFoodPrice: friMinFoodPriceFromMenu,
-    satMinFoodPrice: satMinFoodPriceFromMenu,
-    sunMinFoodPrice: sunMinFoodPriceFromMenu,
     daysOfWeek: daysOfWeekFromMenu,
     foodsByDate: foodsByDateFromMenu,
   } = IntegrationListing(menu).getPublicData();
@@ -139,19 +148,16 @@ const duplicateMenu = async (
             ),
           }
         : {}),
+      // The copy carries no extra fee, so the source's fee-inclusive minimum
+      // must not be reused: recompute it from the base prices.
       ...(daysOfWeek
         ? {
-            ...createFoodAveragePriceByDaysOfWeekField(
-              {
-                monMinFoodPrice: monMinFoodPriceFromMenu,
-                tueMinFoodPrice: tueMinFoodPriceFromMenu,
-                wedMinFoodPrice: wedMinFoodPriceFromMenu,
-                thuMinFoodPrice: thuMinFoodPriceFromMenu,
-                friMinFoodPrice: friMinFoodPriceFromMenu,
-                satMinFoodPrice: satMinFoodPriceFromMenu,
-                sunMinFoodPrice: sunMinFoodPriceFromMenu,
-              },
-              daysOfWeek,
+            ...ZERO_MIN_FOOD_PRICE_BY_DAY,
+            ...createMinPriceByDayOfWeek(
+              createFoodByDateByDaysOfWeekField(
+                foodsByDateFromMenu,
+                daysOfWeek,
+              ),
             ),
           }
         : {}),

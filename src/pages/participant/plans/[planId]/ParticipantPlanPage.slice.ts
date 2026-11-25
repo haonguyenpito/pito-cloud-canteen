@@ -9,6 +9,7 @@ import {
   pickRandomFood,
   pickRandomFoodExcludingIds,
 } from '@helpers/foodPickerHelpers';
+import { getFoodBillablePrice } from '@helpers/menuExtraFee';
 import {
   getIsAllowAddSecondaryFood,
   isParticipantPickClosedError,
@@ -20,6 +21,7 @@ import {
   shoppingCartActions,
   shoppingCartThunks,
 } from '@redux/slices/shoppingCart.slice';
+import type { AppDispatch } from '@redux/store';
 import type {
   TCartItem,
   TPlanData,
@@ -41,6 +43,21 @@ const RECOMMEND_FOOD_SUB_ORDERS =
   'app/ParticipantPlanPage/RECOMMEND_FOOD_SUB_ORDERS';
 const PLACE_ORDER = 'app/ParticipantPlanPage/PLACE_ORDER';
 
+/**
+ * Picks a random dish within budget and without the participant's allergens
+ * and puts it in their cart for one delivery date.
+ * @param params.plan - The participant plan data, per delivery date.
+ * @param params.subOrderDate - The delivery date.
+ * @param params.packagePerMember - The fee-inclusive budget; a dish qualifies
+ *   when its client price (base + the menu's fee) is within it.
+ * @param params.allergies - The participant's allergens.
+ * @param params.plans - The order's plan ids.
+ * @param params.dispatch - Redux dispatch.
+ * @param params.currentMealId - Current pick, avoided when an alternative exists.
+ * @param params.currentSecondaryMealId - Current second pick.
+ * @param params.isAllowAddSecondaryFood - Whether a second dish is also picked.
+ * @returns The picked dish names.
+ */
 const recommendFoodForShoppingCart = ({
   plan,
   subOrderDate,
@@ -52,23 +69,23 @@ const recommendFoodForShoppingCart = ({
   currentSecondaryMealId,
   isAllowAddSecondaryFood,
 }: {
-  plan: any;
+  plan: TPlanData;
   subOrderDate: string;
   packagePerMember: number;
   allergies: string[];
   plans: string[];
-  dispatch: any;
+  dispatch: AppDispatch;
   currentMealId?: string;
   currentSecondaryMealId?: string;
   isAllowAddSecondaryFood?: boolean;
 }) => {
-  const subOrder = plan[subOrderDate];
-  const { foodList } = subOrder;
+  const { foodList: foodListings, foodExtraFees = {} } = plan[subOrderDate];
+  const foodList = foodListings as TListing[];
 
   // get the list of foods with suitable price
-  const suitablePriceFoodList = foodList.filter((food: TListing) => {
-    return Listing(food).getAttributes().price.amount <= packagePerMember;
-  });
+  const suitablePriceFoodList = foodList.filter(
+    (food) => getFoodBillablePrice(food, foodExtraFees) <= packagePerMember,
+  );
 
   // pick a random food from the list of foods with suitable price without allergies
   let mostSuitableFood = pickRandomFood(suitablePriceFoodList, allergies);

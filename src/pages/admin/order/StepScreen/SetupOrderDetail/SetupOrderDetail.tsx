@@ -30,6 +30,7 @@ import {
   getRestaurantListFromOrderDetail,
   getSelectedRestaurantAndFoodList,
   getUpdateLineItems,
+  initLineItemsFromFoodList,
   mergeRecommendOrderDetailWithCurrentOrderDetail,
 } from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
@@ -48,11 +49,14 @@ import {
   unSelectRestaurant,
 } from '@redux/slices/Order.slice';
 import { selectRestaurantPageThunks } from '@redux/slices/SelectRestaurantPage.slice';
+import type { RestaurantListing } from '@src/types';
 import type { TFoodInRestaurant } from '@src/types/bookerSelectRestaurant';
+import type { TLineItem } from '@src/types/order';
 import { convertWeekDay, renderDateRange } from '@src/utils/dates';
 import { EOrderStates, EOrderType } from '@src/utils/enums';
+import type { TFoodList } from '@src/utils/orderTypes';
 import { Listing, User } from '@utils/data';
-import type { TListing, TObject } from '@utils/types';
+import type { TListing } from '@utils/types';
 
 // eslint-disable-next-line import/no-cycle
 import NavigateButtons, {
@@ -63,6 +67,7 @@ import OrderSettingModal, {
 } from '../../components/OrderSettingModal/OrderSettingModal';
 import type { TSelectFoodFormValues } from '../../components/SelectFoodModal/components/SelectFoodForm/SelectFoodForm';
 import SelectFoodModal from '../../components/SelectFoodModal/SelectFoodModal';
+import type { TSubmitRestaurantValues } from '../../components/SelectRestaurantPage/SelectRestaurant.page';
 import SelectRestaurantPage from '../../components/SelectRestaurantPage/SelectRestaurant.page';
 
 import ChangeSelectedFoodConfirmModal from './ChangeSelectedFoodConfirmModal/ChangeSelectedFoodConfirmModal';
@@ -144,6 +149,10 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   );
   const foodList = useAppSelector(
     (state) => state.SelectRestaurantPage.foodList,
+    shallowEqual,
+  );
+  const foodExtraFees = useAppSelector(
+    (state) => state.SelectRestaurantPage.foodExtraFees,
     shallowEqual,
   );
   const restaurantCoverImageList = useAppSelector(
@@ -307,7 +316,13 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   );
   const showPickFoodModal = isPickFoodModalOpen && !fetchFoodInProgress;
 
-  const handleSubmitRestaurant = async (values: TObject) => {
+  /**
+   * Saves the picked restaurant and dishes of the selected date, as a draft
+   * edit when editing a started order or straight to the plan otherwise.
+   * @param values.restaurant - The restaurant snapshot.
+   * @param values.selectedFoodList - The picked dishes, client and partner prices.
+   */
+  const handleSubmitRestaurant = async (values: TSubmitRestaurantValues) => {
     const { restaurant, selectedFoodList } = values;
     const foodIds = Object.keys(selectedFoodList);
     const subOrderDate = (selectedDate as Date).getTime();
@@ -348,24 +363,13 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
         isRestaurantChanged && isInProgressOrder,
       );
       if (isNormalOrder) {
-        const createLineItems = (_foodList: TObject) =>
-          Object.entries<{
-            foodName: string;
-            foodPrice: number;
-          }>(_foodList).map(([foodId, { foodName, foodPrice }]) => {
-            return {
-              id: foodId,
-              name: foodName,
-              unitPrice: foodPrice,
-              price: foodPrice,
-              quantity: 1,
-            };
-          });
+        const createLineItems = (_foodList: TFoodList) =>
+          initLineItemsFromFoodList(_foodList);
         const removeDeletedFoodLineItems = currentSubOrderLineItems.filter(
-          (lineItem: TObject) => has(selectedFoodList, lineItem.id),
+          (lineItem: TLineItem) => has(selectedFoodList, lineItem.id),
         );
         const currentFoodIds = currentSubOrderLineItems.map(
-          (lineItem: TObject) => lineItem.id,
+          (lineItem: TLineItem) => lineItem.id,
         );
         const newFoodList = pickBy(
           selectedFoodList,
@@ -402,18 +406,8 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
         order as TListing,
       );
       const lineItems = isOrderAllowAddSecondaryFood
-        ? Object.entries(adjustedFoodList).map(
-            ([foodId, { foodName, foodPrice }]: [string, any]) => {
-              return {
-                id: foodId,
-                name: foodName,
-                unitPrice: foodPrice,
-                price: foodPrice,
-                quantity: 1,
-              };
-            },
-          )
-        : getUpdateLineItems(foodList, foodIds);
+        ? initLineItemsFromFoodList(adjustedFoodList)
+        : getUpdateLineItems(foodList, foodIds, foodExtraFees);
 
       await dispatch(
         orderAsyncActions.updatePlanDetail({
@@ -679,21 +673,24 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
   };
 
   // TODO: handle selecting food from food modal
+  /**
+   * Snapshots the dishes picked in the food modal for the selected date.
+   * @param values.food - Ids of the picked dishes.
+   */
   const handleSelectFood = async (values: TSelectFoodFormValues) => {
     dispatch(setCanNotGoAfterOderDetail(true));
     const { food: foodIds } = values;
-    const updateLineItems = getUpdateLineItems(foodList, foodIds);
 
     const { submitRestaurantData, submitFoodListData } =
       getSelectedRestaurantAndFoodList({
         foodList,
         foodIds,
-        currentRestaurant,
+        currentRestaurant: currentRestaurant as RestaurantListing,
+        extraFeeByFoodId: foodExtraFees,
       });
     await handleSubmitRestaurant({
       restaurant: { ...submitRestaurantData, menuId: currentSelectedMenuId },
       selectedFoodList: submitFoodListData,
-      lineItems: updateLineItems,
     });
     closePickFoodModal();
   };
@@ -894,20 +891,11 @@ const SetupOrderDetail: React.FC<TSetupOrderDetailProps> = ({
                 ?.foodsByRestaurantAndTimestamp;
 
               const newFoodList = combinedFoods?.reduce(
-                (
-                  foodResult: {
-                    [foodId: string]: {
-                      foodName: string;
-                      foodPrice: number;
-                      foodUnit: string;
-                      numberOfMainDishes: number;
-                    };
-                  },
-                  food: TFoodInRestaurant,
-                ) => {
+                (foodResult: TFoodList, food: TFoodInRestaurant) => {
                   foodResult[food.foodId] = {
                     foodName: food.foodName,
                     foodPrice: food.price,
+                    foodPartnerPrice: food.partnerPrice,
                     foodUnit: food.foodUnit,
                     numberOfMainDishes: food?.numberOfMainDishes ?? 2,
                   };

@@ -15,10 +15,10 @@ All exported helpers (every one is load-bearing for billing):
 | Function                                   | Purpose                                                                                                                                                                                                                                          |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `calculateVATFee`                          | Applies VAT % when `vatSetting === 'vat'`; returns 0 for `noExportVat`/`direct`                                                                                                                                                                  |
-| `calculateTotalPriceAndDishes`             | Sums `(foodPrice + foodExtraFee) × frequency` across `plan.orderDetail` — booker-side billing total                                                                                                                                              |
+| `calculateTotalPriceAndDishes`             | Sums `foodPrice × frequency` across `plan.orderDetail` — booker-side billing total. `foodPrice` already includes the menu extra fee (see below)                                                                                                   |
 | `calculatePCCFeeByDate`                    | Computes per-date PITO service fee. Precedence when `hasSpecificPCCFee=true`: (1) `specificPCCFeeTiers` range lookup → (2) legacy flat `specificPCCFee` → (3) 0. Default (`hasSpecificPCCFee=false`): `getPCCFeeByMemberAmount` hardcoded tiers. A tier/flat price of `0` is a valid, intentional override (charges nothing) — distinct from `hasSpecificPCCFee=false` (falls back to the hardcoded schedule). |
 | `calculatePriceQuotationInfoFromOrder`     | Full client-side total from order + plan (food + PCC fee + VAT)                                                                                                                                                                                  |
-| `calculatePriceQuotationPartner`           | Per-partner payout from the quotation listing — base food price only, never sees `extraFee`                                                                                                                                                      |
+| `calculatePriceQuotationPartner`           | Per-partner payout from the quotation listing — the partner side of the quotation holds partner prices only                                                                                                                                      |
 | `calculatePriceQuotationInfoFromQuotation` | Recomputes totals from a finalised quotation listing (used after quotation is locked)                                                                                                                                                            |
 
 **Risk:** Incorrect price calculation results in wrong payment amounts charged to companies or paid to restaurants. VAT logic has 3 modes (`vat`, `noExportVat`, `direct`) and PCC service fee overrides per company.
@@ -38,6 +38,31 @@ All exported helpers (every one is load-bearing for billing):
 **Admin UI (`EditCompanyOtherSettingsForm.tsx`):** a "use custom PCC fee schedule" checkbox drives `hasSpecificPCCFee`. Unchecking it and saving reverts the company to the default schedule (`hasSpecificPCCFee: false`, tiers/flat fee cleared via `null` — Sharetribe's documented convention for removing a top-level extended-data key).
 
 **Save-layer gotcha (`updateCompany.service.ts`):** the Edit Company wizard submits one tab at a time, so `hasSpecificPCCFee` is only present in the request when the "Other Settings" tab itself was saved — every other tab (info, payment, subscription) omits it entirely (`undefined`), not `false`. The metadata-writing logic **must** keep this three-way distinction (`undefined` → leave PCC fee metadata untouched; `true`/`false` → write the explicit choice). Collapsing it to a plain truthy check would silently clear a company's real fee override any time an admin saves an unrelated tab.
+
+---
+
+### Menu Extra Fee (phí phụ thu)
+
+**Storage:** `menu.publicData.foodExtraFees: Record<foodId, number>` — PITO's markup per **(menu, dish)** pair. Never on the food listing: a dish is shared by many menus. Set by the admin in the "Phụ phí" step of `/admin/partner/pending-menus/[menuId]`; the only writer is `updateMenuExtraFees.service.ts`, which refuses approved menus (approval freezes the fee).
+
+**Plan snapshot — client price first, partner price beside it:**
+
+| Order type | Client price (billed)                  | Partner price (paid)            |
+| ---------- | -------------------------------------- | ------------------------------- |
+| Group      | `restaurant.foodList[id].foodPrice`    | `restaurant.foodList[id].foodPartnerPrice` |
+| Normal     | `lineItems[i].unitPrice` / `price`     | `lineItems[i].unitPartnerPrice` |
+
+Client price = partner price + fee. Every client-side calculation (VAT, PCC fee, cancellation, payment records) reads the client fields unchanged.
+
+**Things to preserve:**
+
+- Every snapshot writer goes through `buildSnapshotFood` / `buildSnapshotFoodList` / `buildLineItem` (`orderHelper.ts`) and writes both prices. `adjustFoodListPrice` halves both for dual-selection companies.
+- Partner-facing data never carries a client price: the partner side of the quotation (`calculatePartnerQuotation`), the plan returned by the partner order APIs (`toPartnerPlanListing`), `partnerOrderDetailsUpdated` email and the partner price-quotation download (`groupFoodOrderByDateFromQuotation` with `isPartner`).
+- A snapshot without the partner field predates the fee: its partner price is its client price (`getFoodPartnerPrice`, `getLineItemPartnerUnitPrice`). Never default it to anything else.
+- Draft re-pricing (`repriceSubOrder`) runs under `withPlanLock`: a fee change keeps the partner price, a food price change keeps the fee; line items follow the food list.
+- `<day>MinFoodPrice` is fee-inclusive (`getMinBillablePrice`) on every writer: `updateMenu`, `updateMenuExtraFees`, the three paths in `foodHelpers.ts`. `duplicateMenu` drops fees and recomputes from base prices.
+- Package comparisons (`price === packagePerMember`, `<= packagePerMember`) use the client price (`getBillablePrice` / `getFoodBillablePrice`).
+- Pinned by `tests/safeguards/menu-extra-fee-partner-price.test.ts`.
 
 ---
 

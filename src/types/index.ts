@@ -52,6 +52,8 @@ export type RestaurantListing = ListingBuilder<
     };
     contactorName: string;
     minPrice: number;
+    minQuantity: number;
+    maxQuantity: number;
     packaging: string[];
     vat: 'vat' | 'noExportVat' | 'direct';
     phoneNumber: string;
@@ -183,9 +185,11 @@ export type OrderDetailValue = {
     price: number;
     quantity: number;
     unitPrice: number;
+    unitPartnerPrice?: number;
   }[];
   transactionId: string;
   lastTransition: string;
+  status?: string;
   trackingLink?: string;
   memberOrders: Record<string, MemberOrderValue>;
   restaurant: {
@@ -194,7 +198,9 @@ export type OrderDetailValue = {
       {
         foodName: string;
         foodPrice: number;
+        foodPartnerPrice?: number;
         foodUnit: string;
+        numberOfMainDishes?: number | string;
       }
     >;
     id: string;
@@ -453,6 +459,7 @@ export type TMenuFoodItem = {
   id: string;
   title: string;
   price: number;
+  foodType?: string;
   foodNote: string;
   sideDishes: string[];
   nutritionsList: string[];
@@ -462,6 +469,7 @@ export type TMenuPublicData = {
   daysOfWeek: EDayOfWeek[];
   endDate: number;
   foodsByDate: Record<EDayOfWeek, Record<string, TMenuFoodItem>>;
+  foodExtraFees?: Record<string, number>;
   mealType: EMenuMealType;
   menuType: EMenuType;
   numberOfCycles: number;

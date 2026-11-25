@@ -252,6 +252,7 @@ const EditPartnerMenuTab: React.FC<TEditPartnerMenuTabProps> = (props) => {
           onSubmit={onSubmit}
           currentMenu={currentMenu as TIntegrationListing}
           restaurantId={restaurantId}
+          showPrice
         />
       );
     }

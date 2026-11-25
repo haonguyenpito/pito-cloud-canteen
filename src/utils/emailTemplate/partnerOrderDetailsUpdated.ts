@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 
 import { parseThousandNumber } from '@helpers/format';
 import { calculatePriceQuotationInfoFromOrder } from '@helpers/order/cartInfoHelper';
+import { toPartnerOrderDetail } from '@helpers/order/partnerPriceHelper';
 
 import { VNTimezone } from '../dates';
 import type { TObject } from '../types';
@@ -20,6 +21,17 @@ type PartnerNewOrderAppearParams = {
 export const partnerOrderDetailsUpdatedSubject = (subOrderDate: string) =>
   `Đơn hàng ngày ${subOrderDate} có sự thay đổi`;
 
+/**
+ * Renders the email telling a partner that a sub-order changed. Totals use
+ * partner prices only.
+ * @param params.companyUser - The ordering company.
+ * @param params.orderListing - The order.
+ * @param params.restaurantListing - The partner's restaurant.
+ * @param params.planListing - The plan holding the changed sub-order.
+ * @param params.subOrderDate - Timestamp of the delivery date.
+ * @param params.formattedSubOrderDate - Display form of that date.
+ * @returns The email HTML.
+ */
 const partnerOrderDetailsUpdated = ({
   companyUser,
   orderListing,
@@ -49,7 +61,7 @@ const partnerOrderDetailsUpdated = ({
 
   const { totalPrice, totalDishes, VATFee, serviceFee, totalWithVAT } =
     calculatePriceQuotationInfoFromOrder({
-      planOrderDetail: planOrderDetail as TObject,
+      planOrderDetail: toPartnerOrderDetail(planOrderDetail),
       order: orderListing.getFullData() as TObject,
       orderVATPercentage,
       orderServiceFeePercentage: (serviceFees[restaurantId] || 0) / 100,

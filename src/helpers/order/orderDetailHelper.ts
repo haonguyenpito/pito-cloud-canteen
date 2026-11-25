@@ -1,10 +1,16 @@
 import isEmpty from 'lodash/isEmpty';
 
+import type { TPlanOrderDetail } from '@helpers/order/partnerPriceHelper';
+import type {
+  TFoodOrderOfDate,
+  TQuotationFoodRow,
+} from '@helpers/order/quotationHelper';
 import { getFoodDataMap } from '@helpers/orderHelper';
 import { generateScannerBarCode } from '@pages/api/admin/scanner/[planId]/toggle-mode.api';
 import type { TCartItem } from '@src/types/order';
 import { Listing, User } from '@src/utils/data';
 import { buildFullName } from '@src/utils/emailTemplate/participantOrderPicking';
+import type { ETransition } from '@src/utils/transaction';
 import { TRANSITIONS_TO_STATE_CANCELED } from '@src/utils/transaction';
 import type { TListing, TObject, TUser } from '@src/utils/types';
 import { EParticipantOrderStatus, ESubOrderStatus } from '@utils/enums';
@@ -67,55 +73,61 @@ const groupFoodForGroupOrder = (
   );
 };
 
-const groupFoodForNormal = (orderDetail: TObject, date?: number | string) => {
-  return Object.entries(orderDetail).reduce(
-    (result, currentOrderDetailEntry, index) => {
-      const [d, rawOrderDetailOfDate] = currentOrderDetailEntry;
-
+/**
+ * Groups a normal order's line items per delivery date, with totals.
+ * @param orderDetail - `plan.metadata.orderDetail`.
+ * @param date - Only this delivery date when given.
+ * @returns One entry per non-canceled date; each food row carries the client
+ *   price (`foodPrice`) and the partner price (`foodPartnerPrice`).
+ */
+const groupFoodForNormal = (
+  orderDetail: TPlanOrderDetail,
+  date?: number | string,
+) => {
+  return Object.entries(orderDetail).reduce<TFoodOrderOfDate[]>(
+    (result, [d, subOrder], index) => {
       const {
         lineItems = [],
         restaurant = {},
         status: subOrderStatus,
         lastTransition,
-      } = rawOrderDetailOfDate as TObject;
-      const { id, restaurantName, foodList: foodListOfDate = {} } = restaurant;
+      } = subOrder || {};
+      const { id = '', restaurantName = '', foodList = {} } = restaurant;
 
       if (
         subOrderStatus === ESubOrderStatus.canceled ||
-        TRANSITIONS_TO_STATE_CANCELED.includes(lastTransition) ||
+        TRANSITIONS_TO_STATE_CANCELED.includes(lastTransition as ETransition) ||
         (date && d !== date.toString())
       ) {
         return result;
       }
 
-      const foodDataList = lineItems.map((lineItem: TObject) => {
+      const foodDataList = lineItems.map((lineItem) => {
         const {
-          id: foodId,
-          name: foodName,
+          id: foodId = '',
+          name: foodName = '',
           quantity = 1,
           unitPrice: foodPrice = 0,
-        } = lineItem;
-        const { foodUnit = '' } = foodListOfDate[foodId] || {};
+          unitPartnerPrice: foodPartnerPrice,
+        } = lineItem || {};
+        const { foodUnit = '' } = foodList[foodId] || {};
 
-        return { foodId, foodName, foodUnit, foodPrice, frequency: quantity };
+        return {
+          foodId,
+          foodName,
+          foodUnit,
+          foodPrice,
+          foodPartnerPrice,
+          frequency: quantity,
+        };
       });
 
       const summary = lineItems.reduce(
-        (previousResult: TObject, current: TObject) => {
-          const { totalPrice, totalDishes } = previousResult;
-          const { quantity = 1, price = 0 } = current;
-
-          return {
-            ...previousResult,
-            totalDishes: totalDishes + quantity,
-            totalPrice: totalPrice + price,
-          };
-        },
-        {
-          totalDishes: 0,
-          totalPrice: 0,
-          restaurantName,
-        } as TObject,
+        (previousResult, lineItem) => ({
+          totalDishes: previousResult.totalDishes + (lineItem?.quantity ?? 1),
+          totalPrice: previousResult.totalPrice + (lineItem?.price ?? 0),
+        }),
+        { totalDishes: 0, totalPrice: 0 },
       );
 
       return [
@@ -123,13 +135,14 @@ const groupFoodForNormal = (orderDetail: TObject, date?: number | string) => {
         {
           date: d,
           index,
+          restaurantName,
           ...summary,
           foodDataList,
           restaurantId: id,
         },
       ];
     },
-    [] as TObject[],
+    [],
   );
 };
 
@@ -147,51 +160,64 @@ export const groupFoodOrderByDate = ({
     : groupFoodForNormal(orderDetail, date);
 };
 
+type TQuotationRowsByDate = Record<string, TQuotationFoodRow[]>;
+type TQuotationMetadata = {
+  client?: { quotation: TQuotationRowsByDate };
+  partner?: Record<string, { name: string; quotation: TQuotationRowsByDate }>;
+};
+
+/**
+ * Groups a finalised quotation's food rows per delivery date, with totals.
+ * @param params.quotation - The quotation listing.
+ * @param params.date - Only this delivery date when given.
+ * @param params.isPartner - Read the partner's rows (partner prices) instead of
+ *   the client's.
+ * @returns One entry per delivery date.
+ */
 export const groupFoodOrderByDateFromQuotation = ({
   quotation,
   date: dateFromParams,
+  isPartner = false,
 }: {
   quotation: TListing;
   date?: string | number;
-}) => {
-  const quotationListingGetter = Listing(quotation);
-  const { client, partner } = quotationListingGetter.getMetadata();
-  if (isEmpty(client) || isEmpty(partner)) {
+  isPartner?: boolean;
+}): TFoodOrderOfDate[] => {
+  const { client, partner } = Listing(
+    quotation,
+  ).getMetadata() as TQuotationMetadata;
+  if (!client || !partner || isEmpty(client) || isEmpty(partner)) {
     return [];
   }
 
-  const result = Object.keys(client.quotation).reduce(
-    (res: TObject[], subOrderDate: string, index: number) => {
+  return Object.keys(client.quotation).reduce<TFoodOrderOfDate[]>(
+    (res, subOrderDate, index) => {
       if (dateFromParams && dateFromParams !== subOrderDate) {
         return res;
       }
-      const restaurant = Object.keys(partner).find((restaurantId: string) => {
-        return Object.keys(partner[restaurantId].quotation).some(
-          (date: string) => date === subOrderDate,
-        );
-      });
+      const restaurantKey =
+        Object.keys(partner).find((restaurantId) =>
+          Object.keys(partner[restaurantId].quotation).some(
+            (date) => date === subOrderDate,
+          ),
+        ) || '';
+      const foodDataList = isPartner
+        ? partner[restaurantKey]?.quotation[subOrderDate] || []
+        : client.quotation[subOrderDate];
 
       return res.concat([
         {
           date: subOrderDate,
-          restaurantId: Object.keys(partner[restaurant!])[0],
-          restaurantName: partner[restaurant!].name,
+          restaurantId: Object.keys(partner[restaurantKey] || {})[0],
+          restaurantName: partner[restaurantKey]?.name || '',
           index: dateFromParams ? 0 : index,
-          totalDishes: client.quotation[subOrderDate].reduce(
-            (previousResult: number, current: TObject) => {
-              const { frequency } = current;
-
-              return previousResult + frequency;
-            },
+          totalDishes: foodDataList.reduce(
+            (total, { frequency }) => total + frequency,
             0,
           ),
-          foodDataList: client.quotation[subOrderDate],
-          totalPrice: client.quotation[subOrderDate].reduce(
-            (previousResult: number, current: TObject) => {
-              const { foodPrice, frequency } = current;
-
-              return previousResult + foodPrice * frequency;
-            },
+          foodDataList,
+          totalPrice: foodDataList.reduce(
+            (total, { foodPrice, frequency }) => total + foodPrice * frequency,
             0,
           ),
         },
@@ -199,8 +225,6 @@ export const groupFoodOrderByDateFromQuotation = ({
     },
     [],
   );
-
-  return result;
 };
 
 export const groupPickingOrderByFood = ({

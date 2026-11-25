@@ -4,6 +4,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 import { HttpMethod } from '@apis/configs';
 import { EHttpStatusCode } from '@apis/errors';
+import { toPartnerPlanListing } from '@helpers/order/partnerPriceHelper';
 import { fetchListing, fetchUser } from '@services/integrationHelper';
 import { getIntegrationSdk, handleError } from '@services/sdk';
 import { denormalisedResponseEntities, Listing } from '@src/utils/data';
@@ -100,7 +101,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
 
           orderWithPlanDataMaybe = {
             ...orderWithPlanDataMaybe,
-            plan: planListing,
+            plan: toPartnerPlanListing(planListing),
           };
         }
 

@@ -3,6 +3,7 @@ import { FormattedMessage } from 'react-intl';
 
 import Badge, { EBadgeType } from '@components/Badge/Badge';
 import CalendarDashboard from '@components/CalendarDashboard/CalendarDashboard';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import { renderResourcesForCalendar } from '@pages/admin/partner/[restaurantId]/settings/menu/components/EditPartnerMenuWizard/utils';
 import FoodEventCard from '@pages/admin/partner/[restaurantId]/settings/menu/components/FoodEventCard/FoodEventCard';
 import type { MenuListing } from '@src/types';
@@ -19,6 +20,7 @@ import { EMenuMealType } from '@utils/enums';
 type TMenuApprovalDetailProps = {
   menu: MenuListing & { restaurantName: string };
   anchorDate: Date;
+  extraFeeByFoodId?: Record<string, number>;
 };
 
 const getMealTypeLabel = (mealType: string) => {
@@ -96,7 +98,18 @@ const CalendarContentStartReadOnly = (): JSX.Element => <></>;
 
 const CalendarContentEndReadOnly = (): JSX.Element => <></>;
 
-const MenuApprovalDetail = ({ menu, anchorDate }: TMenuApprovalDetailProps) => {
+/**
+ * Read-only review of a partner menu: its information, schedule and dishes.
+ * Each dish card shows the partner price and the client price (with the fee).
+ * @param props.menu - The menu under review.
+ * @param props.anchorDate - Week the calendar opens on.
+ * @param props.extraFeeByFoodId - The menu's extra fees.
+ */
+const MenuApprovalDetail = ({
+  menu,
+  anchorDate,
+  extraFeeByFoodId = {},
+}: TMenuApprovalDetailProps) => {
   const attributes = menu?.attributes;
   const publicData = attributes?.publicData;
   const metadata = attributes?.metadata;
@@ -126,8 +139,13 @@ const MenuApprovalDetail = ({ menu, anchorDate }: TMenuApprovalDetailProps) => {
       daysOfWeek: daysOfWeekArray,
       hideRemoveButton: true,
       showPrice: true,
-    }).sort((a, b) => (a.resource.price || 0) - (b.resource.price || 0));
-  }, [foodsByDate, daysOfWeekArray, anchorDate]);
+      extraFeeByFoodId,
+    }).sort(
+      (a, b) =>
+        getBillablePrice(a.resource.price, a.resource.extraFee) -
+        getBillablePrice(b.resource.price, b.resource.extraFee),
+    );
+  }, [foodsByDate, daysOfWeekArray, anchorDate, extraFeeByFoodId]);
 
   return (
     <div>

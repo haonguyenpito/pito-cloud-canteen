@@ -785,8 +785,9 @@ export type TFoodDataValue = {
   foodId: string;
   foodName: string;
   foodPrice: number;
+  foodPartnerPrice?: number;
   frequency: number;
-  numberOfMainDishes: number;
+  numberOfMainDishes?: number | string;
   notes?: string[];
 };
 

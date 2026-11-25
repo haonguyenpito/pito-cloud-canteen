@@ -7,6 +7,7 @@ import {
   fetchListingsByChunkedIds,
   queryAllListings,
 } from '@helpers/apiHelpers';
+import { toPartnerPlanListing } from '@helpers/order/partnerPriceHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { handleError } from '@services/sdk';
 import { Listing } from '@src/utils/data';
@@ -76,7 +77,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
             );
 
             if (!isEmpty(planListing)) {
-              resultValue = { ...resultValue, plan: planListing };
+              resultValue = {
+                ...resultValue,
+                plan: toPartnerPlanListing(planListing),
+              };
             }
           }
 

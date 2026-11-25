@@ -51,30 +51,9 @@ export type TEditMenuPricingCalendarResources = {
   showPrice?: boolean;
   sideDishes: string[];
   price?: number;
+  extraFee?: number;
   foodNote?: string;
   foodType?: string;
-};
-
-export const createMinPriceByDayOfWeek = (foodsByDate: any) => {
-  let avaragePriceByDayOfWeek = {};
-  Object.keys(foodsByDate).forEach((keyAsDate) => {
-    let minPriceByDate = 0;
-    Object.keys(foodsByDate[keyAsDate]).forEach((foodId, index) => {
-      const { price = 0 } = foodsByDate[keyAsDate][foodId] || {};
-      if (index === 0) minPriceByDate = price;
-      else {
-        minPriceByDate = price < minPriceByDate ? price : minPriceByDate;
-      }
-    });
-    const dayAsIndex = new Date(Number(keyAsDate)).getDay() - 1;
-    const dayOfWeek = getDayOfWeekByIndex(dayAsIndex);
-    avaragePriceByDayOfWeek = {
-      ...avaragePriceByDayOfWeek,
-      [`${dayOfWeek}MinFoodPrice`]: minPriceByDate || 0,
-    };
-  });
-
-  return avaragePriceByDayOfWeek;
 };
 
 export const createListFoodIdsByFoodsByDate = (foodsByDate: any) => {
@@ -311,8 +290,10 @@ export const renderResourcesForCalendar = (
     daysOfWeek: string[];
     hideRemoveButton?: boolean;
     showPrice?: boolean;
+    extraFeeByFoodId?: Record<string, number>;
   },
 ) => {
+  const { extraFeeByFoodId = {}, ...resourceExtraData } = extraData;
   const foodsByDate = foodsByDateParam || {};
   const resourses: {
     resource: TEditMenuPricingCalendarResources;
@@ -330,7 +311,8 @@ export const renderResourcesForCalendar = (
           price: foodsByDate[key][foodKey]?.price || 0,
           foodNote: foodsByDate[key][foodKey]?.foodNote || '',
           foodType: foodsByDate[key][foodKey]?.foodType,
-          ...extraData,
+          extraFee: extraFeeByFoodId[foodsByDate[key][foodKey]?.id] ?? 0,
+          ...resourceExtraData,
         },
         start: DateTime.fromMillis(Number(key)).toJSDate(),
         end: DateTime.fromMillis(Number(key)).plus({ hour: 1 }).toJSDate(),

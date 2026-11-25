@@ -1,30 +1,37 @@
 import isEmpty from 'lodash/isEmpty';
 
+import { getMinBillablePrice } from '@helpers/menuExtraFee';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/sdk';
 import { getUniqueString, Listing } from '@src/utils/data';
 import type { EMenuMealType } from '@src/utils/enums';
 import type { TListing, TObject } from '@src/utils/types';
 
-export const createMinPriceByDayOfWeek = (foodsByDate: TObject = {}) => {
-  let averagePriceByDayOfWeek = {};
-  Object.keys(foodsByDate).forEach((keyAsDayOfWeek) => {
-    let minPriceByDate = 0;
-    Object.keys(foodsByDate[keyAsDayOfWeek]).forEach((foodId, index) => {
-      const { price = 0 } = foodsByDate[keyAsDayOfWeek][foodId] || {};
-      if (index === 0) minPriceByDate = price;
-      else {
-        minPriceByDate = price < minPriceByDate ? price : minPriceByDate;
-      }
-    });
-    averagePriceByDayOfWeek = {
-      ...averagePriceByDayOfWeek,
-      [`${keyAsDayOfWeek}MinFoodPrice`]: minPriceByDate || 0,
-    };
-  });
-
-  return averagePriceByDayOfWeek;
-};
+/**
+ * Computes `<day>MinFoodPrice` for every day of a menu: the cheapest client
+ * price (base + the menu's fee), which the restaurant search compares with the
+ * fee-inclusive package.
+ * @param foodsByDate - The menu's `foodsByDate` (`{ [day]: { [foodId]: { price } } }`).
+ * @param extraFeeByFoodId - The menu's extra fees; omit for a menu without fees.
+ * @returns `{ monMinFoodPrice, … }` for the days present.
+ */
+export const createMinPriceByDayOfWeek = (
+  foodsByDate: Record<string, Record<string, { price?: number }>> = {},
+  extraFeeByFoodId: Record<string, number> = {},
+): Record<string, number> =>
+  Object.entries(foodsByDate).reduce<Record<string, number>>(
+    (result, [dayOfWeek, foodsOfDay]) => ({
+      ...result,
+      [`${dayOfWeek}MinFoodPrice`]: getMinBillablePrice(
+        Object.entries(foodsOfDay || {}).map(([foodId, food]) => ({
+          foodId,
+          price: food?.price,
+        })),
+        extraFeeByFoodId,
+      ),
+    }),
+    {},
+  );
 
 export const createFoodAveragePriceByDaysOfWeekField = (
   fieldsData: any,

@@ -55,6 +55,18 @@ export const updatePartnerMenuApi = (id: string, body: TBodyParams) => {
   return putApi(`/admin/listings/menus/${id}`, body);
 };
 
+/**
+ * Replaces a menu's extra fees.
+ * @param id - The menu.
+ * @param extraFees - The complete `{ [foodId]: fee }` map.
+ */
+export const updateMenuExtraFeesApi = (
+  id: string,
+  extraFees: Record<string, number>,
+) => {
+  return putApi(`/admin/listings/menus/${id}/extra-fee`, { extraFees });
+};
+
 export const deletePartnerMenuApi = (body: TBodyParams) => {
   return postApi(`/admin/listings/menus/delete`, body);
 };

@@ -8,6 +8,7 @@ import type { FormApi } from 'final-form';
 import CalendarDashboard from '@components/CalendarDashboard/CalendarDashboard';
 import Form from '@components/Form/Form';
 import ValidationError from '@components/ValidationError/ValidationError';
+import { sanitizeExtraFeeMap } from '@helpers/menuExtraFee';
 import { foodByDatesAtLeastOneDayHasFood } from '@src/utils/validators';
 import { IntegrationListing } from '@utils/data';
 import type { TIntegrationListing } from '@utils/types';
@@ -33,6 +34,9 @@ type TExtraProps = {
   restaurantId: string;
   anchorDate: Date;
   isReadOnly?: boolean;
+  // Admin only: the card reveals the client price, i.e. PITO's extra fee.
+  // PartnerMenuWizard reuses this form and must never turn it on.
+  showPrice?: boolean;
 };
 type TEditMenuPricingFormComponentProps =
   FormRenderProps<TEditMenuPricingFormValues> & Partial<TExtraProps>;
@@ -70,6 +74,7 @@ const EditMenuPricingFormComponent: React.FC<
     formRef,
     anchorDate,
     isReadOnly,
+    showPrice = false,
   } = props;
 
   useImperativeHandle(formRef, () => form);
@@ -93,12 +98,15 @@ const EditMenuPricingFormComponent: React.FC<
     });
   };
 
-  const { daysOfWeek = [] } = IntegrationListing(currentMenu).getPublicData();
+  const { daysOfWeek = [], foodExtraFees } =
+    IntegrationListing(currentMenu).getPublicData();
 
   const resourcesForCalendar = renderResourcesForCalendar(values.foodsByDate, {
     onRemovePickedFood,
     daysOfWeek,
     hideRemoveButton: isReadOnly,
+    showPrice,
+    extraFeeByFoodId: showPrice ? sanitizeExtraFeeMap(foodExtraFees) : {},
   });
 
   const onSetCurrentDate = (params: any) => () => {

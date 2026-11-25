@@ -10,11 +10,16 @@ import Modal from '@components/Modal/Modal';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import SlideModal from '@components/SlideModal/SlideModal';
 import { calculateDistance } from '@helpers/mapHelpers';
-import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
+import {
+  adjustFoodListPrice,
+  buildSnapshotFoodList,
+  initLineItemsFromFoodList,
+} from '@helpers/orderHelper';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import useBoolean from '@hooks/useBoolean';
 import { useViewport } from '@hooks/useViewport';
 import { orderAsyncActions } from '@redux/slices/Order.slice';
+import type { FoodListing } from '@src/types';
 import { Listing } from '@utils/data';
 import { EImageVariants, EOrderType } from '@utils/enums';
 import type { TListing } from '@utils/types';
@@ -83,6 +88,10 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
   const currentMenuId = useAppSelector(
     (state) => state.BookerSelectRestaurant.currentMenuId,
   );
+  const menuFoodExtraFees = useAppSelector(
+    (state) => state.BookerSelectRestaurant.menuFoodExtraFees,
+  );
+  const extraFeeByFoodId = menuFoodExtraFees[currentMenuId || ''] || {};
   const { restaurant: preselectedRestaurant } = useGetRestaurant();
   const { orderId, planId, planDetail, orderType } = useGetPlanDetails();
   const order = useAppSelector((state) => state.BookerSelectRestaurant.order);
@@ -192,59 +201,27 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
     );
   };
 
+  /**
+   * Snapshots the picked dishes (client and partner prices, halved for
+   * dual-selection companies) into the sub-order being edited.
+   */
   const handleConfirmFoodList = async () => {
     if (updatePlanDetailInProgress) {
       return;
     }
 
-    const isSecondaryFoodAllowedCompany = getIsAllowAddSecondaryFood(
+    const updateFoodList = adjustFoodListPrice(
+      buildSnapshotFoodList(
+        (foodList || []) as FoodListing[],
+        selectedFoods,
+        extraFeeByFoodId,
+      ),
       order as TListing,
     );
-
-    const updateFoodList = selectedFoods.reduce((acc: any, foodId: string) => {
-      const food = foodList?.find((item) => item.id?.uuid === foodId);
-      if (food) {
-        const foodListingGetter = Listing(food).getAttributes();
-        const originalPrice = foodListingGetter.price?.amount || 0;
-        const foodName = foodListingGetter.title || '';
-
-        const numberOfMainDishes =
-          foodListingGetter.publicData?.numberOfMainDishes;
-        const isSinglePickFood =
-          numberOfMainDishes !== undefined &&
-          numberOfMainDishes !== null &&
-          Number(numberOfMainDishes) === 1;
-
-        const finalPrice =
-          isSecondaryFoodAllowedCompany && !isSinglePickFood
-            ? originalPrice / 2
-            : originalPrice;
-
-        acc[foodId] = {
-          foodName,
-          foodPrice: finalPrice,
-          foodUnit: foodListingGetter.publicData?.unit || '',
-          numberOfMainDishes,
-        };
-      }
-
-      return acc;
-    }, {});
-
-    const updateLineItems = isNormalOrder
-      ? Object.entries<{
-          foodName: string;
-          foodPrice: number;
-        }>(updateFoodList).map(([foodId, { foodName, foodPrice }]) => {
-          return {
-            id: foodId,
-            name: foodName,
-            unitPrice: foodPrice,
-            price: foodPrice,
-            quantity: 1,
-          };
-        })
-      : [];
+    const updateLineItems = initLineItemsFromFoodList(
+      updateFoodList,
+      isNormalOrder,
+    );
 
     const updatedValues = {
       [`${openFromCalendar ? propTimestamp : timestamp}`]: {
@@ -375,6 +352,7 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
               selectedFoodIds={selectedFoods}
               fetchFoodInProgress={fetchFoodInProgress}
               packagePerMember={packagePerMember}
+              extraFeeByFoodId={extraFeeByFoodId}
             />
           </div>
         </div>
@@ -404,6 +382,7 @@ const ResultDetailModal: React.FC<TResultDetailModalProps> = ({
         onClose={foodModal.setFalse}
         onSelect={handleSelectFood}
         isMobileLayout={!isTabletLayoutOrLarger}
+        extraFee={extraFeeByFoodId[selectedFood?.id?.uuid || ''] ?? 0}
       />
       {restaurantReviewModalControl.value && (
         <RestaurantReviewModal

@@ -2,6 +2,10 @@ import isEqual from 'lodash/isEqual';
 import uniq from 'lodash/uniq';
 
 import {
+  pruneExtraFeesOnMenuSave,
+  sanitizeExtraFeeMap,
+} from '@helpers/menuExtraFee';
+import {
   createFoodAveragePriceByDaysOfWeekField,
   createFoodByDateByDaysOfWeekField,
   createFoodListIdByDaysOfWeekField,
@@ -20,10 +24,19 @@ import type { TObject, TUpdateMenuApiParams } from '@src/utils/types';
 
 import updateMenuIdListAndMenuWeekDayListForFood from './updateMenuIdListAndMenuWeekDayListForFood.service';
 
+/**
+ * Saves a menu edited by the partner or admin. Recomputes the per-day fields,
+ * drops the extra fees of dishes no longer served (see
+ * `pruneExtraFeesOnMenuSave`) and keeps `<day>MinFoodPrice` fee-inclusive.
+ * @param menuId - The menu.
+ * @param dataParams - The edited menu fields.
+ * @param queryParams - Sharetribe query params of the update call.
+ * @returns The Sharetribe update response.
+ */
 const updateMenu = async (
   menuId: string,
   dataParams: TUpdateMenuApiParams,
-  queryParams: TObject = {},
+  queryParams: Record<string, unknown> = {},
 ) => {
   const {
     menuType,
@@ -63,6 +76,7 @@ const updateMenu = async (
     satMinFoodPrice: satMinFoodPriceFromMenu = 0,
     sunMinFoodPrice: sunMinFoodPriceFromMenu = 0,
     draftFoodByDate: currentDraftFoodByDate,
+    foodExtraFees: currentExtraFees,
   } = IntegrationListing(menu).getPublicData();
 
   const isDaysOfWeekChanged = !isEqual(daysOfWeekFromMenu, daysOfWeek);
@@ -144,6 +158,11 @@ const updateMenu = async (
       : {
           ...(foodsByDate ? { foodsByDate } : {}),
         };
+  const extraFeesToKeep = pruneExtraFeesOnMenuSave(
+    sanitizeExtraFeeMap(currentExtraFees),
+    foodsByDateFromMenu,
+    foodsByDateMaybe.foodsByDate || foodsByDateFromMenu,
+  );
 
   const {
     monNutritions: monNutritionsMaybe = [],
@@ -188,7 +207,17 @@ const updateMenu = async (
               ),
             }
           : {}),
-        ...(foodsByDate ? { ...createMinPriceByDayOfWeek(foodsByDate) } : {}),
+        ...(foodsByDate
+          ? { ...createMinPriceByDayOfWeek(foodsByDate, extraFeesToKeep) }
+          : {}),
+        // Written only when pruned, so a stale read here cannot overwrite a
+        // fee the admin saved meanwhile.
+        ...(!isEqual(
+          extraFeesToKeep,
+          sanitizeExtraFeeMap(currentExtraFees),
+        ) && {
+          foodExtraFees: extraFeesToKeep,
+        }),
       },
       metadata: {
         ...(menuType ? { menuType } : {}),

@@ -20,6 +20,7 @@ import {
 import type { TFoodInRestaurant } from '@src/types/bookerSelectRestaurant';
 import { convertWeekDay, renderDateRange } from '@src/utils/dates';
 import { Listing } from '@utils/data';
+import type { TFoodList } from '@utils/orderTypes';
 import type { TListing, TObject } from '@utils/types';
 
 import { BookerDraftOrderPageActions } from '../../BookerDraftOrderPage.slice';
@@ -136,20 +137,11 @@ export const useGetCalendarExtraResources = ({
                 ?.foodsByRestaurantAndTimestamp;
 
               const foodList = combinedFoods?.reduce(
-                (
-                  foodResult: {
-                    [foodId: string]: {
-                      foodName: string;
-                      foodPrice: number;
-                      foodUnit: string;
-                      numberOfMainDishes: number;
-                    };
-                  },
-                  food: TFoodInRestaurant,
-                ) => {
+                (foodResult: TFoodList, food: TFoodInRestaurant) => {
                   foodResult[food.foodId] = {
                     foodName: food.foodName,
                     foodPrice: food.price,
+                    foodPartnerPrice: food.partnerPrice,
                     foodUnit: food.foodUnit,
                     numberOfMainDishes: food?.numberOfMainDishes || 2,
                   };

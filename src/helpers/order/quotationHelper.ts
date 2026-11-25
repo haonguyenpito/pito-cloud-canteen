@@ -1,34 +1,68 @@
-import type { TObject } from '@src/utils/types';
+import type { TPricedFoodData } from './partnerPriceHelper';
+import { toClientFoodData, toPartnerFoodData } from './partnerPriceHelper';
 
-export const calculateClientQuotation = (foodOrderGroupedByDate: any[]) => {
-  return {
-    quotation: foodOrderGroupedByDate.reduce((result: any, item: any) => {
-      return {
-        ...result,
-        [item.date]: item.foodDataList,
-      };
-    }, {}),
-  };
+export type TQuotationFoodRow = TPricedFoodData & {
+  foodId: string;
+  foodName: string;
+  frequency: number;
+  foodUnit?: string;
+  numberOfMainDishes?: number;
+  notes?: string[];
 };
 
-export const calculatePartnerQuotation = (
-  groupByRestaurantQuotationData: TObject,
-) => {
-  return Object.keys(groupByRestaurantQuotationData).reduce((result, item) => {
-    return {
+type TStoredQuotationFoodRow = Omit<TQuotationFoodRow, 'foodPartnerPrice'>;
+
+export type TFoodOrderOfDate = {
+  date: string;
+  index?: number;
+  restaurantId: string;
+  restaurantName: string;
+  totalDishes?: number;
+  totalPrice?: number;
+  foodDataList: TQuotationFoodRow[];
+};
+
+/**
+ * Builds the client side of a quotation: food rows per delivery date.
+ * @param foodOrderGroupedByDate - Food rows grouped by delivery date.
+ * @returns `{ quotation: { [date]: foodRows } }` with client prices only.
+ */
+export const calculateClientQuotation = (
+  foodOrderGroupedByDate: TFoodOrderOfDate[],
+) => ({
+  quotation: foodOrderGroupedByDate.reduce<
+    Record<string, TStoredQuotationFoodRow[]>
+  >(
+    (result, item) => ({
       ...result,
-      [item]: {
-        name: groupByRestaurantQuotationData[item][0].restaurantName,
-        quotation: groupByRestaurantQuotationData[item].reduce(
-          (quotationArrayResult: any, quotationItem: any) => {
-            return {
-              ...quotationArrayResult,
-              [quotationItem.date]: quotationItem.foodDataList,
-            };
-          },
+      [item.date]: item.foodDataList.map(toClientFoodData),
+    }),
+    {},
+  ),
+});
+
+/**
+ * Builds the partner side of a quotation: food rows per restaurant and date.
+ * @param groupByRestaurantQuotationData - Food rows grouped by restaurant id.
+ * @returns `{ [restaurantId]: { name, quotation: { [date]: foodRows } } }`
+ *   where every `foodPrice` is the partner price.
+ */
+export const calculatePartnerQuotation = (
+  groupByRestaurantQuotationData: Record<string, TFoodOrderOfDate[]>,
+) =>
+  Object.entries(groupByRestaurantQuotationData).reduce(
+    (result, [restaurantId, foodOrders]) => ({
+      ...result,
+      [restaurantId]: {
+        name: foodOrders[0].restaurantName,
+        quotation: foodOrders.reduce<Record<string, TStoredQuotationFoodRow[]>>(
+          (quotation, foodOrder) => ({
+            ...quotation,
+            [foodOrder.date]: foodOrder.foodDataList.map(toPartnerFoodData),
+          }),
           {},
         ),
       },
-    };
-  }, {});
-};
+    }),
+    {},
+  );

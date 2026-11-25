@@ -10,6 +10,7 @@ import RenderWhen from '@components/RenderWhen/RenderWhen';
 import ResponsiveImage from '@components/ResponsiveImage/ResponsiveImage';
 import SlideModal from '@components/SlideModal/SlideModal';
 import { addCommas } from '@helpers/format';
+import { getBillablePrice } from '@helpers/menuExtraFee';
 import { useFoodSideDishOptionsByLocale } from '@src/utils/options';
 import { getDecorator } from '@src/utils/string';
 import { Listing } from '@utils/data';
@@ -25,8 +26,14 @@ type TFoodDetailModalProps = {
   onSelect?: (foodId: string) => void;
   isLoading?: boolean;
   isMobileLayout?: boolean;
+  extraFee?: number;
 };
 
+/**
+ * Shows one dish's details to the booker.
+ * @param props.extraFee - The menu's extra fee for the dish, added to the
+ *   displayed price.
+ */
 const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
   isOpen = false,
   food,
@@ -34,6 +41,7 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
   onSelect,
   isLoading,
   isMobileLayout,
+  extraFee = 0,
 }) => {
   const intl = useIntl();
 
@@ -109,7 +117,7 @@ const FoodDetailModal: React.FC<TFoodDetailModalProps> = ({
           <div className={css.topContent}>
             <div className={css.foodTitle}>{title}</div>
             <div className={css.price}>{`${addCommas(
-              price?.amount,
+              `${getBillablePrice(price?.amount, extraFee)}`,
             )} ₫ / ${intl.formatMessage({ id: 'phan' })}`}</div>
           </div>
           <p className={css.description}>

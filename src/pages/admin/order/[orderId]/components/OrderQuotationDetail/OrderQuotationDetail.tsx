@@ -142,7 +142,7 @@ const OrderQuotationDetail: React.FC<OrderQuotationDetailProps> = (props) => {
               childrenProps: {
                 foodOrderGroupedByDate:
                   prepareSingleDateFoodTableDataFromQuotation(
-                    clientQuotation.quotation,
+                    quotationDetail[partnerId].quotation,
                     subOrderDate,
                   ),
                 outsideCollapsible: true,

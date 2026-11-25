@@ -3,15 +3,25 @@
 // pub_* are Sharetribe query parameter names.
 /* eslint-disable camelcase */
 import { mapLimit } from 'async';
-import { chunk, flatten, uniq } from 'lodash';
+import { chunk, flatten, mapValues, omit, uniq } from 'lodash';
 
 import type { TFoodFilter } from '@apis/foodApi';
 import { queryAllListings } from '@helpers/apiHelpers';
-import { adjustFoodListPrice } from '@helpers/orderHelper';
+import {
+  getMinBillablePrice,
+  sanitizeExtraFeeMap,
+} from '@helpers/menuExtraFee';
+import type {
+  TPlanOrderDetail,
+  TPlanSubOrder,
+} from '@helpers/order/partnerPriceHelper';
+import { repriceSubOrder } from '@helpers/order/repriceSubOrderHelper';
+import { getIsAllowAddSecondaryFood } from '@helpers/orderHelper';
 import { denormalisedResponseEntities } from '@services/data';
 import { withPlanLock } from '@services/distributedLock';
 import { fetchListing } from '@services/integrationHelper';
 import { getIntegrationSdk } from '@services/integrationSdk';
+import type { PlanListing } from '@src/types';
 import { getUniqueString, IntegrationListing, Listing } from '@src/utils/data';
 import {
   EBookerOrderDraftStates,
@@ -22,6 +32,39 @@ import {
 } from '@src/utils/enums';
 import type { TFoodList } from '@src/utils/orderTypes';
 import type { TIntegrationListing, TListing } from '@src/utils/types';
+
+/**
+ * Computes a menu day's `<day>MinFoodPrice` from the day's food listings.
+ * @param foods - Food listings served that day.
+ * @param foodExtraFees - The menu's raw `foodExtraFees`.
+ * @returns The cheapest client price (base + the menu's fee), 0 when empty.
+ */
+const getMinBillablePriceOfFoods = (
+  foods: TIntegrationListing[],
+  foodExtraFees?: Record<string, unknown> | null,
+): number =>
+  getMinBillablePrice(
+    foods.map((food) => ({
+      foodId: food.id.uuid,
+      price: food.attributes?.price?.amount || 0,
+    })),
+    sanitizeExtraFeeMap(foodExtraFees),
+  );
+
+/**
+ * Drops the fees of deleted dishes so they cannot resurface if the dish is
+ * added back to the menu.
+ * @param foodExtraFees - The menu's raw `foodExtraFees`.
+ * @param deletedFoodIds - The deleted dishes.
+ * @returns The remaining fees, or undefined when nothing has to change.
+ */
+const omitDeletedFoodExtraFees = (
+  foodExtraFees: Record<string, unknown> | null | undefined,
+  deletedFoodIds: string[],
+): Record<string, number> | undefined =>
+  foodExtraFees && deletedFoodIds.some((foodId) => foodId in foodExtraFees)
+    ? omit(sanitizeExtraFeeMap(foodExtraFees), deletedFoodIds)
+    : undefined;
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const startOfVietnamDay = (date: string) =>
@@ -138,6 +181,12 @@ export const queryMenuByIdList = async (menuIdList: string[]) => {
   return menus;
 };
 
+/**
+ * Removes deleted dishes from every menu serving them: per-day food lists,
+ * `foodsByDate`, the dishes' extra fees and the fee-inclusive
+ * `<day>MinFoodPrice`.
+ * @param foodIds - The deleted dishes.
+ */
 export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
   try {
     const integrationSdk = getIntegrationSdk();
@@ -185,14 +234,19 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
                 `${day}MinFoodPrice`
               ] || 0;
 
-            const foodsByDate =
-              IntegrationListing(details).getPublicData().foodsByDate || {};
+            const { foodsByDate = {}, foodExtraFees } =
+              IntegrationListing(details).getPublicData();
 
             const foodsByDay = foodsByDate?.[day];
 
             deletedFoodIds.forEach((foodId: string) => {
               delete foodsByDay?.[foodId];
             });
+
+            const prunedExtraFees = omitDeletedFoodExtraFees(
+              foodExtraFees,
+              deletedFoodIds,
+            );
 
             const newFoodIdList = foodIdList.filter(
               (foodId: string) => !deletedFoodIds.includes(foodId),
@@ -212,18 +266,9 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
 
               const foods = denormalisedResponseEntities(listFoodResponse);
 
-              newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
+              newMinFoodPrice = getMinBillablePriceOfFoods(
+                foods,
+                prunedExtraFees ?? foodExtraFees,
               );
               newFoodTypeList = getUniqueString(
                 foods.reduce((prev: string[], f: TIntegrationListing) => {
@@ -255,6 +300,9 @@ export const updateMenuAfterFoodDeletedByListId = async (foodIds: string[]) => {
                     ? {
                         [`${day}MinFoodPrice`]: newMinFoodPrice,
                       }
+                    : {}),
+                  ...(prunedExtraFees
+                    ? { foodExtraFees: prunedExtraFees }
                     : {}),
                   foodsByDate: {
                     ...(updateMap[menuId as keyof typeof updateMap]?.publicData
@@ -393,6 +441,11 @@ const removeFoodFromDraftOrder = async (
   });
 };
 
+/**
+ * Removes one deleted dish from every menu serving it: per-day food lists,
+ * `foodsByDate`, its extra fee and the fee-inclusive `<day>MinFoodPrice`.
+ * @param deletedFoodId - The deleted dish.
+ */
 export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
   try {
     const integrationSdk = getIntegrationSdk();
@@ -421,11 +474,15 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
             const currentMinFoodPrice =
               menuListing.getPublicData()[`${day}MinFoodPrice`] || 0;
 
-            const { foodsByDate } = menuListing.getPublicData();
+            const { foodsByDate, foodExtraFees } = menuListing.getPublicData();
 
             const foodsByDay = foodsByDate?.[day];
 
             delete foodsByDay?.[deletedFoodId];
+
+            const prunedExtraFees = omitDeletedFoodExtraFees(foodExtraFees, [
+              deletedFoodId,
+            ]);
 
             const newFoodIdList = foodIdList.filter(
               (foodId: string) => foodId !== deletedFoodId,
@@ -453,18 +510,9 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
                 }, []),
               );
 
-              newMinFoodPrice = foods.reduce(
-                (min: number, food: TIntegrationListing, index: number) => {
-                  const { price = {} } =
-                    IntegrationListing(food).getAttributes();
-                  const { amount = 0 } = price;
-                  if (index === 0) {
-                    return amount;
-                  }
-
-                  return amount < min ? amount : min;
-                },
-                0,
+              newMinFoodPrice = getMinBillablePriceOfFoods(
+                foods,
+                prunedExtraFees ?? foodExtraFees,
               );
               newFoodNutritions = uniq(
                 foods.reduce((result: any, food: TIntegrationListing) => {
@@ -487,6 +535,9 @@ export const updateMenuAfterFoodDeleted = async (deletedFoodId: string) => {
                     ? {
                         [`${day}MinFoodPrice`]: newMinFoodPrice,
                       }
+                    : {}),
+                  ...(prunedExtraFees
+                    ? { foodExtraFees: prunedExtraFees }
                     : {}),
                   foodsByDate: {
                     ...(updateMap[menuId as keyof typeof updateMap]?.publicData
@@ -587,6 +638,37 @@ const findMenusContainingFoods = async (
   );
 };
 
+/**
+ * Copies the edited name and unit of dishes into a sub-order snapshot.
+ * @param subOrder - A plan sub-order.
+ * @param updatedFoodList - The edited dishes keyed by foodId.
+ * @returns The sub-order with the new names and units.
+ */
+const renameUpdatedFoods = (
+  subOrder: TPlanSubOrder,
+  updatedFoodList: TFoodList,
+): TPlanSubOrder => ({
+  ...subOrder,
+  restaurant: {
+    ...subOrder.restaurant,
+    foodList: mapValues(subOrder.restaurant?.foodList, (food, foodId) =>
+      updatedFoodList[foodId]
+        ? {
+            ...food,
+            foodName: updatedFoodList[foodId].foodName,
+            foodUnit: updatedFoodList[foodId].foodUnit,
+          }
+        : food,
+    ),
+  },
+});
+
+/**
+ * Propagates edited dishes (price, name, unit) to the menus serving them and to
+ * the draft orders using them. Draft orders keep each dish's menu fee: only the
+ * partner price and the client price built on it change.
+ * @param updatedFoodIds - The edited dishes.
+ */
 export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
   try {
     const integrationSdk = getIntegrationSdk();
@@ -612,6 +694,10 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
       }),
     );
     const isUpdatedFood = (foodId: string) => !!updatedFoodList[foodId];
+    const basePriceByFoodId = mapValues(
+      updatedFoodList,
+      (food) => food.foodPrice,
+    );
     const menus = await findMenusContainingFoods(updatedFoods, isUpdatedFood);
     if (!menus.length) return;
     const menuIdList: string[] = menus.map(
@@ -649,17 +735,9 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
           .map((foodId) => dayFoodById.get(foodId))
           .filter(Boolean) as TIntegrationListing[];
 
-        const newMinFoodPrice = foods.reduce(
-          (min: number, food: TIntegrationListing, index: number) => {
-            const { price = {} } = IntegrationListing(food).getAttributes();
-            const { amount = 0 } = price;
-            if (index === 0) {
-              return amount;
-            }
-
-            return amount < min ? amount : min;
-          },
-          0,
+        const newMinFoodPrice = getMinBillablePriceOfFoods(
+          foods,
+          IntegrationListing(menu).getPublicData().foodExtraFees,
         );
 
         const newFoodTypeList = getUniqueString(
@@ -763,58 +841,24 @@ export const updateMenuAfterFoodsUpdated = async (updatedFoodIds: string[]) => {
             EBookerOrderDraftStates.bookerDraft,
           ].includes(orderState)
         ) {
-          // Same price rule the booker/admin pickers apply (half price for dual-selection companies).
-          const orderFoodList = adjustFoodListPrice(
-            updatedFoodList,
+          const isSecondaryFoodAllowed = getIsAllowAddSecondaryFood(
             order as unknown as TListing,
           );
           const planId = orderPlans[0];
           await withPlanLock(planId, async () => {
-            const { orderDetail = {} } = Listing(
-              await fetchListing(planId),
-            ).getMetadata();
-            const newOrderDetail = Object.keys(orderDetail).reduce(
-              (result, subOrderDate: string) => {
-                const { restaurant = {} } = orderDetail[subOrderDate] || {};
-                const { foodList } = restaurant;
-                if (!foodList) return result;
-
-                const newFoodList = Object.keys(foodList).reduce(
-                  (foodListResult: any, foodId: string) => {
-                    const food = foodList[foodId] || {};
-                    const updatedFood = orderFoodList[foodId];
-                    if (updatedFood) {
-                      return {
-                        ...foodListResult,
-                        [foodId]: {
-                          ...food,
-                          foodName: updatedFood.foodName,
-                          foodPrice: updatedFood.foodPrice,
-                          foodUnit: updatedFood.foodUnit,
-                        },
-                      };
-                    }
-
-                    return {
-                      ...foodListResult,
-                      [foodId]: food,
-                    };
-                  },
-                  {},
-                );
-
-                return {
-                  ...result,
-                  [subOrderDate]: {
-                    ...orderDetail[subOrderDate],
-                    restaurant: {
-                      ...restaurant,
-                      foodList: newFoodList,
-                    },
-                  },
-                };
-              },
-              orderDetail,
+            const plan: PlanListing = await fetchListing(planId);
+            const orderDetail: TPlanOrderDetail =
+              plan.attributes?.metadata?.orderDetail || {};
+            const newOrderDetail = mapValues(orderDetail, (subOrder) =>
+              subOrder?.restaurant?.foodList
+                ? renameUpdatedFoods(
+                    repriceSubOrder(subOrder, {
+                      basePriceByFoodId,
+                      isSecondaryFoodAllowed,
+                    }).subOrder,
+                    updatedFoodList,
+                  )
+                : subOrder,
             );
 
             await integrationSdk.listings.update({

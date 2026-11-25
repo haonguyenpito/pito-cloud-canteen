@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { FormattedMessage } from 'react-intl';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FormattedMessage, useIntl } from 'react-intl';
 import { shallowEqual } from 'react-redux';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
@@ -8,32 +8,136 @@ import Badge, { EBadgeType } from '@components/Badge/Badge';
 import Button from '@components/Button/Button';
 import IconArrow from '@components/Icons/IconArrow/IconArrow';
 import LoadingContainer from '@components/LoadingContainer/LoadingContainer';
+import AlertModal from '@components/Modal/AlertModal';
+import Stepper from '@components/Stepper/Stepper';
+import { sanitizeExtraFeeMap } from '@helpers/menuExtraFee';
 import { useAppDispatch, useAppSelector } from '@hooks/reduxHooks';
 import { adminRoutes } from '@src/paths';
 import { EListingStates } from '@src/utils/enums';
 
 import MenuApprovalDetail from '../components/MenuApprovalDetail/MenuApprovalDetail';
+import MenuExtraFeeStep from '../components/MenuExtraFeeStep/MenuExtraFeeStep';
+import {
+  buildExtraFeeDayGroups,
+  toExtraFeeMap,
+} from '../components/MenuExtraFeeStep/utils';
 import RejectMenuModal from '../components/RejectMenuModal/RejectMenuModal';
 import {
   ManagePartnersMenusActions,
   ManagePartnersMenusThunks,
 } from '../ManagePartnersMenus.slice';
 
+enum EMenuReviewStep {
+  extraFee = 1,
+  detail = 2,
+}
+
+const EDITABLE_FEE_MENU_STATES: string[] = [
+  EListingStates.draft,
+  EListingStates.pendingApproval,
+];
+
+/**
+ * Two-step review of a partner menu: the admin sets PITO's markup per dish
+ * ("Phụ phí"), then reviews the menu and approves or rejects it. Approval
+ * freezes the markup.
+ */
 const ManagePartnerMenuPage = () => {
   const router = useRouter();
+  const intl = useIntl();
   const dispatch = useAppDispatch();
   const { menuId } = router.query;
 
   const [isRejectModalOpen, setIsRejectModalOpen] = React.useState(false);
+  const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(EMenuReviewStep.extraFee);
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
 
   const {
     currentMenu,
     fetchMenuDetailInProgress,
     approveMenuInProgress,
     rejectMenuInProgress,
+    saveExtraFeesInProgress,
   } = useAppSelector((state) => state.adminManagePartnersMenus, shallowEqual);
 
   const isLoading = fetchMenuDetailInProgress;
+  const foodsByDate = currentMenu?.attributes?.publicData?.foodsByDate;
+  const rawExtraFees = currentMenu?.attributes?.publicData?.foodExtraFees;
+  const savedExtraFees = useMemo(
+    () => sanitizeExtraFeeMap(rawExtraFees),
+    [rawExtraFees],
+  );
+  const isFeeEditable = EDITABLE_FEE_MENU_STATES.includes(
+    currentMenu?.attributes?.metadata?.listingState || '',
+  );
+  const feeDayGroups = useMemo(
+    () => buildExtraFeeDayGroups(foodsByDate),
+    [foodsByDate],
+  );
+
+  // Keyed on content: a refetch returns a new object with the same fees and
+  // must not wipe what the admin is typing.
+  const savedExtraFeesKey = JSON.stringify(savedExtraFees);
+  useEffect(() => {
+    setFeeDrafts(
+      Object.fromEntries(
+        Object.entries(savedExtraFees).map(([foodId, fee]) => [
+          foodId,
+          `${fee}`,
+        ]),
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedExtraFeesKey]);
+
+  const reviewSteps = [
+    {
+      label: intl.formatMessage({ id: 'ManagePartnerMenuApproval.stepFee' }),
+      onClick: () => setCurrentStep(EMenuReviewStep.extraFee),
+    },
+    {
+      label: intl.formatMessage({ id: 'ManagePartnerMenuApproval.stepDetail' }),
+    },
+  ];
+
+  /**
+   * Updates one dish's markup input.
+   * @param foodId - The dish.
+   * @param value - The raw input.
+   */
+  const handleFeeDraftChange = (foodId: string, value: string) => {
+    setFeeDrafts((drafts) => ({ ...drafts, [foodId]: value }));
+  };
+
+  /** Saves the markup (when it can still change) and opens the review step. */
+  const handleSaveFeesAndContinue = async () => {
+    if (!isFeeEditable) {
+      setCurrentStep(EMenuReviewStep.detail);
+
+      return;
+    }
+
+    const { extraFees, invalidFoodIds } = toExtraFeeMap(feeDrafts);
+
+    if (invalidFoodIds.length > 0) {
+      toast.error(intl.formatMessage({ id: 'MenuExtraFeeStep.invalidFee' }));
+
+      return;
+    }
+
+    try {
+      await dispatch(
+        ManagePartnersMenusThunks.saveMenuExtraFees({
+          menuId: menuId as string,
+          extraFees,
+        }),
+      ).unwrap();
+      setCurrentStep(EMenuReviewStep.detail);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  };
 
   const anchorDate = useMemo(() => {
     const publicData = currentMenu?.attributes?.publicData;
@@ -60,9 +164,11 @@ const ManagePartnerMenuPage = () => {
     router.push(adminRoutes.ManagePartnersMenus.path);
   };
 
+  /** Approves the menu after the admin confirmed the markup is final. */
   const handleApprove = async () => {
     if (!menuId) return;
 
+    setIsApproveConfirmOpen(false);
     try {
       const result = await dispatch(
         ManagePartnersMenusThunks.approveMenu({ menuId: menuId as string }),
@@ -180,37 +286,100 @@ const ManagePartnerMenuPage = () => {
         </div>
       </div>
 
-      {/* Menu Detail Content */}
-      <MenuApprovalDetail menu={currentMenu} anchorDate={anchorDate} />
+      <Stepper
+        // isolate: the connector line sits at z-index -1 and would otherwise
+        // render behind the admin content's white background.
+        className="mx-auto max-w-[480px] isolate"
+        steps={reviewSteps}
+        currentStep={currentStep}
+      />
+
+      {currentStep === EMenuReviewStep.extraFee ? (
+        <MenuExtraFeeStep
+          dayGroups={feeDayGroups}
+          drafts={feeDrafts}
+          onDraftChange={handleFeeDraftChange}
+          disabled={!isFeeEditable || saveExtraFeesInProgress}
+        />
+      ) : (
+        <MenuApprovalDetail
+          menu={currentMenu}
+          anchorDate={anchorDate}
+          extraFeeByFoodId={savedExtraFees}
+        />
+      )}
+
       {/* Action Buttons - Sticky Footer */}
       <div className="sticky bottom-4 mt-6">
         <div className="flex justify-between gap-4 py-4 px-6 bg-white rounded-xl">
-          <Button
-            variant="secondary"
-            onClick={handleGoBack}
-            disabled={approveMenuInProgress || rejectMenuInProgress}>
-            <FormattedMessage id="ManagePartnerMenuApproval.cancel" />
-          </Button>
-          {currentMenu.attributes?.metadata?.listingState ===
-            EListingStates.pendingApproval && (
-            <div className="flex gap-4">
+          {currentStep === EMenuReviewStep.extraFee ? (
+            <>
               <Button
                 variant="secondary"
-                className="!border-red-300 !text-red-600 hover:!bg-red-50"
-                onClick={handleOpenRejectModal}
-                disabled={approveMenuInProgress || rejectMenuInProgress}>
-                <FormattedMessage id="ManagePartnerMenuApproval.reject" />
+                onClick={handleGoBack}
+                disabled={saveExtraFeesInProgress}>
+                <FormattedMessage id="ManagePartnerMenuApproval.cancel" />
               </Button>
               <Button
-                onClick={handleApprove}
-                inProgress={approveMenuInProgress}
-                disabled={rejectMenuInProgress}>
-                <FormattedMessage id="ManagePartnerMenuApproval.approve" />
+                onClick={handleSaveFeesAndContinue}
+                inProgress={saveExtraFeesInProgress}>
+                <FormattedMessage
+                  id={
+                    isFeeEditable
+                      ? 'ManagePartnerMenuApproval.saveFeeAndContinue'
+                      : 'ManagePartnerMenuApproval.continue'
+                  }
+                />
               </Button>
-            </div>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setCurrentStep(EMenuReviewStep.extraFee)}
+                disabled={approveMenuInProgress || rejectMenuInProgress}>
+                <FormattedMessage id="ManagePartnerMenuApproval.backToFee" />
+              </Button>
+              {currentMenu.attributes?.metadata?.listingState ===
+                EListingStates.pendingApproval && (
+                <div className="flex gap-4">
+                  <Button
+                    variant="secondary"
+                    className="!border-red-300 !text-red-600 hover:!bg-red-50"
+                    onClick={handleOpenRejectModal}
+                    disabled={approveMenuInProgress || rejectMenuInProgress}>
+                    <FormattedMessage id="ManagePartnerMenuApproval.reject" />
+                  </Button>
+                  <Button
+                    onClick={() => setIsApproveConfirmOpen(true)}
+                    inProgress={approveMenuInProgress}
+                    disabled={rejectMenuInProgress}>
+                    <FormattedMessage id="ManagePartnerMenuApproval.approve" />
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      <AlertModal
+        isOpen={isApproveConfirmOpen}
+        handleClose={() => setIsApproveConfirmOpen(false)}
+        onCancel={() => setIsApproveConfirmOpen(false)}
+        onConfirm={handleApprove}
+        confirmInProgress={approveMenuInProgress}
+        title={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approveConfirmTitle',
+        })}
+        confirmLabel={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.approve',
+        })}
+        cancelLabel={intl.formatMessage({
+          id: 'ManagePartnerMenuApproval.cancel',
+        })}>
+        <FormattedMessage id="ManagePartnerMenuApproval.approveConfirmContent" />
+      </AlertModal>
 
       {/* Reject Modal */}
       <RejectMenuModal
