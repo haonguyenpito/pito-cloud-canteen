@@ -1,7 +1,16 @@
+import chunk from 'lodash/chunk';
+
+import {
+  fetchListingsByChunkedIds,
+  queryAllListings,
+} from '@helpers/apiHelpers';
 import { denormalisedResponseEntities } from '@services/data';
 import { getIntegrationSdk } from '@services/integrationSdk';
 import { getUniqueString, IntegrationListing } from '@src/utils/data';
 import type { TIntegrationListing, TObject } from '@src/utils/types';
+
+// Keeps the `has_any:` filter of one query to a safe URL length.
+const FOOD_IDS_PER_QUERY = 50;
 
 const getWeekDayFromListId = (menu: TIntegrationListing, foodId: string) => {
   const {
@@ -29,6 +38,44 @@ const getWeekDayFromListId = (menu: TIntegrationListing, foodId: string) => {
   return keys.map((k) => String(k).substring(0, 3));
 };
 
+/**
+ * Finds which dishes any menu still serves on a weekday.
+ * @param day - Weekday prefix, e.g. `mon`.
+ * @param foodIds - The dishes to check.
+ * @returns The subset of `foodIds` listed in some menu's `<day>FoodIdList`.
+ */
+const findFoodIdsServedOnDay = async (
+  day: string,
+  foodIds: string[],
+): Promise<Set<string>> => {
+  const menus: TIntegrationListing[] = (
+    await Promise.all(
+      chunk(foodIds, FOOD_IDS_PER_QUERY).map((ids) =>
+        queryAllListings({
+          query: { [`meta_${day}FoodIdList`]: `has_any:${ids.join(',')}` },
+        }),
+      ),
+    )
+  ).flat();
+  const servedFoodIds = new Set<string>(
+    menus.flatMap(
+      (menu) =>
+        IntegrationListing(menu).getMetadata()[`${day}FoodIdList`] || [],
+    ),
+  );
+
+  return new Set(foodIds.filter((foodId) => servedFoodIds.has(foodId)));
+};
+
+/**
+ * Keeps each dish's `menuIdList` / `menuWeekDay` in sync after a menu save:
+ * links the menu's dishes to it, then unlinks the dishes it no longer serves
+ * and drops the weekdays no menu serves a dish on any more.
+ * Batches the Sharetribe reads (one query per weekday instead of one per dish
+ * and weekday) and writes only the dishes that change, so a large menu stays
+ * within the serverless timeout.
+ * @param menu - The saved menu, with its `<day>FoodIdList` metadata.
+ */
 const updateMenuIdListAndMenuWeekDayListForFood = async (
   menu: TIntegrationListing,
 ) => {
@@ -53,35 +100,33 @@ const updateMenuIdListAndMenuWeekDayListForFood = async (
   ]);
   const integrationSdk = getIntegrationSdk();
 
-  let updatedFoods: TObject[] = [];
-
   if (foodIds.length > 0) {
-    updatedFoods = await Promise.all(
-      foodIds.map(async (id) => {
-        const foodResponse = await integrationSdk.listings.show(
-          {
-            id,
-          },
-          { expand: true },
-        );
-        const [listing] = denormalisedResponseEntities(foodResponse);
+    const foods: TIntegrationListing[] = await fetchListingsByChunkedIds(
+      foodIds,
+      integrationSdk,
+    );
+
+    await Promise.all(
+      foods.map(async (food) => {
+        const id = IntegrationListing(food).getId();
         const { menuIdList = [], menuWeekDay = [] } =
-          IntegrationListing(listing).getPublicData();
-        const newMenuIdList = getUniqueString([...menuIdList, menuId]);
-        const newMenuWeekDay = getUniqueString([
-          ...menuWeekDay,
-          ...getWeekDayFromListId(menu, id),
-        ]);
+          IntegrationListing(food).getPublicData();
+        const weekDaysInMenu = getWeekDayFromListId(menu, id);
+        const isUpToDate =
+          menuIdList.includes(menuId) &&
+          weekDaysInMenu.every((day) => menuWeekDay.includes(day));
+
+        if (isUpToDate) {
+          return;
+        }
 
         await integrationSdk.listings.update({
           id,
           publicData: {
-            menuIdList: newMenuIdList,
-            menuWeekDay: newMenuWeekDay,
+            menuIdList: getUniqueString([...menuIdList, menuId]),
+            menuWeekDay: getUniqueString([...menuWeekDay, ...weekDaysInMenu]),
           },
         });
-
-        return { id, menuIdList: newMenuIdList, menuWeekDay: newMenuWeekDay };
       }),
     );
   }
@@ -89,46 +134,49 @@ const updateMenuIdListAndMenuWeekDayListForFood = async (
   const response = await integrationSdk.listings.query({
     pub_menuIdList: menuId,
   });
-
-  const addedFoods = denormalisedResponseEntities(
+  const linkedFoods = denormalisedResponseEntities(
     response,
   ) as TIntegrationListing[];
+  const getMenuWeekDay = (food: TIntegrationListing): string[] =>
+    IntegrationListing(food).getPublicData().menuWeekDay || [];
 
-  return Promise.all(
-    addedFoods.map(async (addedFood) => {
-      const addedFoodId = IntegrationListing(addedFood).getId();
-      const { menuIdList = [], menuWeekDay = [] } =
-        IntegrationListing(addedFood).getPublicData();
-      const updatedMenuIdList =
-        (updatedFoods.find((f) => f.id === addedFoodId)
-          ?.menuIdList as unknown as string[]) || [];
-      const alreadyRemoved = !updatedMenuIdList.includes(menuId);
+  const weekDaysToCheck = getUniqueString(linkedFoods.flatMap(getMenuWeekDay));
+  const servedFoodIdsByDay = Object.fromEntries(
+    await Promise.all(
+      weekDaysToCheck.map(async (day) => [
+        day,
+        await findFoodIdsServedOnDay(
+          day,
+          linkedFoods
+            .filter((food) => getMenuWeekDay(food).includes(day))
+            .map((food) => IntegrationListing(food).getId()),
+        ),
+      ]),
+    ),
+  ) as Record<string, Set<string>>;
 
-      let newMenuWeekDay = [...menuWeekDay];
-      let needToUpdateMenuWeekDay = false;
-
-      await Promise.all(
-        menuWeekDay.map(async (day: string) => {
-          const menuResponse = await integrationSdk.listings.query({
-            page: 1,
-            perPage: 1,
-            [`meta_${day}FoodIdList`]: addedFoodId,
-          });
-          const foods = denormalisedResponseEntities(menuResponse);
-
-          if (foods.length === 0) {
-            newMenuWeekDay = newMenuWeekDay.filter((mDay) => mDay !== day);
-            needToUpdateMenuWeekDay = true;
-          }
-        }),
+  await Promise.all(
+    linkedFoods.map(async (food) => {
+      const id = IntegrationListing(food).getId();
+      const { menuIdList = [] } = IntegrationListing(food).getPublicData();
+      const menuWeekDay = getMenuWeekDay(food);
+      const isRemovedFromMenu = !foodIds.includes(id);
+      const newMenuWeekDay = menuWeekDay.filter((day) =>
+        servedFoodIdsByDay[day]?.has(id),
       );
+      const isMenuWeekDayChanged = newMenuWeekDay.length !== menuWeekDay.length;
 
-      const newMenuIdList = menuIdList.filter((id: string) => id !== menuId);
+      if (!isRemovedFromMenu && !isMenuWeekDayChanged) {
+        return;
+      }
+
       await integrationSdk.listings.update({
-        id: addedFoodId,
+        id,
         publicData: {
-          ...(alreadyRemoved ? { menuIdList: newMenuIdList } : {}),
-          ...(needToUpdateMenuWeekDay ? { menuWeekDay: newMenuWeekDay } : {}),
+          ...(isRemovedFromMenu
+            ? { menuIdList: menuIdList.filter((mId: string) => mId !== menuId) }
+            : {}),
+          ...(isMenuWeekDayChanged ? { menuWeekDay: newMenuWeekDay } : {}),
         },
       });
     }),
