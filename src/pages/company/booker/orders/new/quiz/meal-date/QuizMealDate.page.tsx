@@ -71,7 +71,7 @@ const QuizMealDate: React.FC<TQuizMealDateProps> = ({
       startDate: startDate ? new Date(startDate).getTime() : undefined,
       endDate: endDate ? new Date(endDate).getTime() : undefined,
       dayInWeek: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
-      orderType: EOrderType.normal,
+      orderType: EOrderType.group,
       deadlineDate: deadlineDate ? new Date(deadlineDate).getTime() : undefined,
       deliveryHour:
         INITIAL_DELIVERY_TIME_BASE_ON_DAY_SESSION[daySession as TDaySession] ||
